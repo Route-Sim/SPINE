@@ -8,6 +8,7 @@ Backend system for managing agentic transport logistics using FastAPI and agent-
 
 - Python 3.10 or higher
 - Poetry (recommended) or pip
+- Node.js (for semantic-release, optional for local dev)
 
 ### Installation
 
@@ -19,6 +20,12 @@ poetry install
 2. Install pre-commit hooks:
 ```bash
 poetry run pre-commit install
+poetry run pre-commit install --hook-type commit-msg
+```
+
+3. Make validation script executable:
+```bash
+chmod +x scripts/validate-commit.sh
 ```
 
 ### Development
@@ -66,10 +73,67 @@ spine/
 - **Structlog**: Structured logging
 - **Poetry**: Dependency management
 
+## Commit Conventions
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
+
+### Commit Message Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: New feature (→ minor version bump)
+- `fix`: Bug fix (→ patch version bump)
+- `docs`: Documentation changes
+- `style`: Code style/formatting
+- `refactor`: Code refactoring
+- `perf`: Performance improvement
+- `test`: Testing changes
+- `build`: Build system changes
+- `ci`: CI/CD changes
+- `chore`: Other changes
+
+**Examples:**
+```bash
+git commit -m "feat: add vehicle telemetry tracking"
+git commit -m "fix: correct route calculation bug"
+git commit -m "docs: update API documentation"
+```
+
+### Branch Naming Convention
+
+Branches must follow: `<type>/<description>`
+
+```bash
+git checkout -b feat/add-user-authentication
+git checkout -b fix/vehicle-routing-bug
+git checkout -b docs/update-readme
+```
+
+### Versioning
+
+Versions are **automatically managed** by semantic-release:
+- Runs on every push to `main`
+- Analyzes commit messages to determine version bump
+- Updates `pyproject.toml` version
+- Creates GitHub release with changelog
+- Generates `CHANGELOG.md`
+
+**You don't need to manually bump versions!**
+
 ## Contributing
 
-1. Create a feature branch
-2. Make your changes
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for detailed guidelines.
+
+**Quick start:**
+1. Create a feature branch following naming convention: `feat/your-feature`
+2. Make changes with conventional commits: `feat: add your feature`
 3. Ensure tests pass: `poetry run pytest`
-4. Pre-commit hooks will run automatically on commit
-5. Submit a pull request
+4. Pre-commit hooks will validate commits automatically
+5. Submit a pull request to `main`

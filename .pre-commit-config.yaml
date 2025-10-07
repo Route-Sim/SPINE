@@ -28,3 +28,10 @@ repos:
           - pydantic>=2.0
           - types-orjson
         args: [--strict, --ignore-missing-imports]
+
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.11.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional@18"]
