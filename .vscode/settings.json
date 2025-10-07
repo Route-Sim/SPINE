@@ -1,0 +1,20 @@
+{
+  "python.defaultInterpreterPath": "/Users/mateuszpolis/Library/Caches/pypoetry/virtualenvs/spine-05SA0prS-py3.12/bin/python",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "ruff.enable": true,
+  "ruff.lint.enable": true,
+  "ruff.format.args": []
+}
