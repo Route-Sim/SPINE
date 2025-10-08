@@ -2,8 +2,11 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from agents.base import AgentBase
+from world.world import World
+
 from ..core.fsm import VehicleState
-from ..core.ids import AgentID, EdgeID, LegID
+from ..core.ids import EdgeID, LegID
 from ..core.messages import Msg
 
 
@@ -29,28 +32,7 @@ class Telemetry:
 
 
 @dataclass
-class AgentBase:
-    id: AgentID
-    kind: str
-    inbox: list[Msg] = field(default_factory=list)
-    outbox: list[Msg] = field(default_factory=list)
-    tags: dict[str, Any] = field(default_factory=dict)  # arbitrary metadata
-
-    def perceive(self, world: Any) -> None:
-        """Optional: pull local info (e.g., edge speed) into cached fields."""
-        pass
-
-    def decide(self, world: Any) -> None:
-        """Consume inbox, update own state, write outbox."""
-        raise NotImplementedError
-
-    def serialize_diff(self) -> dict[str, Any]:
-        """Return a small dict for UI delta."""
-        return {"id": self.id, "kind": self.kind}
-
-
-@dataclass
-class Vehicle(AgentBase):
+class Transport(AgentBase):
     state: VehicleState = VehicleState.IDLE
     pos: EdgePos | None = None
     vel_mps: float = 0.0
@@ -64,7 +46,7 @@ class Vehicle(AgentBase):
     policy: dict[str, Any] = field(default_factory=dict)  # thresholds, weights
 
     # --- movement on current edge ---
-    def advance(self, world: Any, dt_s: float) -> None:
+    def advance(self, world: World, dt_s: float) -> None:
         if not self.pos:
             return
         g = world.graph
@@ -79,7 +61,7 @@ class Vehicle(AgentBase):
             self.pos.s_m -= edge.length_m
             self._try_enter_next_edge(world)
 
-    def _try_enter_next_edge(self, world: Any) -> None:
+    def _try_enter_next_edge(self, world: World) -> None:
         """Request transition to next edge in plan; node capacity rules decide."""
         if not self.plan or not self.pos:
             return
@@ -101,7 +83,7 @@ class Vehicle(AgentBase):
             self.queueing = True  # will try again next tick
 
     # --- bidding helpers (truck overrides) ---
-    def estimate_marginal_cost(self, world: Any, path: list[EdgeID]) -> dict[str, float]:
+    def estimate_marginal_cost(self, world: World, path: list[EdgeID]) -> dict[str, float]:
         """Return {cost, eta, risk} for inserting a small leg; simplistic default."""
         # naive free-flow estimate; truck/train override with better models
         t_s = 0.0
@@ -115,7 +97,7 @@ class Vehicle(AgentBase):
         return {"cost": cost, "eta": world.now_s() + int(t_s), "risk": 0.1}
 
     # --- agent API ---
-    def decide(self, world: Any) -> None:
+    def decide(self, world: World) -> None:
         # consume messages and act on local FSM
         for m in self.inbox:
             if m.typ == "auction" and self._can_bid(world, m):
@@ -143,14 +125,14 @@ class Vehicle(AgentBase):
             self.state = VehicleState.ENROUTE
             self.advance(world, world.dt_s)
 
-    def _can_bid(self, world: Any, m: Msg) -> bool:
+    def _can_bid(self, world: World, m: Msg) -> bool:
         # hours-of-service, capacity, distance caps, etc.
         _ = m  # Keep parameter for future use
         return self.load <= self.capacity and (
             self.duty_end_s is None or world.now_s() < self.duty_end_s
         )
 
-    def serialize_diff(self) -> dict[str, Any]:
+    def serialize_diff(self) -> dict[str, str]:
         d = {"id": self.id, "kind": self.kind, "state": self.state.name}
         if self.pos:
             d.update({"edge": int(self.pos.edge), "s": self.pos.s_m})
