@@ -108,7 +108,7 @@ class TestSimulationRunnerSignals(unittest.TestCase):
         # Mock a thread that takes longer than timeout
         mock_thread = Mock()
         mock_thread.is_alive.return_value = True
-        mock_thread.join.side_effect = lambda _timeout: time.sleep(0.1)
+        mock_thread.join.side_effect = lambda *_args, **_kwargs: time.sleep(0.1)
         self.runner._controller_thread = mock_thread
 
         # Call shutdown
@@ -175,7 +175,7 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
 
     def test_runner_startup_and_shutdown(self) -> None:
         """Test complete startup and shutdown cycle."""
-        # Start runner in a separate thread
+        # Start runner in a separate thread with timeout
         runner_thread = threading.Thread(target=self.runner.start, daemon=True)
         runner_thread.start()
 
@@ -196,6 +196,9 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
 
         # Shutdown
         self.runner.shutdown()
+
+        # Wait for thread to finish with timeout
+        runner_thread.join(timeout=2.0)
 
         # Verify shutdown
         self.assertFalse(self.runner.controller.state.running)
@@ -220,6 +223,9 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
 
         # Clean shutdown
         self.runner.shutdown()
+
+        # Wait for thread to finish with timeout
+        runner_thread.join(timeout=2.0)
 
     def test_keyboard_interrupt_handling(self) -> None:
         """Test keyboard interrupt handling."""

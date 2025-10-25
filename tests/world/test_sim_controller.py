@@ -155,7 +155,7 @@ class TestSimulationController:
             type=ActionType.ADD_AGENT,
             agent_id="test_agent",
             agent_kind="transport",
-            agent_data={"x": 100, "y": 200},
+            agent_data={"capacity": 100.0, "load": 0.0},
         )
 
         self.controller._handle_action(action)
@@ -279,7 +279,7 @@ class TestSimulationController:
         self.action_queue.put(Action(type=ActionType.START, tick_rate=100.0))
 
         # Let it run for a short time
-        time.sleep(0.1)
+        time.sleep(0.2)
 
         # Verify simulation started
         assert self.controller.state.running

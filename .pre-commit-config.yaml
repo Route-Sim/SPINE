@@ -35,3 +35,13 @@ repos:
       - id: commitlint
         stages: [commit-msg]
         additional_dependencies: ["@commitlint/config-conventional@18"]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: poetry run pytest --tb=short --maxfail=1 --ignore=tests/world/test_websocket_server.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
