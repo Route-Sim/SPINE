@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from agents.base import AgentBase
 
-from core.ids import AgentID
+from core.types import AgentID
 
 
 class World:
@@ -40,6 +40,37 @@ class World:
         evts = self._events
         self._events = []
         return {"type": "tick", "t": self.now_s() * 1000, "events": evts, "agents": diffs}
+
+    def add_agent(self, agent_id: AgentID, agent: "AgentBase") -> None:
+        """Add an agent to the world."""
+        if agent_id in self.agents:
+            raise ValueError(f"Agent {agent_id} already exists")
+        self.agents[agent_id] = agent
+        self.emit_event({"type": "agent_added", "agent_id": agent_id, "agent_kind": agent.kind})
+
+    def remove_agent(self, agent_id: AgentID) -> None:
+        """Remove an agent from the world."""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent {agent_id} does not exist")
+        agent = self.agents.pop(agent_id)
+        self.emit_event({"type": "agent_removed", "agent_id": agent_id, "agent_kind": agent.kind})
+
+    def modify_agent(self, agent_id: AgentID, modifications: dict[str, Any]) -> None:
+        """Modify an agent's properties."""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent {agent_id} does not exist")
+
+        agent = self.agents[agent_id]
+        for key, value in modifications.items():
+            if hasattr(agent, key):
+                setattr(agent, key, value)
+            else:
+                # Store in tags for arbitrary metadata
+                agent.tags[key] = value
+
+        self.emit_event(
+            {"type": "agent_modified", "agent_id": agent_id, "modifications": modifications}
+        )
 
     def _deliver_all(self) -> None:
         # deliver last tick's outboxes (you can store separately)

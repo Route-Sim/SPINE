@@ -3,11 +3,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agents.base import AgentBase
+from core.fsm import VehicleState
+from core.messages import Msg
+from core.types import EdgeID, LegID
 from world.world import World
-
-from ..core.fsm import VehicleState
-from ..core.ids import EdgeID, LegID
-from ..core.messages import Msg
 
 
 @dataclass
@@ -135,5 +134,5 @@ class Transport(AgentBase):
     def serialize_diff(self) -> dict[str, str]:
         d = {"id": self.id, "kind": self.kind, "state": self.state.name}
         if self.pos:
-            d.update({"edge": int(self.pos.edge), "s": self.pos.s_m})
+            d.update({"edge": str(int(self.pos.edge)), "s": str(self.pos.s_m)})
         return d

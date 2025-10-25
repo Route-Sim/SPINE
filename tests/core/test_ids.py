@@ -1,6 +1,6 @@
 """Tests for core ID types."""
 
-from core.ids import AgentID, EdgeID, LegID
+from core.types import AgentID, EdgeID, LegID
 
 
 def test_agent_id_creation() -> None:

@@ -1,0 +1,109 @@
+---
+title: "Glossary"
+summary: "Definitions and abbreviations used throughout the SPINE project."
+source_paths: []
+last_updated: "2025-10-25"
+owner: "Mateusz Polis"
+tags: ["glossary"]
+links:
+  parent: "SUMMARY.md"
+  siblings: []
+---
+
+# Glossary
+
+## A
+
+**Action**: A message sent from the Frontend to the Backend through the WebSocket connection to influence the simulation. Actions represent user commands or parameter changes, such as modifying an Agent's behavior, removing an Element, or controlling the simulation state (e.g. play, pause, reset).
+
+**Agent**: An autonomous entity within the simulation that perceives its environment and acts according to defined behavioral rules. Agents may represent mobile entities (moving along the Edges), stationary entities (Buildings located at Nodes), or external entities not directly represented on the Map (e.g. a Broker agent coordinating routes). Each agent type possesses its own set of attributes and decision-making logic, allowing for dynamic interactions and emergent behaviors within the simulated Logistics Network.
+
+**Agentic System**: A multi-agent environment operating within the Logistics Network, composed of autonomous Agents that perceive their surroundings, make decisions and act according to predefined or adaptive behavioral rules. The Agentic System governs the interactions between Agents such as Vehicles, Buildings or Brokers and their responses to Events occurring across the Map.
+
+**AgentID**: Unique identifier for agents, implemented as a string type.
+
+**ASGI**: Asynchronous Server Gateway Interface, used by FastAPI and Uvicorn for WebSocket communication.
+
+## B
+
+**Backend**: A server-side system responsible for executing the Agentic Simulation and managing the overall logic of the Logistics Network. The Backend maintains the state of all Agents, processes Events, and produces Actions that describe updates to be reflected in the Frontend. It communicates with the Frontend through a WebSocket connection, continuously sending Signals and receiving Actions that represent user commands or parameter changes.
+
+**Building**: A physical facility located at a Node within the Map. Buildings represent logistic infrastructure such as warehouses, depots or retail outlets. A Building may function as an Agent, actively participating in the simulation (e.g. managing inventory, dispatching vehicles), but it does not have to. Some may serve as passive locations or resources.
+
+## C
+
+**Command**: A message sent from frontend to simulation requesting an action (start, stop, add agent, etc.). *Note: This is the technical implementation term; see "Action" for the user-facing term.*
+
+**CommandQueue**: Thread-safe queue for commands from frontend to simulation.
+
+## E
+
+**Edge**: A connection between two Nodes in the Map's graph, representing a traversable route (e.g. road). Edges are directed, defining the allowed direction of movement between Nodes. Each edge includes attributes relevant to the simulation of traffic flow – such as distance, capacity and maximum speed – along with any additional parameters necessary to capture route-specific conditions.
+
+**EdgeID**: Unique identifier for edges, implemented as an integer type.
+
+**Element**: An interactive object represented on the Map that can be selected by the user to inspect its details. Elements include all simulation relevant components such as Buildings, Vehicles, and other Agents that influence or participate in the Logistics Network. Each Element contains information describing its current state, parameters and recent Events.
+
+**Event**: An occurrence within the simulation that represent a change of state in the Logistics Network. Events may take place at Nodes, within Buildings, along Edges, or for specific Agents. They capture dynamic phenomena such as vehicle arrivals, loading and unloading operations, traffic delays, equipment failures or decision triggers.
+
+**EventQueue**: Thread-safe queue for events from simulation to frontend.
+
+## F
+
+**FastAPI**: Modern Python web framework used for the WebSocket server.
+
+**Fleet**: A collection of mobile Agents within the simulation, typically representing vehicles, such as trucks, that move along the Edges of the Map. The Fleet forms the dynamic component of the Logistics Network responsible for executing transport and delivery operations.
+
+**Frontend**: A web-based interface responsible for visualizing and interacting with the simulation. It renders the 3D environment using Three.js and provides and interactive overlay built with React for controls, information panels, and event details. The Frontend communicates with the Backend through a WebSocket connection, sending Actions that can influence the simulation and receiving Signals that describe state changes and events to be displayed.
+
+**FSM**: Finite State Machine, used for modeling agent behavior states.
+
+## G
+
+**Graph**: Network topology consisting of nodes and edges representing the logistics network. *Note: See "Map" for the user-facing term.*
+
+## L
+
+**LegID**: Unique identifier for transportation legs, implemented as a string type.
+
+**Logistics Network**: The environment in which all simulation activity takes place, representing the interconnected system of transportation routes, facilities and operational entities responsible for the movement of goods. The Logistics Network is composed of Nodes, Edges, and Buildings, forming the structural backbone of the simulation's Map.
+
+## M
+
+**Map**: A data structure representing the complete logistics network modeled as a directed multigraph. The Map serves as the structural foundation of the Logistics Network, defining the spatial relationships and connectivity between all simulation components.
+
+## N
+
+**Node**: A vertex in the Map's graph. Nodes mark where Edges meet. A node can correspond to one or more physical locations – Buildings – such as warehouses, depots etc. Each node carries geographic coordinates.
+
+**NodeID**: Unique identifier for nodes, implemented as an integer type.
+
+## P
+
+**Pydantic**: Python library for data validation and serialization, used for message validation.
+
+## Q
+
+**Queue**: Thread-safe data structure for inter-thread communication.
+
+## S
+
+**Signal**: A message sent from the Backend to the Frontend describing state changes or events within the simulation. Signals inform the Frontend what has occurred – such as an Agent moving, an Event being triggered, or metrics being updated, so that it can update the 3D visualization accordingly.
+
+**SPINE**: Simulation Processing & INteraction Engine - the main project name.
+
+**Simulation Controller**: Component that manages the simulation loop and processes commands.
+
+**Simulation Runner**: Main entry point that orchestrates all components.
+
+## T
+
+**Tick**: A single simulation step, representing a unit of time in the simulation.
+
+**Tick Rate**: Number of simulation ticks per second, configurable from 0.1 to 100 Hz.
+
+## W
+
+**WebSocket**: Real-time bidirectional communication protocol for frontend-simulation communication.
+
+**World**: Main simulation container that holds agents, graph, and manages the simulation state. *Note: This is the technical implementation term; see "Logistics Network" for the conceptual term.*

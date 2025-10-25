@@ -1,0 +1,232 @@
+---
+alwaysApply: true
+---
+
+# Cursor Rule: Thesis Docs for SPINE (Repo-Aware)
+
+## Intent
+Whenever I (Mateusz) write or modify code in this repository, also create or update a **Markdown documentation file** under the `docs/` folder.
+Each module, class, or script should have its own file, written in a **thesis-ready**, explanatory tone.
+The documentation should form a navigable “book” with cross-links, frontmatter, and a global table of contents.
+
+---
+
+## Apply To (Repo Structure)
+
+**Include:**
+- `agents/**` (including `buildings/**`, `transports/**`)
+- `core/**`
+- `world/**` (including `graph/**`, `io/**`, `routing/**`, `sim/**`)
+- `tests/**`
+- `scripts/**`
+- `demo/**`
+- top-level Python files (if any appear later)
+
+**Exclude:**
+- `htmlcov/**`
+- `*.pdf`
+- `**/__pycache__/**`
+- `poetry.lock`
+- `pyproject.toml`
+- `README.md`
+- `SETUP_SUMMARY.md`
+
+---
+
+## Docs Folder Structure (Create if Missing)
+
+docs/
+ index.md        # project overview
+ SUMMARY.md      # global Table of Contents
+ glossary.md      # definitions and abbreviations
+ adr/          # Architecture Decision Records
+ modules/       # code-part docs (mirroring repo layout)
+  agents/
+  core/
+  world/
+  tests/
+  scripts/
+  demo/
+
+---
+
+## Path Mapping (Code → Doc)
+
+Each code file corresponds to one Markdown file in `docs/modules/`, mirroring the directory tree.
+Filenames use **kebab-case** and no extension.
+
+Examples:
+
+- `agents/base.py` → `docs/modules/agents/base.md`
+- `agents/buildings/building.py` → `docs/modules/agents/buildings/building.md`
+- `agents/transports/base.py` → `docs/modules/agents/transports/base.md`
+- `core/fsm.py` → `docs/modules/core/fsm.md`
+- `core/messages.py` → `docs/modules/core/messages.md`
+- `core/types.py` → `docs/modules/core/types.md`
+- `world/world.py` → `docs/modules/world/world.md`
+- `world/graph/graph.py` → `docs/modules/world/graph/graph.md`
+- `world/graph/node.py` → `docs/modules/world/graph/node.md`
+- `world/graph/edge.py` → `docs/modules/world/graph/edge.md`
+- `scripts/validate-commit.sh` → `docs/modules/scripts/validate-commit.md`
+- `tests/core/test_fsm.py` → `docs/modules/tests/core/test-fsm.md`
+- `tests/core/test_ids.py` → `docs/modules/tests/core/test-ids.md`
+
+---
+
+## Global Book Artifacts (Keep Synced)
+
+### docs/index.md
+- Project title and abstract
+- High-level architecture overview (link to diagrams if any)
+- Module map linking to key module docs
+
+### docs/SUMMARY.md
+Use mdBook or GitBook-style Table of Contents:
+
+# Summary
+* [Overview](index.md)
+* [Glossary](glossary.md)
+* Modules
+ * agents
+  * [base](modules/agents/base.md)
+  * [buildings/building](modules/agents/buildings/building.md)
+  * [transports/base](modules/agents/transports/base.md)
+ * core
+  * [fsm](modules/core/fsm.md)
+  * [messages](modules/core/messages.md)
+  * [types](modules/core/types.md)
+ * world
+  * [world](modules/world/world.md)
+  * [graph/graph](modules/world/graph/graph.md)
+  * [graph/node](modules/world/graph/node.md)
+  * [graph/edge](modules/world/graph/edge.md)
+ * scripts
+  * [validate-commit](modules/scripts/validate-commit.md)
+ * tests
+  * [core/test_fsm](modules/tests/core/test-fsm.md)
+  * [core/test_ids](modules/tests/core/test-ids.md)
+* ADRs
+ * [YYYY-MM-DD short-title](adr/ADR-YYYY-MM-DD-short-title.md)
+
+### docs/glossary.md
+Add new terms and short definitions when first introduced.
+
+---
+
+## Frontmatter (Every Doc)
+
+Use this YAML block at the top of each Markdown file:
+
+---
+title: "<Readable Title>"
+summary: "<2–3 sentence abstract for thesis readers>"
+source_paths:
+ - "<relative repo path(s) this doc covers>"
+last_updated: "<YYYY-MM-DD>"
+owner: "Mateusz Polis"
+tags: ["module", "api", "algorithm", "infra", "test", "sim"]
+links:
+ parent: "../../SUMMARY.md"
+ siblings: []
+---
+
+---
+
+## Module Doc Template
+
+# {Module Name}
+
+> **Purpose:** {1–2 paragraph high-level explanation for thesis readers}
+
+## Context & Motivation
+- Problem solved
+- Requirements and constraints
+- Dependencies and assumptions
+
+## Responsibilities & Boundaries
+- In-scope
+- Out-of-scope
+
+## Architecture & Design
+- Key functions, classes, or modules
+- Data flow and interactions
+- State management or concurrency (if any)
+- Resource handling (files, network, etc.)
+- Optional diagram: `![diagram](./{diagram.png})`
+
+## Algorithms & Complexity
+- Core algorithmic approach
+- Big-O complexity of main operations
+- Edge cases and stability
+
+## Public API / Usage
+- Short function/class signatures or CLI flags
+- Example usage snippet
+
+## Implementation Notes
+- Key design trade-offs
+- 3rd-party libraries
+- Testing hooks or debug modes
+
+## Tests (If Applicable)
+- Test scope and strategy
+- Critical test cases
+
+## Performance
+- Benchmarks or baselines
+- Known bottlenecks
+
+## Security & Reliability
+- Validation, error handling, fault tolerance
+- Logging and observability
+
+## References
+- Related modules
+- ADRs
+- Papers, specifications, issues, PRs
+
+---
+
+## ADR Template
+
+# ADR: {Decision Title}
+- **Date:** {YYYY-MM-DD}
+- **Status:** Proposed | Accepted | Superseded | Rejected
+- **Context:** {background or motivation}
+- **Options Considered:** {A, B, C}
+- **Decision:** {chosen option}
+- **Consequences:** {positive, negative, follow-ups}
+- **Related:** {modules, PRs, issues}
+
+---
+
+## Workflow (Each Time You Change Code)
+
+1. Map changed file(s) to corresponding `docs/modules/**` doc paths.
+2. Create or update the doc using the template and frontmatter.
+3. Add or update sibling/parent links.
+4. Update `docs/SUMMARY.md` to reflect new or changed docs.
+5. Add glossary entries for new terms.
+6. Write or update ADRs for important design choices.
+7. **API Reference Special Case**: When `docs/api-reference.md` is modified, also update `docs/postman-collection.json` to keep the Postman collection in sync with the API documentation. Use `scripts/update-postman-collection.py` to automatically generate the collection from the markdown.
+
+---
+
+## Style & Consistency Rules
+
+- Use **kebab-case** filenames and **Title Case** in frontmatter `title`.
+- Only use **relative links** — never absolute paths.
+- Write for a thesis audience: clear, formal, and explanatory.
+- Keep examples minimal and correct.
+- Avoid slang or overly casual phrasing.
+
+---
+
+## Quality Checklist
+
+- [ ] Module doc created or updated with correct frontmatter
+- [ ] Entry in `SUMMARY.md` added or updated
+- [ ] Cross-links to related modules added
+- [ ] Glossary updated with new terms
+- [ ] Diagram paths valid (if any)
+- [ ] Examples tested or verified
