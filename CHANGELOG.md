@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/Route-Sim/SPINE/compare/v0.1.0...v0.2.0) (2025-10-25)
+
+
+### 🚀 Features
+
+* **docker:** add Docker support with multi-stage builds and Docker Compose configuration ([96750c1](https://github.com/Route-Sim/SPINE/commit/96750c1a7c713e83d218f9738239d951f6f2452c))
+
 ## 0.1.0 (2025-10-25)
 
 
