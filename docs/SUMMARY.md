@@ -45,3 +45,6 @@
 ### Scripts
 * [Validate Commit](modules/scripts/validate-commit.md)
 * [Update Postman Collection](modules/scripts/update-postman-collection.md)
+
+### Infrastructure
+* [Docker Containerization](modules/docker.md)

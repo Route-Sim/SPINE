@@ -1,0 +1,28 @@
+services:
+  spine-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spine-backend
+    ports:
+      - "${SPINE_PORT:-8000}:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=${SPINE_LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Uncomment for future world data persistence:
+    # volumes:
+    #   - ./data:/app/data:ro
+    networks:
+      - spine-network
+
+networks:
+  spine-network:
+    driver: bridge

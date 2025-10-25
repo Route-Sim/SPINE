@@ -127,6 +127,36 @@ Versions are **automatically managed** by semantic-release:
 
 **You don't need to manually bump versions!**
 
+## Docker Deployment
+
+### Quick Start with Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
+
+# Run in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f spine-backend
+```
+
+### Configuration
+
+Set environment variables in `.env` file or directly:
+
+```bash
+# Custom port and log level
+SPINE_PORT=8080 SPINE_LOG_LEVEL=DEBUG docker-compose up
+```
+
+The application will be available at:
+- **WebSocket**: `ws://localhost:8000/ws`
+- **Health Check**: `http://localhost:8000/health`
+
+For detailed Docker documentation, see [Docker Containerization](docs/modules/docker.md).
+
 ## Contributing
 
 See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for detailed guidelines.
