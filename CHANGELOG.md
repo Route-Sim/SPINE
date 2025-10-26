@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0](https://github.com/Route-Sim/SPINE/compare/v0.2.0...v0.3.0) (2025-10-26)
+
+
+### 🚀 Features
+
+* **simulation:** enhance simulation runner with uvicorn server lifecycle management ([3e1b504](https://github.com/Route-Sim/SPINE/commit/3e1b504530e8b1bbf81d03eeef7bccc25196afc0))
+
 ## [0.2.0](https://github.com/Route-Sim/SPINE/compare/v0.1.0...v0.2.0) (2025-10-25)
 
 
