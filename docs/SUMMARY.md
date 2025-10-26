@@ -31,6 +31,7 @@
 * [Queue Infrastructure](modules/world/sim/queues.md)
 * [Simulation Runner](modules/world/sim/runner.md)
 * [WebSocket Server](modules/world/io/websocket_server.md)
+* [Map Manager](modules/world/io/map-manager.md)
 
 ### Agents
 * [Base Agent](modules/agents/base.md)

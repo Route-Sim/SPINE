@@ -16,6 +16,8 @@ from .queues import (
     SignalQueue,
     create_agent_update_signal,
     create_error_signal,
+    create_map_exported_signal,
+    create_map_imported_signal,
     create_simulation_paused_signal,
     create_simulation_resumed_signal,
     create_simulation_started_signal,
@@ -181,6 +183,10 @@ class SimulationController:
             self._handle_delete_agent_action(action)
         elif action.type == ActionType.MODIFY_AGENT:
             self._handle_modify_agent_action(action)
+        elif action.type == ActionType.EXPORT_MAP:
+            self._handle_export_map_action(action)
+        elif action.type == ActionType.IMPORT_MAP:
+            self._handle_import_map_action(action)
         else:
             self.logger.warning(f"Unknown action type: {action.type}")
 
@@ -353,3 +359,58 @@ class SimulationController:
     def _emit_error(self, error_message: str) -> None:
         """Emit an error signal."""
         self._emit_signal(create_error_signal(error_message, self.state.current_tick))
+
+    def _handle_export_map_action(self, action: Action) -> None:
+        """Handle export map action."""
+        if not action.metadata or "map_name" not in action.metadata:
+            self.logger.warning("Export map action missing map_name in metadata")
+            self._emit_error("Export map action missing map_name")
+            return
+
+        # Reject if simulation is running
+        if self.state.running:
+            self.logger.warning("Cannot export map while simulation is running")
+            self._emit_error("Cannot export map while simulation is running")
+            return
+
+        map_name = action.metadata["map_name"]
+
+        try:
+            self.world.export_graph(map_name)
+            self._emit_signal(create_map_exported_signal(map_name))
+            self.logger.info(f"Map exported: {map_name}")
+        except ValueError as e:
+            self.logger.error(f"Failed to export map {map_name}: {e}")
+            self._emit_error(f"Failed to export map: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error exporting map {map_name}: {e}", exc_info=True)
+            self._emit_error(f"Unexpected error exporting map: {e}")
+
+    def _handle_import_map_action(self, action: Action) -> None:
+        """Handle import map action."""
+        if not action.metadata or "map_name" not in action.metadata:
+            self.logger.warning("Import map action missing map_name in metadata")
+            self._emit_error("Import map action missing map_name")
+            return
+
+        # Reject if simulation is running
+        if self.state.running:
+            self.logger.warning("Cannot import map while simulation is running")
+            self._emit_error("Cannot import map while simulation is running")
+            return
+
+        map_name = action.metadata["map_name"]
+
+        try:
+            self.world.import_graph(map_name)
+            self._emit_signal(create_map_imported_signal(map_name))
+            self.logger.info(f"Map imported: {map_name}")
+        except FileNotFoundError as e:
+            self.logger.error(f"Map file not found: {e}")
+            self._emit_error(f"Map file not found: {map_name}")
+        except ValueError as e:
+            self.logger.error(f"Failed to import map {map_name}: {e}")
+            self._emit_error(f"Failed to import map: {e}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error importing map {map_name}: {e}", exc_info=True)
+            self._emit_error(f"Unexpected error importing map: {e}")

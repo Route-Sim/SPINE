@@ -19,6 +19,8 @@ class ActionType(str, Enum):
     ADD_AGENT = "add_agent"
     DELETE_AGENT = "delete_agent"
     MODIFY_AGENT = "modify_agent"
+    EXPORT_MAP = "export_map"
+    IMPORT_MAP = "import_map"
 
 
 class SignalType(str, Enum):
@@ -33,6 +35,8 @@ class SignalType(str, Enum):
     SIMULATION_STOPPED = "simulation_stopped"
     SIMULATION_PAUSED = "simulation_paused"
     SIMULATION_RESUMED = "simulation_resumed"
+    MAP_EXPORTED = "map_exported"
+    MAP_IMPORTED = "map_imported"
 
 
 class Action(BaseModel):
@@ -67,6 +71,12 @@ class Action(BaseModel):
         # Validate tick_rate for START and SET_TICK_RATE
         if self.type in [ActionType.START, ActionType.SET_TICK_RATE] and self.tick_rate is None:
             raise ValueError(f"tick_rate is required for {self.type} action")
+
+        # Validate metadata for export/import map actions
+        if self.type in [ActionType.EXPORT_MAP, ActionType.IMPORT_MAP] and (
+            self.metadata is None or "map_name" not in self.metadata
+        ):
+            raise ValueError(f"metadata with 'map_name' is required for {self.type} action")
 
         return self
 
@@ -194,6 +204,16 @@ def create_add_agent_action(agent_id: str, agent_kind: str, agent_data: dict[str
     )
 
 
+def create_export_map_action(map_name: str) -> Action:
+    """Create an export map action."""
+    return Action(type=ActionType.EXPORT_MAP, metadata={"map_name": map_name})
+
+
+def create_import_map_action(map_name: str) -> Action:
+    """Create an import map action."""
+    return Action(type=ActionType.IMPORT_MAP, metadata={"map_name": map_name})
+
+
 # Convenience functions for creating common signals
 def create_tick_start_signal(tick: int) -> Signal:
     """Create a tick start signal."""
@@ -238,3 +258,13 @@ def create_simulation_paused_signal() -> Signal:
 def create_simulation_resumed_signal() -> Signal:
     """Create a simulation resumed signal."""
     return Signal(type=SignalType.SIMULATION_RESUMED)
+
+
+def create_map_exported_signal(map_name: str) -> Signal:
+    """Create a map exported signal."""
+    return Signal(type=SignalType.MAP_EXPORTED, data={"map_name": map_name})
+
+
+def create_map_imported_signal(map_name: str) -> Signal:
+    """Create a map imported signal."""
+    return Signal(type=SignalType.MAP_IMPORTED, data={"map_name": map_name})

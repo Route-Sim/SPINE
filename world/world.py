@@ -4,6 +4,7 @@ if TYPE_CHECKING:
     from agents.base import AgentBase
 
 from core.types import AgentID
+from world.io import map_manager
 
 
 class World:
@@ -71,6 +72,32 @@ class World:
         self.emit_event(
             {"type": "agent_modified", "agent_id": agent_id, "modifications": modifications}
         )
+
+    def export_graph(self, map_name: str) -> None:
+        """Export the world's graph to a GraphML file.
+
+        Args:
+            map_name: Name for the map file (will be sanitized)
+
+        Raises:
+            ValueError: If the map file already exists
+            OSError: If there's an error writing the file
+        """
+        map_manager.export_map(self.graph, map_name)
+
+    def import_graph(self, map_name: str) -> None:
+        """Import a graph from a GraphML file and replace the world's current graph.
+
+        Args:
+            map_name: Name of the map file to import (will be sanitized)
+
+        Raises:
+            FileNotFoundError: If the map file doesn't exist
+            ValueError: If there's an error parsing the GraphML file
+        """
+        new_graph = map_manager.import_map(map_name)
+        self.graph = new_graph
+        self.emit_event({"type": "graph_imported", "map_name": map_name})
 
     def _deliver_all(self) -> None:
         # deliver last tick's outboxes (you can store separately)

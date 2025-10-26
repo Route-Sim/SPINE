@@ -208,7 +208,11 @@ links:
 4. Update `docs/SUMMARY.md` to reflect new or changed docs.
 5. Add glossary entries for new terms.
 6. Write or update ADRs for important design choices.
-7. **API Reference Special Case**: When `docs/api-reference.md` is modified, also update `docs/postman-collection.json` to keep the Postman collection in sync with the API documentation. Use `scripts/update-postman-collection.py` to automatically generate the collection from the markdown.
+7. **API Reference Update**: **MANDATORY** - When adding or modifying actions or signals in `world/sim/queues.py`:
+   - Manually update `docs/api-reference.md` with the new action or signal documentation
+   - Include JSON examples, parameters, notes, and Postman testing instructions
+   - Update the testing workflow sections as needed
+   - This is a critical step for API documentation completeness
 
 ---
 
@@ -230,3 +234,4 @@ links:
 - [ ] Glossary updated with new terms
 - [ ] Diagram paths valid (if any)
 - [ ] Examples tested or verified
+- [ ] **API reference updated** if actions/signals were added to `world/sim/queues.py`

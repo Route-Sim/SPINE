@@ -225,6 +225,72 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
+### 9. EXPORT_MAP - Export Current Map
+
+**Purpose**: Export the current simulation map to a GraphML file.
+
+**Action Type**: `export_map`
+
+**JSON Example**:
+```json
+{
+  "type": "export_map",
+  "metadata": {
+    "map_name": "my_custom_map"
+  }
+}
+```
+
+**Parameters**:
+- `metadata` (required): Object containing map information
+  - `map_name` (required): Name for the map file
+
+**Notes**:
+- Simulation must be stopped before exporting
+- Map name will be sanitized to prevent path traversal
+- Exports to `/maps/{sanitized_name}.graphml`
+- Fails if file already exists
+
+**Postman Test**:
+1. Ensure simulation is stopped
+2. Send the JSON above
+3. Expect acknowledgment and map_exported signal
+
+---
+
+### 10. IMPORT_MAP - Import Saved Map
+
+**Purpose**: Import a previously saved map from a GraphML file.
+
+**Action Type**: `import_map`
+
+**JSON Example**:
+```json
+{
+  "type": "import_map",
+  "metadata": {
+    "map_name": "my_custom_map"
+  }
+}
+```
+
+**Parameters**:
+- `metadata` (required): Object containing map information
+  - `map_name` (required): Name of the map file to import
+
+**Notes**:
+- Simulation must be stopped before importing
+- Map name will be sanitized
+- Imports from `/maps/{sanitized_name}.graphml`
+- Fails if file doesn't exist
+
+**Postman Test**:
+1. Ensure simulation is stopped
+2. Send the JSON above
+3. Expect acknowledgment and map_imported signal
+
+---
+
 ## Signals (Backend → Frontend)
 
 Signals are updates sent from the Backend to inform the Frontend about simulation state changes.
@@ -433,6 +499,54 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
+### 10. MAP_EXPORTED - Map Export Confirmation
+
+**Purpose**: Confirms that a map was successfully exported.
+
+**Signal Type**: `map_exported`
+
+**JSON Example**:
+```json
+{
+  "type": "map_exported",
+  "data": {
+    "map_name": "my_custom_map"
+  }
+}
+```
+
+**Fields**:
+- `data`: Map information
+  - `map_name`: Name of the exported map
+
+**When Received**: After successful map export
+
+---
+
+### 11. MAP_IMPORTED - Map Import Confirmation
+
+**Purpose**: Confirms that a map was successfully imported.
+
+**Signal Type**: `map_imported`
+
+**JSON Example**:
+```json
+{
+  "type": "map_imported",
+  "data": {
+    "map_name": "my_custom_map"
+  }
+}
+```
+
+**Fields**:
+- `data`: Map information
+  - `map_name`: Name of the imported map
+
+**When Received**: After successful map import
+
+---
+
 ## Postman Testing Workflow
 
 ### 1. Basic Connection Test
@@ -507,7 +621,29 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    ```
    - Expect: Acknowledgment (agent removed)
 
-### 4. Real-time Updates Test
+### 4. Map Export/Import Test
+
+1. **Export Map** (simulation must be stopped):
+   ```json
+   {
+     "type": "export_map",
+     "metadata": {"map_name": "test_map"}
+   }
+   ```
+   - Expect: Acknowledgment and map_exported signal
+   - Error if simulation is running
+
+2. **Import Map** (simulation must be stopped):
+   ```json
+   {
+     "type": "import_map",
+     "metadata": {"map_name": "test_map"}
+   }
+   ```
+   - Expect: Acknowledgment and map_imported signal
+   - Error if simulation is running or file doesn't exist
+
+### 5. Real-time Updates Test
 
 1. **Start Simulation** and observe:
    - `tick_start` signals every ~33ms (30Hz)
@@ -515,7 +651,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    - `agent_update` signals when agents change
    - `world_event` signals for simulation events
 
-### 5. Error Handling Test
+### 6. Error Handling Test
 
 1. **Invalid Action**:
    ```json
@@ -528,6 +664,24 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    {"type": "delete_agent", "agent_id": "nonexistent"}
    ```
    - Expect: Error signal with "Agent not found" message
+
+3. **Map Export While Running**:
+   ```json
+   {
+     "type": "export_map",
+     "metadata": {"map_name": "test"}
+   }
+   ```
+   - Expect: Error signal with "Cannot export map while simulation is running"
+
+4. **Map Import Non-existent**:
+   ```json
+   {
+     "type": "import_map",
+     "metadata": {"map_name": "nonexistent"}
+   }
+   ```
+   - Expect: Error signal with "Map file not found"
 
 ---
 
