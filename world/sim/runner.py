@@ -68,6 +68,8 @@ class SimulationRunner:
         self._websocket_thread: threading.Thread | None = None
         self._signal_broadcast_task: asyncio.Task[None] | None = None
         self._shutdown_event = threading.Event()
+        self._uvicorn_server: uvicorn.Server | None = None
+        self._server_ready_event = threading.Event()
 
         # Setup signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -105,27 +107,40 @@ class SimulationRunner:
         """Start the WebSocket server in a separate thread."""
 
         def run_server() -> None:
-            # Start event broadcast task
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            try:
+                # Start event broadcast task
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
-            # Start the signal broadcast task and store reference
-            loop.run_until_complete(self.websocket_server.start_signal_broadcast())
-            self._signal_broadcast_task = self.websocket_server._signal_broadcast_task
+                # Start the signal broadcast task and store reference
+                loop.run_until_complete(self.websocket_server.start_signal_broadcast())
+                self._signal_broadcast_task = self.websocket_server._signal_broadcast_task
 
-            # Run the server
-            config = uvicorn.Config(
-                app=self.websocket_server.get_app(),
-                host=self.host,
-                port=self.port,
-                log_level="info",
-                access_log=False,
-            )
-            server = uvicorn.Server(config)
-            loop.run_until_complete(server.serve())
+                # Run the server
+                config = uvicorn.Config(
+                    app=self.websocket_server.get_app(),
+                    host=self.host,
+                    port=self.port,
+                    log_level="info",
+                    access_log=False,
+                )
+                server = uvicorn.Server(config)
+                self._uvicorn_server = server
+
+                # Signal that server is ready
+                self._server_ready_event.set()
+
+                # Run the server (blocks until shutdown)
+                loop.run_until_complete(server.serve())
+            finally:
+                # Clean up event loop
+                loop.close()
 
         self._websocket_thread = threading.Thread(target=run_server, daemon=True)
         self._websocket_thread.start()
+
+        # Wait for server to be ready (with timeout to prevent hanging)
+        self._server_ready_event.wait(timeout=5.0)
 
     def shutdown(self) -> None:
         """Shutdown the simulation runner gracefully."""
@@ -137,6 +152,10 @@ class SimulationRunner:
         # Stop simulation controller
         if self.controller:
             self.controller.stop()
+
+        # Signal uvicorn server to shut down
+        if self._uvicorn_server:
+            self._uvicorn_server.should_exit = True
 
         # Stop WebSocket server signal broadcast
         if self.websocket_server and self._signal_broadcast_task:
