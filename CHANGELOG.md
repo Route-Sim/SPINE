@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0](https://github.com/Route-Sim/SPINE/compare/v0.3.0...v0.4.0) (2025-10-26)
+
+
+### 🚀 Features
+
+* **buildings:** introduce Building and BuildingAgent classes ([c36c32b](https://github.com/Route-Sim/SPINE/commit/c36c32b21677f56860ed33807f02dfcfe1eac8d2))
+
+
+### 🐛 Bug Fixes
+
+* **tests:** update pytest configuration and enhance WebSocket server tests ([f571ba4](https://github.com/Route-Sim/SPINE/commit/f571ba47cec66da85ed2c97cdff0759f68320165))
+
 ## [0.3.0](https://github.com/Route-Sim/SPINE/compare/v0.2.0...v0.3.0) (2025-10-26)
 
 
