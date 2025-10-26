@@ -51,8 +51,8 @@ class Node:
 
 ### Key Methods
 - **`add_building(building: Building)`**: Add a building to the node
-- **`remove_building(building_id: AgentID)`**: Remove a building by ID
-- **`get_building(building_id: AgentID)`**: Retrieve a specific building
+- **`remove_building(building_id: BuildingID)`**: Remove a building by ID
+- **`get_building(building_id: BuildingID)`**: Retrieve a specific building
 - **`get_buildings()`**: Get all buildings at this node
 
 ## Algorithms & Complexity
@@ -72,18 +72,19 @@ class Node:
 ### Node Creation
 ```python
 from world.graph.node import Node
-from agents.buildings.building import Building
+from core.buildings.base import Building
+from core.types import BuildingID, NodeID
 
 # Create a node
-node = Node(id=1, x=100.0, y=200.0)
+node = Node(id=NodeID(1), x=100.0, y=200.0)
 
-# Add buildings
-warehouse = Building(id="warehouse1", kind="warehouse")
+# Add buildings (using BuildingID)
+warehouse = Building(id=BuildingID("warehouse1"))
 node.add_building(warehouse)
 
 # Retrieve buildings
 buildings = node.get_buildings()
-specific_building = node.get_building("warehouse1")
+specific_building = node.get_building(BuildingID("warehouse1"))
 ```
 
 ### Geographic Operations

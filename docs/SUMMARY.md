@@ -20,6 +20,7 @@
 * [Types](modules/core/types.md)
 * [Messages](modules/core/messages.md)
 * [FSM](modules/core/fsm.md)
+* [Building](modules/core/buildings/base.md)
 
 ### World
 * [World](modules/world/world.md)
@@ -33,7 +34,7 @@
 
 ### Agents
 * [Base Agent](modules/agents/base.md)
-* [Building Agent](modules/agents/buildings/building.md)
+* [Building Agent](modules/agents/buildings/building-agent.md)
 * [Transport Agent](modules/agents/transports/base.md)
 
 ### Tests
@@ -41,6 +42,7 @@
 * [Core/test_ids](modules/tests/core/test-ids.md)
 * [World/test_sim_runner](modules/tests/world/test-sim-runner.md)
 * [World/test_websocket_server](modules/tests/world/test-websocket-server.md)
+* [World/test_graph_graphml](modules/tests/world/test-graph-graphml.md)
 
 ### Scripts
 * [Validate Commit](modules/scripts/validate-commit.md)

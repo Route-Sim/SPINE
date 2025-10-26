@@ -1,5 +1,9 @@
+import json
+import xml.etree.ElementTree as ET
+
+from core.buildings.base import Building
 from core.types import EdgeID, NodeID
-from world.graph.edge import Edge
+from world.graph.edge import Edge, Mode
 from world.graph.node import Node
 
 
@@ -135,3 +139,202 @@ class Graph:
     def __repr__(self) -> str:
         """Detailed representation of the graph."""
         return f"Graph(nodes={list(self.nodes.keys())}, edges={list(self.edges.keys())})"
+
+    def to_graphml(self, filepath: str) -> None:
+        """Export graph to GraphML format."""
+        # Create root element
+        root = ET.Element("graphml", xmlns="http://graphml.graphdrawing.org/xmlns")
+
+        # Define attributes for nodes
+        node_x_key = ET.SubElement(root, "key", id="node_x", for_="node", type="double")
+        node_x_key.set("attr.name", "x")
+
+        node_y_key = ET.SubElement(root, "key", id="node_y", for_="node", type="double")
+        node_y_key.set("attr.name", "y")
+
+        node_buildings_key = ET.SubElement(root, "key", id="node_buildings", for_="node")
+        node_buildings_key.set("attr.name", "buildings")
+
+        # Define attributes for edges
+        edge_from_key = ET.SubElement(root, "key", id="edge_from", for_="edge")
+        edge_from_key.set("attr.name", "from_node")
+
+        edge_to_key = ET.SubElement(root, "key", id="edge_to", for_="edge")
+        edge_to_key.set("attr.name", "to_node")
+
+        edge_length_key = ET.SubElement(root, "key", id="edge_length", for_="edge", type="double")
+        edge_length_key.set("attr.name", "length_m")
+
+        edge_mode_key = ET.SubElement(root, "key", id="edge_mode", for_="edge", type="int")
+        edge_mode_key.set("attr.name", "mode")
+
+        # Create graph element
+        graph = ET.SubElement(root, "graph", id="graph", edgedefault="directed")
+
+        # Export nodes
+        for node_id, node in self.nodes.items():
+            node_elem = ET.SubElement(graph, "node", id=str(node_id))
+
+            # Add x coordinate
+            x_data = ET.SubElement(node_elem, "data", key="node_x")
+            x_data.text = str(node.x)
+
+            # Add y coordinate
+            y_data = ET.SubElement(node_elem, "data", key="node_y")
+            y_data.text = str(node.y)
+
+            # Add buildings as JSON string
+            buildings_json = json.dumps([b.to_dict() for b in node.buildings])
+            buildings_data = ET.SubElement(node_elem, "data", key="node_buildings")
+            buildings_data.text = buildings_json
+
+        # Export edges
+        for edge_id, edge in self.edges.items():
+            edge_elem = ET.SubElement(
+                graph, "edge", id=str(edge_id), source=str(edge.from_node), target=str(edge.to_node)
+            )
+
+            # Add from_node
+            from_data = ET.SubElement(edge_elem, "data", key="edge_from")
+            from_data.text = str(edge.from_node)
+
+            # Add to_node
+            to_data = ET.SubElement(edge_elem, "data", key="edge_to")
+            to_data.text = str(edge.to_node)
+
+            # Add length
+            length_data = ET.SubElement(edge_elem, "data", key="edge_length")
+            length_data.text = str(edge.length_m)
+
+            # Add mode
+            mode_data = ET.SubElement(edge_elem, "data", key="edge_mode")
+            mode_data.text = str(edge.mode.value)
+
+        # Create ElementTree and write to file
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space="  ", level=0)
+        tree.write(filepath, encoding="utf-8", xml_declaration=True)
+
+    @classmethod
+    def from_graphml(cls, filepath: str) -> "Graph":
+        """Import graph from GraphML format."""
+        tree = ET.parse(filepath)
+        root = tree.getroot()
+
+        # Namespace handling
+        namespace = {"default": "http://graphml.graphdrawing.org/xmlns"}
+
+        # Create graph instance
+        graph = cls()
+
+        # Find graph element
+        graph_elem = root.find("default:graph", namespace)
+        if graph_elem is None:
+            graph_elem = root.find("graph")
+
+        if graph_elem is None:
+            raise ValueError("No graph element found in GraphML file")
+
+        # Import nodes
+        node_elems = graph_elem.findall("default:node", namespace)
+        if not node_elems:
+            node_elems = graph_elem.findall("node")
+
+        for node_elem in node_elems:
+            node_id_attr = node_elem.get("id")
+            if node_id_attr is None:
+                raise ValueError("Node missing id attribute")
+            node_id = int(node_id_attr)
+
+            # Extract node attributes
+            x = None
+            y = None
+            buildings_json = None
+
+            data_elems = node_elem.findall("default:data", namespace)
+            if not data_elems:
+                data_elems = node_elem.findall("data")
+
+            for data_elem in data_elems:
+                key = data_elem.get("key")
+
+                if key == "node_x":
+                    if data_elem.text is not None:
+                        x = float(data_elem.text)
+                elif key == "node_y":
+                    if data_elem.text is not None:
+                        y = float(data_elem.text)
+                elif key == "node_buildings":
+                    buildings_json = data_elem.text
+
+            if x is None or y is None:
+                raise ValueError(f"Node {node_id} missing coordinates")
+
+            # Create node
+            node = Node(id=NodeID(node_id), x=x, y=y)
+
+            # Parse buildings
+            if buildings_json:
+                try:
+                    buildings_data = json.loads(buildings_json)
+                    for b_data in buildings_data:
+                        building = Building.from_dict(b_data)
+                        node.add_building(building)
+                except (json.JSONDecodeError, KeyError) as e:
+                    raise ValueError(f"Failed to parse buildings for node {node_id}: {e}")
+
+            graph.add_node(node)
+
+        # Import edges
+        edge_elems = graph_elem.findall("default:edge", namespace)
+        if not edge_elems:
+            edge_elems = graph_elem.findall("edge")
+
+        for edge_elem in edge_elems:
+            edge_id_attr = edge_elem.get("id")
+            if edge_id_attr is None:
+                raise ValueError("Edge missing id attribute")
+            edge_id = int(edge_id_attr)
+
+            from_node_attr = edge_elem.get("source")
+            if from_node_attr is None:
+                raise ValueError("Edge missing source attribute")
+            from_node = NodeID(int(from_node_attr))
+
+            to_node_attr = edge_elem.get("target")
+            if to_node_attr is None:
+                raise ValueError("Edge missing target attribute")
+            to_node = NodeID(int(to_node_attr))
+
+            # Extract edge attributes
+            length_m = None
+            mode_value = None
+
+            data_elems = edge_elem.findall("default:data", namespace)
+            if not data_elems:
+                data_elems = edge_elem.findall("data")
+
+            for data_elem in data_elems:
+                key = data_elem.get("key")
+
+                if key == "edge_length" and data_elem.text is not None:
+                    length_m = float(data_elem.text)
+                elif key == "edge_mode" and data_elem.text is not None:
+                    mode_value = int(data_elem.text)
+
+            if length_m is None or mode_value is None:
+                raise ValueError(f"Edge {edge_id} missing required attributes")
+
+            # Create edge with Mode enum
+            mode = Mode(mode_value)
+            edge = Edge(
+                id=EdgeID(edge_id),
+                from_node=from_node,
+                to_node=to_node,
+                length_m=length_m,
+                mode=mode,
+            )
+
+            graph.add_edge(edge)
+
+        return graph

@@ -1,11 +1,11 @@
 ---
 title: "Graph"
-summary: "Core graph data structure representing the logistics network as a directed multigraph with nodes and edges."
+summary: "Core graph data structure representing the logistics network as a directed multigraph with nodes and edges, with GraphML export/import capabilities."
 source_paths:
   - "world/graph/graph.py"
-last_updated: "2025-10-25"
+last_updated: "2025-10-26"
 owner: "Mateusz Polis"
-tags: ["module", "data-structure", "graph", "network"]
+tags: ["module", "data-structure", "graph", "network", "export", "import"]
 links:
   parent: "../../SUMMARY.md"
   siblings: ["node", "edge"]
@@ -56,6 +56,8 @@ class Graph:
 - **`remove_edge(edge_id: EdgeID)`**: Remove a specific edge
 - **`get_neighbors(node_id: NodeID)`**: Find all connected nodes
 - **`is_connected()`**: Check graph connectivity
+- **`to_graphml(filepath: str)`**: Export graph to GraphML format
+- **`from_graphml(filepath: str)`**: Import graph from GraphML format (class method)
 
 ## Algorithms & Complexity
 
@@ -104,6 +106,21 @@ outgoing = graph.get_outgoing_edges(node_id)
 is_connected = graph.is_connected()
 ```
 
+### GraphML Export/Import
+```python
+# Export graph to GraphML
+graph.to_graphml("graph.graphml")
+
+# Import graph from GraphML
+imported_graph = Graph.from_graphml("graph.graphml")
+
+# All data is preserved including:
+# - Node coordinates (x, y)
+# - Node buildings (serialized as JSON)
+# - Edge properties (length, mode)
+# - Graph structure
+```
+
 ## Implementation Notes
 
 ### Adjacency List Design
@@ -116,10 +133,18 @@ is_connected = graph.is_connected()
 - **Duplicate prevention**: Nodes and edges must have unique IDs
 - **Consistency**: Adjacency lists are automatically maintained
 
+### GraphML Serialization
+- **Format**: Standard GraphML XML format
+- **Node attributes**: x, y coordinates, buildings (as JSON)
+- **Edge attributes**: from_node, to_node, length_m, mode (as integer)
+- **Buildings**: Serialized as JSON strings within node attributes
+- **Namespace**: Uses standard GraphML XML namespace
+
 ### Error Handling
 - **Duplicate nodes**: Raises ValueError for existing node IDs
 - **Missing nodes**: Raises ValueError for edges connecting non-existent nodes
 - **Invalid operations**: Clear error messages for invalid operations
+- **GraphML parsing**: Raises ValueError for invalid or missing elements
 
 ## Performance
 

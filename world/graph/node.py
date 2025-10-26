@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from agents.buildings.building import Building
-from core.types import AgentID, NodeID
+from core.buildings.base import Building
+from core.types import BuildingID, NodeID
 
 
 @dataclass
@@ -17,10 +17,10 @@ class Node:
     def get_buildings(self) -> list[Building]:
         return self.buildings
 
-    def remove_building(self, building_id: AgentID) -> None:
+    def remove_building(self, building_id: BuildingID) -> None:
         self.buildings.remove(
             next(building for building in self.buildings if building.id == building_id)
         )
 
-    def get_building(self, building_id: AgentID) -> Building:
+    def get_building(self, building_id: BuildingID) -> Building:
         return next(building for building in self.buildings if building.id == building_id)

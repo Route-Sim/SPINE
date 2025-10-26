@@ -232,11 +232,21 @@ class SimulationController:
             # Import agent classes dynamically based on kind
             from agents.base import AgentBase
 
-            if action.agent_kind == "building":
-                from agents.buildings.building import Building
+            agent_instance: AgentBase
 
-                agent_instance: AgentBase = Building(
-                    id=agent_id, kind=action.agent_kind, **action.agent_data or {}
+            if action.agent_kind == "building":
+                from agents.buildings.building_agent import BuildingAgent
+                from core.buildings.base import Building
+                from core.types import BuildingID
+
+                # Create building data structure (convert AgentID to BuildingID)
+                building = Building(id=BuildingID(str(agent_id)))
+                # Create agent wrapper (BuildingAgent has same interface as AgentBase)
+                agent_instance = BuildingAgent(  # type: ignore[assignment]
+                    building=building,
+                    id=agent_id,
+                    kind=action.agent_kind,
+                    **action.agent_data or {},
                 )
             elif action.agent_kind == "transport":
                 from agents.transports.base import Transport
