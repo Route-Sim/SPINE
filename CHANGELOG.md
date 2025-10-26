@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0](https://github.com/Route-Sim/SPINE/compare/v0.4.0...v0.5.0) (2025-10-26)
+
+
+### 🚀 Features
+
+* **maps:** implement map export and import functionality ([1c4afc9](https://github.com/Route-Sim/SPINE/commit/1c4afc92e6c28f148ec4cdd3e6761c19a907ed3f))
+
 ## [0.4.0](https://github.com/Route-Sim/SPINE/compare/v0.3.0...v0.4.0) (2025-10-26)
 
 
