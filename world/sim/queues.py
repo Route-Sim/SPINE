@@ -5,7 +5,7 @@ import threading
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class ActionType(str, Enum):
@@ -44,6 +44,31 @@ class Action(BaseModel):
     agent_data: dict[str, Any] | None = None
     agent_kind: str | None = None
     metadata: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> "Action":
+        """Validate that required fields are provided for specific action types."""
+        # Validate agent_id for actions that require it
+        if (
+            self.type
+            in [
+                ActionType.ADD_AGENT,
+                ActionType.DELETE_AGENT,
+                ActionType.MODIFY_AGENT,
+            ]
+            and self.agent_id is None
+        ):
+            raise ValueError(f"agent_id is required for {self.type} action")
+
+        # Validate agent_kind for ADD_AGENT
+        if self.type == ActionType.ADD_AGENT and self.agent_kind is None:
+            raise ValueError(f"agent_kind is required for {self.type} action")
+
+        # Validate tick_rate for START and SET_TICK_RATE
+        if self.type in [ActionType.START, ActionType.SET_TICK_RATE] and self.tick_rate is None:
+            raise ValueError(f"tick_rate is required for {self.type} action")
+
+        return self
 
 
 class Signal(BaseModel):

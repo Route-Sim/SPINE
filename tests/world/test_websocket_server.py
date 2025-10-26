@@ -256,9 +256,17 @@ class TestWebSocketServer:
     @pytest.mark.asyncio  # type: ignore[misc]
     async def test_websocket_endpoint(self) -> None:
         """Test WebSocket endpoint handling."""
+        from fastapi import WebSocketDisconnect
+
         websocket = AsyncMock()
         websocket.accept = AsyncMock()
-        websocket.receive_text = AsyncMock(return_value='{"type": "start", "tick_rate": 25.0}')
+        # First call returns a message, second call raises disconnect
+        websocket.receive_text = AsyncMock(
+            side_effect=[
+                '{"type": "start", "tick_rate": 25.0}',
+                WebSocketDisconnect(),
+            ]
+        )
 
         # Mock the endpoint function
         endpoint_func = None
@@ -270,10 +278,7 @@ class TestWebSocketServer:
         assert endpoint_func is not None
 
         # Test the endpoint
-        import contextlib
-
-        with contextlib.suppress(Exception):
-            await endpoint_func(websocket)
+        await endpoint_func(websocket)
 
         # Verify websocket was accepted
         websocket.accept.assert_called_once()

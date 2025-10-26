@@ -1,9 +1,9 @@
 ---
 title: "WebSocket Server"
-summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management and event broadcasting."
+summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management, event broadcasting, and robust error handling."
 source_paths:
   - "world/io/websocket_server.py"
-last_updated: "2025-10-25"
+last_updated: "2025-10-26"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -124,9 +124,17 @@ await server.stop_event_broadcast()  # Stop event broadcasting
 ## Implementation Notes
 
 **FastAPI Integration**: Uses FastAPI WebSocket endpoints
-**Connection Tracking**: Maintains list of active connections
+
+**Connection Tracking**: Maintains list of active connections with unique identifiers
+
 **Error Handling**: Comprehensive error handling with client feedback
+- JSON parsing errors handled gracefully
+- Validation errors result in error messages to client
+- Connection errors isolated from simulation
+
 **Event Broadcasting**: Continuous event streaming from simulation
+- Background task for signal broadcasting
+- Robust task cancellation handling for different event loop scenarios
 
 ### Supported Commands
 - `start`: Begin simulation with optional tick rate

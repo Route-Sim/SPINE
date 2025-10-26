@@ -1,9 +1,9 @@
 ---
 title: "Simulation Queue Infrastructure"
-summary: "Thread-safe queue infrastructure for communication between simulation and WebSocket threads with Pydantic message validation."
+summary: "Thread-safe queue infrastructure for communication between simulation and WebSocket threads with context-aware Pydantic message validation."
 source_paths:
   - "world/sim/queues.py"
-last_updated: "2025-10-25"
+last_updated: "2025-10-26"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -50,9 +50,10 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 - Handles high-frequency event streaming
 
 **Message Models**: Pydantic models for validation
-- `SimCommand`: Validates incoming commands with required fields
-- `SimEvent`: Validates outgoing events with optional fields
-- Enum types for command/event types
+- `Action`: Validates incoming commands with context-aware field requirements
+- `Signal`: Validates outgoing events with optional fields
+- Enum types for action/signal types
+- Model validators ensure required fields are present based on action type
 
 ### Data Flow
 
@@ -72,6 +73,8 @@ World → SimulationController → EventQueue → WebSocket → Frontend
 - Pydantic validation on all incoming messages
 - Early rejection of malformed commands
 - Type coercion and field validation
+- Context-aware validation (e.g., `agent_id` required for `ADD_AGENT` actions)
+- Model validators ensure data consistency across fields
 
 ## Public API / Usage
 
@@ -114,8 +117,15 @@ agent_event = create_agent_update_event("agent_1", data, tick=100)
 ## Implementation Notes
 
 **Thread Safety**: Uses Python's built-in `queue.Queue` which is thread-safe
+
 **Validation**: All messages validated with Pydantic before queuing
+- `ADD_AGENT` actions require both `agent_id` and `agent_kind`
+- `DELETE_AGENT` and `MODIFY_AGENT` actions require `agent_id`
+- `START` and `SET_TICK_RATE` actions require `tick_rate`
+- Validation errors are caught and logged without queuing invalid actions
+
 **Error Handling**: Queue full/timeout exceptions propagated to callers
+
 **Performance**: Non-blocking operations available for high-throughput scenarios
 
 ## Tests

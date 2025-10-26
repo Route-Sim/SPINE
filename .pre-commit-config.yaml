@@ -40,7 +40,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: poetry run pytest --tb=short --maxfail=1 --ignore=tests/world/test_websocket_server.py
+        entry: poetry run pytest --tb=short --maxfail=1
         language: system
         pass_filenames: false
         always_run: true

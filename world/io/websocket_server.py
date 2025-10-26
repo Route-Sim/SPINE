@@ -196,7 +196,18 @@ class WebSocketServer:
     async def stop_signal_broadcast(self) -> None:
         """Stop the signal broadcast task."""
         if self._signal_broadcast_task and not self._signal_broadcast_task.done():
-            self._signal_broadcast_task.cancel()
+            try:
+                self._signal_broadcast_task.cancel()
+            except RuntimeError as e:
+                # Handle the case where the task is attached to a different loop
+                if "attached to a different loop" in str(e):
+                    self.logger.warning(
+                        "Signal broadcast task attached to different loop, cannot cancel"
+                    )
+                    return
+                else:
+                    raise
+
             try:
                 await self._signal_broadcast_task
             except asyncio.CancelledError:
