@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0](https://github.com/Route-Sim/SPINE/compare/v0.6.0...v0.7.0) (2025-10-28)
+
+
+### 🚀 Features
+
+* **rules:** add project ground rules and typing guidelines for Python development ([f7883f8](https://github.com/Route-Sim/SPINE/commit/f7883f87a8a6ba98485c8a3802b9924df9bdf510))
+
 ## [0.6.0](https://github.com/Route-Sim/SPINE/compare/v0.5.0...v0.6.0) (2025-10-28)
 
 
