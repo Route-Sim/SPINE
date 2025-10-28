@@ -53,3 +53,14 @@ class BuildingAgent:
         # Update last serialized state
         self._last_serialized_state = current_state.copy()
         return current_state
+
+    def serialize_full(self) -> dict[str, Any]:
+        """Return complete agent state for state snapshot."""
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "tags": self.tags.copy(),
+            "inbox_count": len(self.inbox),
+            "outbox_count": len(self.outbox),
+            "building": self.building.to_dict(),
+        }

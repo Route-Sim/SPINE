@@ -136,3 +136,38 @@ class Transport(AgentBase):
         if self.pos:
             d.update({"edge": str(int(self.pos.edge)), "s": str(self.pos.s_m)})
         return d
+
+    def serialize_full(self) -> dict[str, Any]:
+        """Return complete agent state for state snapshot."""
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "tags": self.tags.copy(),
+            "inbox_count": len(self.inbox),
+            "outbox_count": len(self.outbox),
+            "state": self.state.name,
+            "pos": {
+                "edge": str(self.pos.edge) if self.pos else None,
+                "s_m": self.pos.s_m if self.pos else None,
+            },
+            "vel_mps": self.vel_mps,
+            "capacity": self.capacity,
+            "load": self.load,
+            "eta_s": self.eta_s,
+            "duty_end_s": self.duty_end_s,
+            "plan": {
+                "leg_id": str(self.plan.leg_id) if self.plan else None,
+                "mode": self.plan.mode if self.plan else None,
+                "path": [str(edge) for edge in self.plan.path] if self.plan else None,
+                "current_idx": self.plan.current_idx if self.plan else None,
+            }
+            if self.plan
+            else None,
+            "queueing": self.queueing,
+            "telemetry": {
+                "distance_m": self.telemetry.distance_m,
+                "fuel_j": self.telemetry.fuel_j,
+                "co2_kg": self.telemetry.co2_kg,
+            },
+            "policy": self.policy.copy(),
+        }

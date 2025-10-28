@@ -21,6 +21,7 @@ class ActionType(str, Enum):
     MODIFY_AGENT = "modify_agent"
     EXPORT_MAP = "export_map"
     IMPORT_MAP = "import_map"
+    REQUEST_STATE = "request_state"
 
 
 class SignalType(str, Enum):
@@ -37,6 +38,10 @@ class SignalType(str, Enum):
     SIMULATION_RESUMED = "simulation_resumed"
     MAP_EXPORTED = "map_exported"
     MAP_IMPORTED = "map_imported"
+    STATE_SNAPSHOT_START = "state_snapshot_start"
+    STATE_SNAPSHOT_END = "state_snapshot_end"
+    FULL_MAP_DATA = "full_map_data"
+    FULL_AGENT_DATA = "full_agent_data"
 
 
 class Action(BaseModel):
@@ -268,3 +273,28 @@ def create_map_exported_signal(map_name: str) -> Signal:
 def create_map_imported_signal(map_name: str) -> Signal:
     """Create a map imported signal."""
     return Signal(type=SignalType.MAP_IMPORTED, data={"map_name": map_name})
+
+
+def create_state_snapshot_start_signal() -> Signal:
+    """Create a state snapshot start signal."""
+    return Signal(type=SignalType.STATE_SNAPSHOT_START)
+
+
+def create_state_snapshot_end_signal() -> Signal:
+    """Create a state snapshot end signal."""
+    return Signal(type=SignalType.STATE_SNAPSHOT_END)
+
+
+def create_full_map_data_signal(graph_data: dict[str, Any]) -> Signal:
+    """Create a full map data signal."""
+    return Signal(type=SignalType.FULL_MAP_DATA, data=graph_data)
+
+
+def create_full_agent_data_signal(agent_data: dict[str, Any]) -> Signal:
+    """Create a full agent data signal."""
+    return Signal(type=SignalType.FULL_AGENT_DATA, data=agent_data)
+
+
+def create_request_state_action() -> Action:
+    """Create a request state action."""
+    return Action(type=ActionType.REQUEST_STATE)

@@ -99,6 +99,19 @@ class World:
         self.graph = new_graph
         self.emit_event({"type": "graph_imported", "map_name": map_name})
 
+    def get_full_state(self) -> dict[str, Any]:
+        """Get complete world state for state snapshot."""
+        return {
+            "graph": self.graph.to_dict(),
+            "agents": [agent.serialize_full() for agent in self.agents.values()],
+            "metadata": {
+                "tick": self.tick,
+                "dt_s": self.dt_s,
+                "now_s": self.now_s(),
+                "time_min": self.time_min(),
+            },
+        }
+
     def _deliver_all(self) -> None:
         # deliver last tick's outboxes (you can store separately)
         outboxes = []

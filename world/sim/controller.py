@@ -16,12 +16,16 @@ from .queues import (
     SignalQueue,
     create_agent_update_signal,
     create_error_signal,
+    create_full_agent_data_signal,
+    create_full_map_data_signal,
     create_map_exported_signal,
     create_map_imported_signal,
     create_simulation_paused_signal,
     create_simulation_resumed_signal,
     create_simulation_started_signal,
     create_simulation_stopped_signal,
+    create_state_snapshot_end_signal,
+    create_state_snapshot_start_signal,
     create_tick_end_signal,
     create_tick_start_signal,
     create_world_event_signal,
@@ -187,6 +191,8 @@ class SimulationController:
             self._handle_export_map_action(action)
         elif action.type == ActionType.IMPORT_MAP:
             self._handle_import_map_action(action)
+        elif action.type == ActionType.REQUEST_STATE:
+            self._handle_request_state_action()
         else:
             self.logger.warning(f"Unknown action type: {action.type}")
 
@@ -197,6 +203,10 @@ class SimulationController:
 
         self.state.start()
         self._emit_signal(create_simulation_started_signal())
+
+        # Emit state snapshot when simulation starts
+        self._emit_state_snapshot()
+
         self.logger.info(f"Simulation started with tick rate: {self.state.tick_rate}")
 
     def _handle_stop_action(self) -> None:
@@ -414,3 +424,33 @@ class SimulationController:
         except Exception as e:
             self.logger.error(f"Unexpected error importing map {map_name}: {e}", exc_info=True)
             self._emit_error(f"Unexpected error importing map: {e}")
+
+    def _emit_state_snapshot(self) -> None:
+        """Emit complete state snapshot signals."""
+        try:
+            # Emit start signal
+            self._emit_signal(create_state_snapshot_start_signal())
+
+            # Get full state from world
+            full_state = self.world.get_full_state()
+
+            # Emit map data
+            self._emit_signal(create_full_map_data_signal(full_state["graph"]))
+
+            # Emit agent data for each agent
+            for agent_data in full_state["agents"]:
+                self._emit_signal(create_full_agent_data_signal(agent_data))
+
+            # Emit end signal
+            self._emit_signal(create_state_snapshot_end_signal())
+
+            self.logger.info("State snapshot emitted successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error emitting state snapshot: {e}", exc_info=True)
+            self._emit_error(f"Failed to emit state snapshot: {e}")
+
+    def _handle_request_state_action(self) -> None:
+        """Handle request state action."""
+        self._emit_state_snapshot()
+        self.logger.info("State snapshot requested and emitted")

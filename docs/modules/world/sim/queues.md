@@ -106,6 +106,8 @@ agent_event = create_agent_update_event("agent_1", data, tick=100)
 - `PAUSE`/`RESUME`: Pause/resume simulation
 - `SET_TICK_RATE`: Change simulation speed
 - `ADD_AGENT`/`DELETE_AGENT`/`MODIFY_AGENT`: Agent management
+- `EXPORT_MAP`/`IMPORT_MAP`: Map management
+- `REQUEST_STATE`: Request complete state snapshot
 
 ### Event Types
 - `TICK_START`/`TICK_END`: Tick boundary markers
@@ -113,6 +115,10 @@ agent_event = create_agent_update_event("agent_1", data, tick=100)
 - `WORLD_EVENT`: General world events
 - `ERROR`: Error notifications
 - `SIMULATION_*`: Simulation state changes
+- `MAP_EXPORTED`/`MAP_IMPORTED`: Map operation confirmations
+- `STATE_SNAPSHOT_START`/`STATE_SNAPSHOT_END`: State snapshot boundaries
+- `FULL_MAP_DATA`: Complete map structure
+- `FULL_AGENT_DATA`: Complete agent state
 
 ## Implementation Notes
 

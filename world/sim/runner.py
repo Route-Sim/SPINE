@@ -60,6 +60,7 @@ class SimulationRunner:
         self.websocket_server = WebSocketServer(
             action_queue=self.action_queue,
             signal_queue=self.signal_queue,
+            controller=self.controller,
             logger=self.logger,
         )
 

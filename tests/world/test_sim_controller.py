@@ -1,8 +1,11 @@
 """Tests for simulation controller."""
 
 import time
+from typing import Any
 from unittest.mock import Mock
 
+from agents.base import AgentBase
+from core.types import AgentID
 from world.sim.controller import SimulationController, SimulationState
 from world.sim.queues import Action, ActionQueue, ActionType, SignalQueue
 from world.world import World
@@ -77,6 +80,22 @@ class TestSimulationController:
         """Setup test fixtures."""
         self.world = Mock(spec=World)
         self.world.step.return_value = {"type": "tick", "events": [], "agents": []}
+
+        # Track agents for get_full_state
+        self.world._test_agents = []
+
+        def mock_add_agent(_: AgentID, agent: AgentBase) -> None:
+            self.world._test_agents.append(agent)
+
+        def mock_get_full_state() -> dict[str, Any]:
+            return {
+                "graph": {"nodes": [], "edges": []},
+                "agents": [agent.serialize_full() for agent in self.world._test_agents],
+                "metadata": {"tick": 0, "dt_s": 0.05, "now_s": 0, "time_min": 0},
+            }
+
+        self.world.add_agent.side_effect = mock_add_agent
+        self.world.get_full_state.side_effect = mock_get_full_state
 
         self.action_queue = ActionQueue()
         self.signal_queue = SignalQueue()
@@ -295,3 +314,156 @@ class TestSimulationController:
 
         # Verify simulation stopped
         assert not self.controller.state.running
+
+    def test_state_snapshot_on_start(self) -> None:
+        """Test that state snapshot is emitted when simulation starts."""
+        # Start controller
+        self.controller.start()
+
+        # Send start action
+        self.action_queue.put(Action(type=ActionType.START, tick_rate=30.0))
+
+        # Wait for action to be processed (queue empty)
+        import time
+
+        max_wait = 1.0  # Maximum wait time in seconds
+        wait_interval = 0.01  # Check every 10ms
+        waited = 0.0
+        while not self.action_queue.empty() and waited < max_wait:
+            time.sleep(wait_interval)
+            waited += wait_interval
+
+        # Give a bit more time for state to be updated
+        time.sleep(0.05)
+
+        # Verify simulation started
+        assert self.controller.state.running
+
+        # Stop controller
+        self.controller.stop()
+
+        # Check for state snapshot signals
+        signals = []
+        while not self.signal_queue.empty():
+            signal = self.signal_queue.get_nowait()
+            if signal:
+                signals.append(signal)
+
+        # Should have simulation_started, state_snapshot_start, full_map_data, state_snapshot_end
+        signal_types = [s.type for s in signals]
+        assert "simulation_started" in signal_types
+        assert "state_snapshot_start" in signal_types
+        assert "full_map_data" in signal_types
+        assert "state_snapshot_end" in signal_types
+
+    def test_request_state_action(self) -> None:
+        """Test REQUEST_STATE action handling."""
+        # Start controller
+        self.controller.start()
+
+        # Send request state action
+        self.action_queue.put(Action(type=ActionType.REQUEST_STATE))
+
+        # Wait for action to be processed (queue empty)
+        max_wait = 1.0  # Maximum wait time in seconds
+        wait_interval = 0.01  # Check every 10ms
+        waited = 0.0
+        while not self.action_queue.empty() and waited < max_wait:
+            time.sleep(wait_interval)
+            waited += wait_interval
+
+        # Give a bit more time for signals to be emitted
+        time.sleep(0.05)
+
+        # Stop controller
+        self.controller.stop()
+
+        # Check for state snapshot signals
+        signals = []
+        while not self.signal_queue.empty():
+            signal = self.signal_queue.get_nowait()
+            if signal:
+                signals.append(signal)
+
+        # Should have state snapshot signals
+        signal_types = [s.type for s in signals]
+        assert "state_snapshot_start" in signal_types
+        assert "full_map_data" in signal_types
+        assert "state_snapshot_end" in signal_types
+
+    def test_agent_serialize_full(self) -> None:
+        """Test agent serialize_full method."""
+        from agents.base import AgentBase
+        from core.types import AgentID
+
+        # Create a test agent
+        agent = AgentBase(id=AgentID("test_agent"), kind="test")
+        agent.tags = {"status": "active", "position": {"x": 100, "y": 200}}
+
+        # Test serialize_full
+        full_data = agent.serialize_full()
+
+        assert full_data["id"] == "test_agent"
+        assert full_data["kind"] == "test"
+        assert full_data["tags"] == {"status": "active", "position": {"x": 100, "y": 200}}
+        assert full_data["inbox_count"] == 0
+        assert full_data["outbox_count"] == 0
+
+    def test_building_agent_serialize_full(self) -> None:
+        """Test BuildingAgent serialize_full method."""
+        from agents.buildings.building_agent import BuildingAgent
+        from core.buildings.base import Building
+        from core.types import AgentID, BuildingID
+
+        # Create a test building
+        building = Building(id=BuildingID("building1"))
+
+        # Create building agent
+        agent = BuildingAgent(building=building, id=AgentID("building_agent"), kind="building")
+        agent.tags = {"status": "operational"}
+
+        # Test serialize_full
+        full_data = agent.serialize_full()
+
+        assert full_data["id"] == "building1"
+        assert full_data["kind"] == "building"
+        assert full_data["tags"] == {"status": "operational"}
+        assert full_data["inbox_count"] == 0
+        assert full_data["outbox_count"] == 0
+        assert "building" in full_data
+        assert full_data["building"]["id"] == "building1"
+
+    def test_world_get_full_state(self) -> None:
+        """Test World get_full_state method."""
+        # Add an agent to the world
+        from agents.base import AgentBase
+        from core.types import AgentID
+
+        agent = AgentBase(id=AgentID("test_agent"), kind="test")
+        agent.tags = {"status": "active"}
+        self.world.add_agent(AgentID("test_agent"), agent)
+
+        # Get full state
+        full_state = self.world.get_full_state()
+
+        # Verify structure
+        assert "graph" in full_state
+        assert "agents" in full_state
+        assert "metadata" in full_state
+
+        # Verify graph data
+        assert "nodes" in full_state["graph"]
+        assert "edges" in full_state["graph"]
+
+        # Verify agents data
+        assert len(full_state["agents"]) == 1
+        agent_data = full_state["agents"][0]
+        assert agent_data["id"] == "test_agent"
+        assert agent_data["kind"] == "test"
+        assert agent_data["tags"] == {"status": "active"}
+
+        # Verify metadata
+        assert "tick" in full_state["metadata"]
+        assert "dt_s" in full_state["metadata"]
+        assert "now_s" in full_state["metadata"]
+        assert "time_min" in full_state["metadata"]

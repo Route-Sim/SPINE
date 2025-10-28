@@ -127,15 +127,38 @@ if controller.state.running:
 **Error Handling**: Exceptions caught and emitted as error events
 **Agent Management**: Dynamic agent creation based on kind
 **Tick Markers**: Explicit tick_start/tick_end events for frontend synchronization
+**State Snapshots**: Complete state transmission for frontend initialization and recovery
+
+### State Snapshot Functionality
+
+The controller provides complete state snapshot capabilities for frontend synchronization:
+
+**When State Snapshots Are Sent**:
+- On simulation start (after `SIMULATION_STARTED` signal)
+- When new WebSocket clients connect during running/paused simulation
+- On explicit `REQUEST_STATE` action
+
+**State Snapshot Sequence**:
+1. `STATE_SNAPSHOT_START` - Marks beginning of transmission
+2. `FULL_MAP_DATA` - Complete graph structure (nodes, edges, buildings)
+3. `FULL_AGENT_DATA` - One signal per agent with complete state
+4. `STATE_SNAPSHOT_END` - Marks end of transmission
+
+**State Data Includes**:
+- Complete map structure with all nodes and edges
+- All agent states with position, status, and telemetry
+- Simulation metadata (tick, time, etc.)
 
 ### Command Types Handled
-- `START`: Begin simulation with optional tick rate
+- `START`: Begin simulation with optional tick rate (triggers state snapshot)
 - `STOP`: Stop simulation completely
 - `PAUSE`/`RESUME`: Pause/resume running simulation
 - `SET_TICK_RATE`: Change simulation speed
 - `ADD_AGENT`: Create new agent with specified kind and data
 - `DELETE_AGENT`: Remove agent by ID
 - `MODIFY_AGENT`: Update agent properties
+- `EXPORT_MAP`/`IMPORT_MAP`: Map management operations
+- `REQUEST_STATE`: Request complete state snapshot
 
 ### Event Types Emitted
 - `TICK_START`/`TICK_END`: Tick boundary markers
@@ -143,6 +166,10 @@ if controller.state.running:
 - `WORLD_EVENT`: General world events
 - `ERROR`: Error notifications
 - `SIMULATION_*`: Simulation state changes
+- `MAP_EXPORTED`/`MAP_IMPORTED`: Map operation confirmations
+- `STATE_SNAPSHOT_START`/`STATE_SNAPSHOT_END`: State snapshot boundaries
+- `FULL_MAP_DATA`: Complete map structure
+- `FULL_AGENT_DATA`: Complete agent state
 
 ## Tests
 

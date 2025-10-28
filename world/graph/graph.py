@@ -1,5 +1,6 @@
 import json
 import xml.etree.ElementTree as ET
+from typing import Any
 
 from core.buildings.base import Building
 from core.types import EdgeID, NodeID
@@ -139,6 +140,30 @@ class Graph:
     def __repr__(self) -> str:
         """Detailed representation of the graph."""
         return f"Graph(nodes={list(self.nodes.keys())}, edges={list(self.edges.keys())})"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize graph to JSON-friendly dictionary."""
+        return {
+            "nodes": [
+                {
+                    "id": str(node.id),
+                    "x": node.x,
+                    "y": node.y,
+                    "buildings": [building.to_dict() for building in node.buildings],
+                }
+                for node in self.nodes.values()
+            ],
+            "edges": [
+                {
+                    "id": str(edge.id),
+                    "from_node": str(edge.from_node),
+                    "to_node": str(edge.to_node),
+                    "length_m": edge.length_m,
+                    "mode": edge.mode.value,
+                }
+                for edge in self.edges.values()
+            ],
+        }
 
     def to_graphml(self, filepath: str) -> None:
         """Export graph to GraphML format."""

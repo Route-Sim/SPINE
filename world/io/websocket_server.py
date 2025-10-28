@@ -12,6 +12,10 @@ from ..sim.queues import (
     Action,
     ActionQueue,
     SignalQueue,
+    create_full_agent_data_signal,
+    create_full_map_data_signal,
+    create_state_snapshot_end_signal,
+    create_state_snapshot_start_signal,
 )
 
 
@@ -75,10 +79,12 @@ class WebSocketServer:
         self,
         action_queue: ActionQueue,
         signal_queue: SignalQueue,
+        controller: Any = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.action_queue = action_queue
         self.signal_queue = signal_queue
+        self.controller = controller
         self.logger = logger or logging.getLogger(__name__)
         self.manager = ConnectionManager()
         self.app = FastAPI(title="SPINE Simulation WebSocket API")
@@ -93,6 +99,17 @@ class WebSocketServer:
             """WebSocket endpoint for Frontend-Backend communication."""
             connection_id = f"conn_{id(websocket)}"
             await self.manager.connect(websocket, connection_id)
+
+            # Send state snapshot if simulation is running or paused
+            if self.controller and self.controller.state.running:
+                self.logger.info(
+                    f"Sending state snapshot to new client {connection_id} (simulation running: {self.controller.state.running}, paused: {self.controller.state.paused})"
+                )
+                await self._send_state_snapshot_to_client(websocket)
+            else:
+                self.logger.info(
+                    f"Not sending state snapshot to new client {connection_id} (controller: {self.controller is not None}, running: {self.controller.state.running if self.controller else 'N/A'})"
+                )
 
             try:
                 while True:
@@ -248,6 +265,51 @@ class WebSocketServer:
     def get_app(self) -> FastAPI:
         """Get the FastAPI application."""
         return self.app
+
+    async def _send_state_snapshot_to_client(self, websocket: WebSocket) -> None:
+        """Send complete state snapshot to a specific client."""
+        try:
+            self.logger.info("Starting state snapshot transmission to client")
+
+            # Get full state from controller's world
+            full_state = self.controller.world.get_full_state()
+            self.logger.info(
+                f"Retrieved full state: {len(full_state['agents'])} agents, {len(full_state['graph']['nodes'])} nodes, {len(full_state['graph']['edges'])} edges"
+            )
+
+            # Send start signal
+            start_signal = create_state_snapshot_start_signal()
+            await self.manager.send_personal_message(
+                orjson.dumps(start_signal.model_dump()).decode(), websocket
+            )
+            self.logger.info("Sent state_snapshot_start signal")
+
+            # Send map data
+            map_signal = create_full_map_data_signal(full_state["graph"])
+            await self.manager.send_personal_message(
+                orjson.dumps(map_signal.model_dump()).decode(), websocket
+            )
+            self.logger.info("Sent full_map_data signal")
+
+            # Send agent data for each agent
+            for agent_data in full_state["agents"]:
+                agent_signal = create_full_agent_data_signal(agent_data)
+                await self.manager.send_personal_message(
+                    orjson.dumps(agent_signal.model_dump()).decode(), websocket
+                )
+            self.logger.info(f"Sent {len(full_state['agents'])} full_agent_data signals")
+
+            # Send end signal
+            end_signal = create_state_snapshot_end_signal()
+            await self.manager.send_personal_message(
+                orjson.dumps(end_signal.model_dump()).decode(), websocket
+            )
+            self.logger.info("Sent state_snapshot_end signal")
+
+            self.logger.info("State snapshot sent to new client")
+
+        except Exception as e:
+            self.logger.error(f"Error sending state snapshot to client: {e}", exc_info=True)
 
 
 # Convenience function for creating common client messages

@@ -291,6 +291,32 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
+### 11. REQUEST_STATE - Request Full State Snapshot
+
+**Purpose**: Request a complete snapshot of the current simulation state (map + agents).
+
+**Action Type**: `request_state`
+
+**JSON Example**:
+```json
+{
+  "type": "request_state"
+}
+```
+
+**Parameters**: None
+
+**Notes**:
+- Returns complete map data and all agent states
+- Useful for frontend initialization or state recovery
+- Can be requested at any time during simulation
+
+**Postman Test**:
+1. Send the JSON above
+2. Expect acknowledgment and state snapshot signals (see Signals section)
+
+---
+
 ## Signals (Backend → Frontend)
 
 Signals are updates sent from the Backend to inform the Frontend about simulation state changes.
@@ -547,6 +573,134 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
+### 12. STATE_SNAPSHOT_START - State Snapshot Started
+
+**Purpose**: Indicates the beginning of a complete state snapshot transmission.
+
+**Signal Type**: `state_snapshot_start`
+
+**JSON Example**:
+```json
+{
+  "type": "state_snapshot_start"
+}
+```
+
+**Fields**: None
+
+**When Received**: Before sending complete state data (map + agents)
+
+---
+
+### 13. STATE_SNAPSHOT_END - State Snapshot Completed
+
+**Purpose**: Indicates the end of a complete state snapshot transmission.
+
+**Signal Type**: `state_snapshot_end`
+
+**JSON Example**:
+```json
+{
+  "type": "state_snapshot_end"
+}
+```
+
+**Fields**: None
+
+**When Received**: After all state data has been sent
+
+---
+
+### 14. FULL_MAP_DATA - Complete Map Data
+
+**Purpose**: Contains the complete graph structure (nodes and edges).
+
+**Signal Type**: `full_map_data`
+
+**JSON Example**:
+```json
+{
+  "type": "full_map_data",
+  "data": {
+    "nodes": [
+      {
+        "id": "1",
+        "x": 0.0,
+        "y": 0.0,
+        "buildings": [
+          {
+            "id": "building1",
+            "type": "warehouse",
+            "capacity": 1000
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "1",
+        "from_node": "1",
+        "to_node": "2",
+        "length_m": 100.0,
+        "mode": 1
+      }
+    ]
+  }
+}
+```
+
+**Fields**:
+- `data`: Complete graph structure
+  - `nodes`: Array of node objects with coordinates and buildings
+  - `edges`: Array of edge objects with connections and properties
+
+**When Received**: As part of state snapshot transmission
+
+---
+
+### 15. FULL_AGENT_DATA - Complete Agent State
+
+**Purpose**: Contains the complete state of a single agent.
+
+**Signal Type**: `full_agent_data`
+
+**JSON Example**:
+```json
+{
+  "type": "full_agent_data",
+  "data": {
+    "id": "truck1",
+    "kind": "transport",
+    "tags": {
+      "status": "moving",
+      "cargo": "electronics"
+    },
+    "inbox_count": 0,
+    "outbox_count": 1,
+    "state": "ENROUTE",
+    "pos": {
+      "edge": "1",
+      "s_m": 50.0
+    },
+    "vel_mps": 15.0,
+    "capacity": 1000.0,
+    "load": 500.0,
+    "telemetry": {
+      "distance_m": 1500.0,
+      "fuel_j": 50000.0,
+      "co2_kg": 25.0
+    }
+  }
+}
+```
+
+**Fields**:
+- `data`: Complete agent state including position, status, and telemetry
+
+**When Received**: As part of state snapshot transmission (one signal per agent)
+
+---
+
 ## Postman Testing Workflow
 
 ### 1. Basic Connection Test
@@ -706,6 +860,29 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 1. Start simulation with high tick rate (60Hz)
 2. Monitor signal frequency and performance
 3. Verify no signal loss or delays
+
+### 5. State Snapshot Test
+
+1. **Request State Snapshot**:
+   ```json
+   {"type": "request_state"}
+   ```
+   - Expect: `{"type": "action_ack", "action_type": "request_state", "status": "received"}`
+   - Expect: `{"type": "state_snapshot_start"}`
+   - Expect: `{"type": "full_map_data", "data": {...}}`
+   - Expect: Multiple `{"type": "full_agent_data", "data": {...}}` signals (one per agent)
+   - Expect: `{"type": "state_snapshot_end"}`
+
+2. **Test Client Connection During Simulation**:
+   - Start simulation: `{"type": "start", "tick_rate": 20}`
+   - Open new WebSocket connection
+   - Should automatically receive state snapshot (if simulation is running)
+   - Verify complete state is received before regular tick signals
+
+3. **Test State Snapshot on Simulation Start**:
+   - Connect to WebSocket
+   - Send: `{"type": "start", "tick_rate": 20}`
+   - Should receive state snapshot immediately after simulation_started signal
 
 ---
 

@@ -227,6 +227,56 @@ class TestGraphGraphML(unittest.TestCase):
             if os.path.exists(filepath):
                 os.unlink(filepath)
 
+    def test_to_dict(self) -> None:
+        """Test graph serialization to dictionary."""
+        graph = Graph()
+
+        # Add nodes
+        node1 = Node(id=NodeID(1), x=10.0, y=20.0)
+        node2 = Node(id=NodeID(2), x=30.0, y=40.0)
+        graph.add_node(node1)
+        graph.add_node(node2)
+
+        # Add building to node1
+        building = Building(id=BuildingID("b1"))
+        node1.add_building(building)
+
+        # Add edge
+        edge = Edge(
+            id=EdgeID(1), from_node=NodeID(1), to_node=NodeID(2), length_m=100.0, mode=Mode.ROAD
+        )
+        graph.add_edge(edge)
+
+        # Test to_dict
+        result = graph.to_dict()
+
+        # Verify structure
+        self.assertIn("nodes", result)
+        self.assertIn("edges", result)
+
+        # Verify nodes
+        self.assertEqual(len(result["nodes"]), 2)
+        node1_dict = next(n for n in result["nodes"] if n["id"] == "1")
+        node2_dict = next(n for n in result["nodes"] if n["id"] == "2")
+
+        self.assertEqual(node1_dict["x"], 10.0)
+        self.assertEqual(node1_dict["y"], 20.0)
+        self.assertEqual(len(node1_dict["buildings"]), 1)
+        self.assertEqual(node1_dict["buildings"][0]["id"], "b1")
+
+        self.assertEqual(node2_dict["x"], 30.0)
+        self.assertEqual(node2_dict["y"], 40.0)
+        self.assertEqual(len(node2_dict["buildings"]), 0)
+
+        # Verify edges
+        self.assertEqual(len(result["edges"]), 1)
+        edge_dict = result["edges"][0]
+        self.assertEqual(edge_dict["id"], "1")
+        self.assertEqual(edge_dict["from_node"], "1")
+        self.assertEqual(edge_dict["to_node"], "2")
+        self.assertEqual(edge_dict["length_m"], 100.0)
+        self.assertEqual(edge_dict["mode"], Mode.ROAD.value)
+
 
 if __name__ == "__main__":
     unittest.main()
