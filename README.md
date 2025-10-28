@@ -1,4 +1,4 @@
-## mulation Processing & INteraction Engine
+## Simulation Processing & INteraction Engine
 
 Backend system for managing agentic transport logistics using FastAPI and agent-based modeling.
 
