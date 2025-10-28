@@ -1,4 +1,4 @@
-# SPINE - Agentic Transport Logistics System
+## mulation Processing & INteraction Engine
 
 Backend system for managing agentic transport logistics using FastAPI and agent-based modeling.
 
