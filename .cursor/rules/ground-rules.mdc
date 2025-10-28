@@ -1,0 +1,44 @@
+---
+alwaysApply: true
+---
+
+## Project Ground Rules
+- **Language:** Python (Poetry-managed).
+- **Formatting:** `ruff format` (no Black/autopep8). Do not customize colors/styles.
+- **Linting:** `ruff` with autofix enabled. Write code that is clean with zero warnings.
+- **Typing:** `mypy --strict` with `--ignore-missing-imports`. Code MUST be fully typed.
+- **Tests:** `pytest` (run via `poetry run pytest --tb=short --maxfail=1`).
+- **Commits:** Conventional Commits (enforced by commitlint).
+- **Files:** Ensure a single trailing newline at EOF; no trailing whitespace; use LF endings; keep YAML/JSON/TOML valid.
+
+## Typing & Mypy (STRICT)
+When writing or editing Python:
+- Add **explicit type annotations** for:
+  - All function/method **parameters** and **return types** (including `__init__` returning `None`).
+  - Module-level constants and public attributes.
+- **Avoid `Any`**. If unavoidable, isolate it behind typed adapters and add a comment explaining why.
+- Prefer **`typing`** & **PEP 604** unions (`str | None`) and **`TypedDict`, `Protocol`, `Literal`, `Final`, `NewType`** when helpful.
+- Use **`Enum`** for categorical values; **`dataclass(frozen=True)`** or **`attrs`** for plain data containers unless using Pydantic.
+- Keep **`Optional` explicit**; do not rely on implicit optionals.
+- Use **`from __future__ import annotations`** if forward references are needed (Py≥3.11 often not required, use judiciously).
+- Third-party libraries may be untyped; keep interfaces narrow and add **facade types** when helpful.
+
+### Pydantic v2 specifics
+- Use `from pydantic import BaseModel, Field, field_validator, ConfigDict`.
+- Prefer **`model_validate`** / `model_dump` patterns; avoid v1 aliases.
+- Annotate fields precisely; no `Any` fields.
+- Example:
+  ```python
+  from pydantic import BaseModel, Field, field_validator
+
+  class Truck(BaseModel):
+      id: str
+      capacity_kg: int = Field(gt=0)
+      speed_kph: float = Field(gt=0)
+
+      @field_validator("speed_kph")
+      @classmethod
+      def _reasonable_speed(cls, v: float) -> float:
+          if v > 200:
+              raise ValueError("speed_kph too high")
+          return v
