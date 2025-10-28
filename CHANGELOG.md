@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0](https://github.com/Route-Sim/SPINE/compare/v0.5.0...v0.6.0) (2025-10-28)
+
+
+### 🚀 Features
+
+* **state-snapshot:** implement full state snapshot functionality ([071b9fa](https://github.com/Route-Sim/SPINE/commit/071b9fafd707d7f268bb7b94b534e50820b91fbe))
+
 ## [0.5.0](https://github.com/Route-Sim/SPINE/compare/v0.4.0...v0.5.0) (2025-10-26)
 
 
