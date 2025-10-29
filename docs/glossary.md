@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-10-25"
+last_updated: "2024-12-19"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -35,6 +35,12 @@ links:
 **Command**: A message sent from frontend to simulation requesting an action (start, stop, add agent, etc.). *Note: This is the technical implementation term; see "Action" for the user-facing term.*
 
 **CommandQueue**: Thread-safe queue for commands from frontend to simulation.
+
+## D
+
+**Delivery Deadline**: The latest tick by which a package must be delivered to its destination site. Packages that exceed this deadline are considered overdue but not expired.
+
+**Delivery Urgency**: Classification of package delivery speed requirements, including STANDARD, EXPRESS, and SAME_DAY levels that affect pricing and handling priority.
 
 ## E
 
@@ -86,6 +92,22 @@ links:
 
 **Queue**: Thread-safe data structure for inter-thread communication.
 
+**Expired Package**: A package that has passed its pickup deadline without being picked up by an agent. Expired packages are automatically removed from the simulation and generate failure metrics.
+
+## P
+
+**Package**: A delivery item within the simulation with attributes including origin, destination, size, value, priority, urgency, and tick-based deadlines. Packages progress through lifecycle states from creation to delivery or expiry.
+
+**PackageID**: Unique identifier for packages, implemented as a string type.
+
+**Package Status**: The current state of a package in its lifecycle: WAITING_PICKUP, IN_TRANSIT, DELIVERED, or EXPIRED.
+
+**Pickup Deadline**: The latest tick by which a package must be picked up from its origin site. Packages that exceed this deadline are considered expired and removed from the simulation.
+
+**Poisson Process**: A statistical model used for package spawning at sites, simulating natural arrival patterns with configurable activity rates.
+
+**Priority**: Classification of package importance levels (LOW, MEDIUM, HIGH, URGENT) that affect pricing, handling priority, and delivery requirements.
+
 ## S
 
 **Signal**: A message sent from the Backend to the Frontend describing state changes or events within the simulation. Signals inform the Frontend what has occurred – such as an Agent moving, an Event being triggered, or metrics being updated, so that it can update the 3D visualization accordingly.
@@ -95,6 +117,12 @@ links:
 **Simulation Controller**: Component that manages the simulation loop and processes commands.
 
 **Simulation Runner**: Main entry point that orchestrates all components.
+
+**Site**: A specialized building type representing pickup and delivery locations in the logistics network. Sites generate packages using Poisson processes and track comprehensive statistics about package lifecycle events.
+
+**SiteID**: Unique identifier for sites, implemented as a string type (alias for BuildingID).
+
+**Site Statistics**: Comprehensive metrics tracked by sites including packages generated, picked up, delivered, expired, and associated monetary values for business intelligence and performance analysis.
 
 ## T
 

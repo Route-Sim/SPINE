@@ -21,6 +21,8 @@
 * [Messages](modules/core/messages.md)
 * [FSM](modules/core/fsm.md)
 * [Building](modules/core/buildings/base.md)
+* [Site Building](modules/core/buildings/site.md)
+* [Package Data Model](modules/core/packages/package.md)
 
 ### World
 * [World](modules/world/world.md)

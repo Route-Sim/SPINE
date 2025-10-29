@@ -20,6 +20,10 @@ from .queues import (
     create_full_map_data_signal,
     create_map_exported_signal,
     create_map_imported_signal,
+    create_package_created_signal,
+    create_package_delivered_signal,
+    create_package_expired_signal,
+    create_package_picked_up_signal,
     create_simulation_paused_signal,
     create_simulation_resumed_signal,
     create_simulation_started_signal,
@@ -347,7 +351,42 @@ class SimulationController:
         # Emit world events if any
         if step_result.get("events"):
             for event in step_result["events"]:
-                self._emit_signal(create_world_event_signal(event, self.state.current_tick))
+                # Handle package-specific events with dedicated signals
+                if event.get("type") == "package_created":
+                    self._emit_signal(
+                        create_package_created_signal(
+                            event.get("data", {}), self.state.current_tick
+                        )
+                    )
+                elif event.get("type") == "package_expired":
+                    self._emit_signal(
+                        create_package_expired_signal(
+                            event.get("package_id", ""),
+                            event.get("site_id", ""),
+                            event.get("value_lost", 0.0),
+                            self.state.current_tick,
+                        )
+                    )
+                elif event.get("type") == "package_picked_up":
+                    self._emit_signal(
+                        create_package_picked_up_signal(
+                            event.get("package_id", ""),
+                            event.get("agent_id", ""),
+                            self.state.current_tick,
+                        )
+                    )
+                elif event.get("type") == "package_delivered":
+                    self._emit_signal(
+                        create_package_delivered_signal(
+                            event.get("package_id", ""),
+                            event.get("site_id", ""),
+                            event.get("value", 0.0),
+                            self.state.current_tick,
+                        )
+                    )
+                else:
+                    # Generic world event
+                    self._emit_signal(create_world_event_signal(event, self.state.current_tick))
 
         # Emit agent updates
         if step_result.get("agents"):

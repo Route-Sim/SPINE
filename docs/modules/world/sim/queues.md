@@ -1,9 +1,9 @@
 ---
 title: "Simulation Queue Infrastructure"
-summary: "Thread-safe queue infrastructure for communication between simulation and WebSocket threads with context-aware Pydantic message validation."
+summary: "Thread-safe queue infrastructure for communication between simulation and WebSocket threads with context-aware Pydantic message validation, including comprehensive package lifecycle signals."
 source_paths:
   - "world/sim/queues.py"
-last_updated: "2025-10-26"
+last_updated: "2024-12-19"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -18,8 +18,8 @@ links:
 ## Context & Motivation
 
 The SPINE simulation requires bidirectional communication between:
-- **Frontend → Simulation**: Commands to start/stop/pause simulation, add/remove agents
-- **Simulation → Frontend**: Events like tick markers, agent updates, world events
+- **Frontend → Simulation**: Commands to start/stop/pause simulation, add/remove agents, manage packages and sites
+- **Simulation → Frontend**: Events like tick markers, agent updates, world events, package lifecycle events
 
 This module implements thread-safe queues with Pydantic validation to ensure reliable, type-safe communication between threads.
 
@@ -29,6 +29,8 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 - Thread-safe queue implementations for commands and events
 - Pydantic models for message validation
 - Convenience functions for common message types
+- Package lifecycle signal definitions
+- Site management signal definitions
 - Queue size management and error handling
 
 **Out-of-scope:**
@@ -89,15 +91,62 @@ command_queue.put(command, timeout=1.0)
 event = event_queue.get_nowait()
 ```
 
-### Message Creation
+### Package Lifecycle Signals
 ```python
-# Create commands
-start_cmd = create_start_command(tick_rate=30.0)
-stop_cmd = create_stop_command()
+# Package created signal
+package_created = create_package_created_signal(
+    package_data={
+        "id": "pkg-123",
+        "origin_site": "warehouse-a",
+        "destination_site": "warehouse-b",
+        "size_kg": 25.0,
+        "value_currency": 1500.0,
+        "priority": "HIGH",
+        "urgency": "EXPRESS",
+        "spawn_tick": 1000,
+        "pickup_deadline_tick": 4600,
+        "delivery_deadline_tick": 8200,
+        "status": "WAITING_PICKUP"
+    },
+    tick=1000
+)
 
-# Create events
-tick_event = create_tick_start_event(tick=100)
-agent_event = create_agent_update_event("agent_1", data, tick=100)
+# Package expired signal
+package_expired = create_package_expired_signal(
+    package_id="pkg-123",
+    site_id="warehouse-a",
+    value_lost=1500.0,
+    tick=4600
+)
+
+# Package picked up signal
+package_picked_up = create_package_picked_up_signal(
+    package_id="pkg-123",
+    agent_id="truck-1",
+    tick=2000
+)
+
+# Package delivered signal
+package_delivered = create_package_delivered_signal(
+    package_id="pkg-123",
+    site_id="warehouse-b",
+    value=1500.0,
+    tick=5000
+)
+
+# Site statistics update signal
+site_stats = create_site_stats_signal(
+    site_id="warehouse-a",
+    stats={
+        "packages_generated": 150,
+        "packages_picked_up": 140,
+        "packages_delivered": 135,
+        "packages_expired": 5,
+        "total_value_delivered": 150000.0,
+        "total_value_expired": 5000.0
+    },
+    tick=1000
+)
 ```
 
 ### Command Types
@@ -108,6 +157,8 @@ agent_event = create_agent_update_event("agent_1", data, tick=100)
 - `ADD_AGENT`/`DELETE_AGENT`/`MODIFY_AGENT`: Agent management
 - `EXPORT_MAP`/`IMPORT_MAP`: Map management
 - `REQUEST_STATE`: Request complete state snapshot
+- `CREATE_PACKAGE`/`CANCEL_PACKAGE`: Package management (future)
+- `ADD_SITE`/`MODIFY_SITE`: Site management (future)
 
 ### Event Types
 - `TICK_START`/`TICK_END`: Tick boundary markers
@@ -119,6 +170,8 @@ agent_event = create_agent_update_event("agent_1", data, tick=100)
 - `STATE_SNAPSHOT_START`/`STATE_SNAPSHOT_END`: State snapshot boundaries
 - `FULL_MAP_DATA`: Complete map structure
 - `FULL_AGENT_DATA`: Complete agent state
+- `PACKAGE_CREATED`/`PACKAGE_EXPIRED`/`PACKAGE_PICKED_UP`/`PACKAGE_DELIVERED`: Package lifecycle events
+- `SITE_STATS_UPDATE`: Site statistics updates
 
 ## Implementation Notes
 

@@ -22,6 +22,11 @@ class ActionType(str, Enum):
     EXPORT_MAP = "export_map"
     IMPORT_MAP = "import_map"
     REQUEST_STATE = "request_state"
+    # Future package/site actions
+    CREATE_PACKAGE = "create_package"
+    CANCEL_PACKAGE = "cancel_package"
+    ADD_SITE = "add_site"
+    MODIFY_SITE = "modify_site"
 
 
 class SignalType(str, Enum):
@@ -42,6 +47,11 @@ class SignalType(str, Enum):
     STATE_SNAPSHOT_END = "state_snapshot_end"
     FULL_MAP_DATA = "full_map_data"
     FULL_AGENT_DATA = "full_agent_data"
+    PACKAGE_CREATED = "package_created"
+    PACKAGE_EXPIRED = "package_expired"
+    PACKAGE_PICKED_UP = "package_picked_up"
+    PACKAGE_DELIVERED = "package_delivered"
+    SITE_STATS_UPDATE = "site_stats_update"
 
 
 class Action(BaseModel):
@@ -82,6 +92,17 @@ class Action(BaseModel):
             self.metadata is None or "map_name" not in self.metadata
         ):
             raise ValueError(f"metadata with 'map_name' is required for {self.type} action")
+
+        # Validate metadata for package/site actions
+        if self.type in [ActionType.CREATE_PACKAGE, ActionType.CANCEL_PACKAGE] and (
+            self.metadata is None or "package_id" not in self.metadata
+        ):
+            raise ValueError(f"metadata with 'package_id' is required for {self.type} action")
+
+        if self.type in [ActionType.ADD_SITE, ActionType.MODIFY_SITE] and (
+            self.metadata is None or "site_id" not in self.metadata
+        ):
+            raise ValueError(f"metadata with 'site_id' is required for {self.type} action")
 
         return self
 
@@ -298,3 +319,63 @@ def create_full_agent_data_signal(agent_data: dict[str, Any]) -> Signal:
 def create_request_state_action() -> Action:
     """Create a request state action."""
     return Action(type=ActionType.REQUEST_STATE)
+
+
+# Package-related signal factory functions
+def create_package_created_signal(package_data: dict[str, Any], tick: int) -> Signal:
+    """Create a package created signal."""
+    return Signal(type=SignalType.PACKAGE_CREATED, data=package_data, tick=tick)
+
+
+def create_package_expired_signal(
+    package_id: str, site_id: str, value_lost: float, tick: int
+) -> Signal:
+    """Create a package expired signal."""
+    return Signal(
+        type=SignalType.PACKAGE_EXPIRED,
+        data={
+            "package_id": package_id,
+            "site_id": site_id,
+            "value_lost": value_lost,
+        },
+        tick=tick,
+    )
+
+
+def create_package_picked_up_signal(package_id: str, agent_id: str, tick: int) -> Signal:
+    """Create a package picked up signal."""
+    return Signal(
+        type=SignalType.PACKAGE_PICKED_UP,
+        data={
+            "package_id": package_id,
+            "agent_id": agent_id,
+        },
+        tick=tick,
+    )
+
+
+def create_package_delivered_signal(
+    package_id: str, site_id: str, value: float, tick: int
+) -> Signal:
+    """Create a package delivered signal."""
+    return Signal(
+        type=SignalType.PACKAGE_DELIVERED,
+        data={
+            "package_id": package_id,
+            "site_id": site_id,
+            "value": value,
+        },
+        tick=tick,
+    )
+
+
+def create_site_stats_signal(site_id: str, stats: dict[str, Any], tick: int) -> Signal:
+    """Create a site statistics update signal."""
+    return Signal(
+        type=SignalType.SITE_STATS_UPDATE,
+        data={
+            "site_id": site_id,
+            "statistics": stats,
+        },
+        tick=tick,
+    )

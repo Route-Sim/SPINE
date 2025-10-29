@@ -3,7 +3,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from agents.base import AgentBase
 
-from core.types import AgentID
+from core.buildings.site import Site
+from core.packages.package import Package
+from core.types import AgentID, PackageID, SiteID
 from world.io import map_manager
 
 
@@ -15,6 +17,7 @@ class World:
         self.dt_s = dt_s
         self.tick = 0
         self.agents: dict[AgentID, AgentBase] = {}  # AgentID -> AgentBase
+        self.packages: dict[PackageID, Package] = {}  # PackageID -> Package
         self._events: list[Any] = []
 
     def now_s(self) -> int:
@@ -28,19 +31,22 @@ class World:
 
     def step(self) -> dict[str, Any]:
         self.tick += 1
+
         # 1) sense (optional)
         for a in self.agents.values():
             a.perceive(self)
         # 2) dispatch messages (outboxes to inboxes)
         self._deliver_all()
-        # 3) decide/act
+        # 3) process sites (spawn packages, check expiry)
+        self._process_sites(self.tick)
+        # 4) decide/act
         for a in self.agents.values():
             a.decide(self)
-        # 4) collect UI diffs
+        # 5) collect UI diffs
         diffs = [a.serialize_diff() for a in self.agents.values()]
         evts = self._events
         self._events = []
-        return {"type": "tick", "t": self.now_s() * 1000, "events": evts, "agents": diffs}
+        return {"type": "tick", "t": self.tick * 1000, "events": evts, "agents": diffs}
 
     def add_agent(self, agent_id: AgentID, agent: "AgentBase") -> None:
         """Add an agent to the world."""
@@ -73,6 +79,70 @@ class World:
             {"type": "agent_modified", "agent_id": agent_id, "modifications": modifications}
         )
 
+    def add_package(self, package: Package) -> None:
+        """Add a package to the world."""
+        if package.id in self.packages:
+            raise ValueError(f"Package {package.id} already exists")
+        self.packages[package.id] = package
+        self.emit_event(
+            {"type": "package_created", "package_id": package.id, "data": package.to_dict()}
+        )
+
+    def remove_package(self, package_id: PackageID) -> None:
+        """Remove a package from the world."""
+        if package_id not in self.packages:
+            raise ValueError(f"Package {package_id} does not exist")
+        package = self.packages.pop(package_id)
+        self.emit_event(
+            {"type": "package_removed", "package_id": package_id, "data": package.to_dict()}
+        )
+
+    def get_packages_at_site(self, site_id: SiteID) -> list[Package]:
+        """Get all packages waiting for pickup at a specific site."""
+        return [
+            package
+            for package in self.packages.values()
+            if package.origin_site == site_id and package.status.value == "WAITING_PICKUP"
+        ]
+
+    def get_package(self, package_id: PackageID) -> Package:
+        """Get a package by ID."""
+        if package_id not in self.packages:
+            raise ValueError(f"Package {package_id} does not exist")
+        return self.packages[package_id]
+
+    def update_package_status(
+        self, package_id: PackageID, new_status: str, agent_id: AgentID | None = None
+    ) -> None:
+        """Update package status and emit appropriate events."""
+        if package_id not in self.packages:
+            raise ValueError(f"Package {package_id} does not exist")
+
+        package = self.packages[package_id]
+        old_status = package.status.value
+        package.status = package.status.__class__(new_status)
+
+        # Emit specific events based on status change
+        if new_status == "IN_TRANSIT" and old_status == "WAITING_PICKUP":
+            self.emit_event(
+                {
+                    "type": "package_picked_up",
+                    "package_id": package_id,
+                    "agent_id": agent_id,
+                    "data": package.to_dict(),
+                }
+            )
+        elif new_status == "DELIVERED" and old_status == "IN_TRANSIT":
+            self.emit_event(
+                {
+                    "type": "package_delivered",
+                    "package_id": package_id,
+                    "site_id": package.destination_site,
+                    "value": package.value_currency,
+                    "data": package.to_dict(),
+                }
+            )
+
     def export_graph(self, map_name: str) -> None:
         """Export the world's graph to a GraphML file.
 
@@ -104,6 +174,7 @@ class World:
         return {
             "graph": self.graph.to_dict(),
             "agents": [agent.serialize_full() for agent in self.agents.values()],
+            "packages": [package.to_dict() for package in self.packages.values()],
             "metadata": {
                 "tick": self.tick,
                 "dt_s": self.dt_s,
@@ -111,6 +182,113 @@ class World:
                 "time_min": self.time_min(),
             },
         }
+
+    def _process_sites(self, current_tick: int) -> None:
+        """Process all sites for package spawning and expiry checking."""
+        # Get all sites from graph nodes
+        sites: list[Site] = []
+        for node in self.graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, Site):
+                    sites.append(building)
+
+        # Process each site
+        for site in sites:
+            # Check for package spawning
+            if site.should_spawn_package(self.dt_s):
+                self._spawn_package_at_site(site, current_tick)
+
+            # Check for package expiry
+            self._check_package_expiry_at_site(site, current_tick)
+
+    def _spawn_package_at_site(self, site: "Site", current_tick: int) -> None:
+        """Spawn a new package at a site."""
+        from typing import cast
+
+        from core.buildings.site import Site as SiteType
+        from core.packages.package import Package
+        from core.types import PackageID, SiteID
+
+        # Get available destination sites
+        available_sites: list[SiteID] = []
+        for node in self.graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, SiteType) and building.id != site.id:
+                    available_sites.append(cast(SiteID, building.id))
+
+        if not available_sites:
+            return  # No destinations available
+
+        # Select destination
+        destination_site = site.select_destination(available_sites)
+        if not destination_site:
+            return
+
+        # Generate package parameters
+        params = site.generate_package_parameters()
+
+        # Create package ID
+        package_id = PackageID(f"pkg-{site.id}-{current_tick}-{len(site.active_packages)}")
+
+        # Create package
+        package = Package(
+            id=package_id,
+            origin_site=cast(SiteID, site.id),
+            destination_site=destination_site,
+            size_kg=params["size_kg"],
+            value_currency=params["value_currency"],
+            priority=params["priority"],
+            urgency=params["urgency"],
+            spawn_tick=current_tick,
+            pickup_deadline_tick=current_tick + params["pickup_deadline_tick"],
+            delivery_deadline_tick=current_tick + params["delivery_deadline_tick"],
+        )
+
+        # Add to world and site
+        self.add_package(package)
+        site.add_package(package_id)
+        site.update_statistics("generated")
+
+    def _check_package_expiry_at_site(self, site: "Site", current_tick: int) -> None:
+        """Check for expired packages at a site."""
+
+        expired_packages = []
+        # Check all packages that originated from this site
+        from typing import cast
+
+        from core.types import SiteID
+
+        site_id = cast(SiteID, site.id)
+        for package_id, package in self.packages.items():
+            if package.origin_site == site_id and package.is_expired(current_tick):
+                expired_packages.append(package_id)
+
+        # Process expired packages
+        for package_id in expired_packages:
+            package = self.packages[package_id]
+            package.status = package.status.__class__("EXPIRED")
+
+            # Store package data before removal
+            package_data = package.to_dict()
+            value_lost = package.value_currency
+
+            # Update site statistics
+            site.update_statistics("expired", value_lost)
+            site.remove_package(package_id)
+
+            # Emit expiry event before removal
+            self.emit_event(
+                {
+                    "type": "package_expired",
+                    "package_id": package_id,
+                    "site_id": site.id,
+                    "value_lost": value_lost,
+                    "data": package_data,
+                }
+            )
+
+            # Remove package from world (directly without emitting event)
+            del self.packages[package_id]
 
     def _deliver_all(self) -> None:
         # deliver last tick's outboxes (you can store separately)

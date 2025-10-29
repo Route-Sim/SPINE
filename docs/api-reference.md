@@ -701,6 +701,160 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
+### 16. PACKAGE_CREATED - Package Created
+
+**Purpose**: Notifies when a new package is created at a site.
+
+**Signal Type**: `package_created`
+
+**JSON Example**:
+```json
+{
+  "type": "package_created",
+  "data": {
+    "id": "pkg-123",
+    "origin_site": "warehouse-a",
+    "destination_site": "warehouse-b",
+    "size_kg": 25.0,
+    "value_currency": 1500.0,
+    "priority": "HIGH",
+    "urgency": "EXPRESS",
+    "spawn_tick": 1000,
+    "pickup_deadline_tick": 4600,
+    "delivery_deadline_tick": 8200,
+    "status": "WAITING_PICKUP"
+  },
+  "tick": 1000
+}
+```
+
+**Fields**:
+- `data`: Complete package information
+- `tick`: Simulation tick when package was created
+
+**When Received**: When a site spawns a new package
+
+---
+
+### 17. PACKAGE_EXPIRED - Package Expired
+
+**Purpose**: Notifies when a package expires (not picked up by deadline).
+
+**Signal Type**: `package_expired`
+
+**JSON Example**:
+```json
+{
+  "type": "package_expired",
+  "data": {
+    "package_id": "pkg-123",
+    "site_id": "warehouse-a",
+    "value_lost": 1500.0
+  },
+  "tick": 4600
+}
+```
+
+**Fields**:
+- `data.package_id`: ID of the expired package
+- `data.site_id`: Site where package expired
+- `data.value_lost`: Monetary value lost due to expiry
+- `tick`: Simulation tick when package expired
+
+**When Received**: When a package passes its pickup deadline
+
+---
+
+### 18. PACKAGE_PICKED_UP - Package Picked Up
+
+**Purpose**: Notifies when a package is picked up by an agent.
+
+**Signal Type**: `package_picked_up`
+
+**JSON Example**:
+```json
+{
+  "type": "package_picked_up",
+  "data": {
+    "package_id": "pkg-123",
+    "agent_id": "truck-1"
+  },
+  "tick": 2000
+}
+```
+
+**Fields**:
+- `data.package_id`: ID of the picked up package
+- `data.agent_id`: ID of the agent that picked up the package
+- `tick`: Simulation tick when package was picked up
+
+**When Received**: When an agent picks up a package
+
+---
+
+### 19. PACKAGE_DELIVERED - Package Delivered
+
+**Purpose**: Notifies when a package is successfully delivered to its destination.
+
+**Signal Type**: `package_delivered`
+
+**JSON Example**:
+```json
+{
+  "type": "package_delivered",
+  "data": {
+    "package_id": "pkg-123",
+    "site_id": "warehouse-b",
+    "value": 1500.0
+  },
+  "tick": 5000
+}
+```
+
+**Fields**:
+- `data.package_id`: ID of the delivered package
+- `data.site_id`: Destination site where package was delivered
+- `data.value`: Monetary value of the delivered package
+- `tick`: Simulation tick when package was delivered
+
+**When Received**: When a package reaches its destination site
+
+---
+
+### 20. SITE_STATS_UPDATE - Site Statistics Update
+
+**Purpose**: Provides periodic updates of site statistics for business intelligence.
+
+**Signal Type**: `site_stats_update`
+
+**JSON Example**:
+```json
+{
+  "type": "site_stats_update",
+  "data": {
+    "site_id": "warehouse-a",
+    "stats": {
+      "packages_generated": 150,
+      "packages_picked_up": 140,
+      "packages_delivered": 135,
+      "packages_expired": 5,
+      "total_value_delivered": 150000.0,
+      "total_value_expired": 5000.0
+    }
+  },
+  "tick": 1000
+}
+```
+
+**Fields**:
+- `data.site_id`: ID of the site
+- `data.stats`: Complete statistics object
+- `tick`: Simulation tick when statistics were updated
+
+**When Received**: Periodically or when significant changes occur
+
+---
+
 ## Postman Testing Workflow
 
 ### 1. Basic Connection Test
@@ -797,7 +951,22 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    - Expect: Acknowledgment and map_imported signal
    - Error if simulation is running or file doesn't exist
 
-### 5. Real-time Updates Test
+### 5. Package Lifecycle Test
+
+1. **Start Simulation** and observe package signals:
+   - `package_created` signals when sites spawn packages
+   - `package_picked_up` signals when agents pick up packages
+   - `package_delivered` signals when packages reach destinations
+   - `package_expired` signals when packages pass pickup deadlines
+   - `site_stats_update` signals with site statistics
+
+2. **Monitor Package Events**:
+   - Packages should spawn at sites based on Poisson process
+   - Package deadlines are in ticks (1 tick = 1 simulation second)
+   - Expired packages generate failure metrics
+   - Site statistics track all package lifecycle events
+
+### 6. Real-time Updates Test
 
 1. **Start Simulation** and observe:
    - `tick_start` signals every ~33ms (30Hz)
@@ -805,7 +974,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    - `agent_update` signals when agents change
    - `world_event` signals for simulation events
 
-### 6. Error Handling Test
+### 7. Error Handling Test
 
 1. **Invalid Action**:
    ```json

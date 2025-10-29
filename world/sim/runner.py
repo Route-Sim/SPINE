@@ -6,11 +6,12 @@ import signal
 import sys
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
 import uvicorn
 
-from core.types import EdgeID, NodeID
+from core.buildings.site import Site
+from core.types import BuildingID, EdgeID, NodeID, SiteID
 from world.graph.edge import Edge, Mode
 from world.graph.graph import Graph
 from world.graph.node import Node
@@ -211,6 +212,40 @@ def create_default_world() -> World:
     graph.add_edge(edge1)
     graph.add_edge(edge2)
     graph.add_edge(edge3)
+
+    # Add sites to nodes
+    site1 = Site(
+        id=cast(BuildingID, SiteID("site-1")),
+        name="Site A",
+        activity_rate=5.0,  # 5 packages/hour
+        destination_weights={
+            SiteID("site-2"): 0.6,
+            SiteID("site-3"): 0.4,
+        },
+    )
+    node1.add_building(site1)
+
+    site2 = Site(
+        id=cast(BuildingID, SiteID("site-2")),
+        name="Site B",
+        activity_rate=4.0,  # 4 packages/hour
+        destination_weights={
+            SiteID("site-1"): 0.5,
+            SiteID("site-3"): 0.5,
+        },
+    )
+    node2.add_building(site2)
+
+    site3 = Site(
+        id=cast(BuildingID, SiteID("site-3")),
+        name="Site C",
+        activity_rate=3.0,  # 3 packages/hour
+        destination_weights={
+            SiteID("site-1"): 0.4,
+            SiteID("site-2"): 0.6,
+        },
+    )
+    node3.add_building(site3)
 
     # Create world with dummy router and traffic
     world = World(graph=graph, router=None, traffic=None)
