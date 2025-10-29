@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0](https://github.com/Route-Sim/SPINE/compare/v0.7.0...v0.8.0) (2025-10-29)
+
+
+### 🚀 Features
+
+* **packages:** introduce Package and Site classes for logistics management ([2fee8a9](https://github.com/Route-Sim/SPINE/commit/2fee8a92925924631123877598f21c2895c70bdf))
+
 ## [0.7.0](https://github.com/Route-Sim/SPINE/compare/v0.6.0...v0.7.0) (2025-10-28)
 
 
