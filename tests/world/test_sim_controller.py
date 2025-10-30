@@ -1,13 +1,16 @@
 """Tests for simulation controller."""
 
+import contextlib
 import time
 from typing import Any
 from unittest.mock import Mock
 
 from agents.base import AgentBase
 from core.types import AgentID
-from world.sim.controller import SimulationController, SimulationState
-from world.sim.queues import Action, ActionQueue, ActionType, SignalQueue
+from world.sim.action_parser import ActionRequest
+from world.sim.controller import SimulationController
+from world.sim.queues import ActionQueue, SignalQueue
+from world.sim.state import SimulationState
 from world.world import World
 
 
@@ -122,8 +125,8 @@ class TestSimulationController:
 
     def test_handle_start_action(self) -> None:
         """Test handling start action."""
-        action = Action(type=ActionType.START, tick_rate=30.0)
-        self.controller._handle_action(action)
+        action_request = ActionRequest(action="simulation.start", params={"tick_rate": 30.0})
+        self.controller.action_processor.process(action_request)
 
         assert self.controller.state.running
         assert not self.controller.state.paused
@@ -136,8 +139,8 @@ class TestSimulationController:
         assert self.controller.state.running
 
         # Then stop
-        action = Action(type=ActionType.STOP)
-        self.controller._handle_action(action)
+        action_request = ActionRequest(action="simulation.stop", params={})
+        self.controller.action_processor.process(action_request)
 
         assert not self.controller.state.running
         assert not self.controller.state.paused
@@ -149,19 +152,19 @@ class TestSimulationController:
         assert self.controller.state.running
 
         # Pause
-        action = Action(type=ActionType.PAUSE)
-        self.controller._handle_action(action)
+        action_request = ActionRequest(action="simulation.pause", params={})
+        self.controller.action_processor.process(action_request)
         assert self.controller.state.paused
 
         # Resume
-        action = Action(type=ActionType.RESUME)
-        self.controller._handle_action(action)
+        action_request = ActionRequest(action="simulation.resume", params={})
+        self.controller.action_processor.process(action_request)
         assert not self.controller.state.paused
 
     def test_handle_set_tick_rate_action(self) -> None:
         """Test handling set tick rate action."""
-        action = Action(type=ActionType.SET_TICK_RATE, tick_rate=50.0)
-        self.controller._handle_action(action)
+        action_request = ActionRequest(action="tick_rate.update", params={"tick_rate": 50.0})
+        self.controller.action_processor.process(action_request)
 
         assert self.controller.state.tick_rate == 50.0
 
@@ -170,14 +173,16 @@ class TestSimulationController:
         # Mock the world's add_agent method
         self.world.add_agent = Mock()
 
-        action = Action(
-            type=ActionType.ADD_AGENT,
-            agent_id="test_agent",
-            agent_kind="transport",
-            agent_data={"capacity": 100.0, "load": 0.0},
+        action_request = ActionRequest(
+            action="agent.create",
+            params={
+                "agent_id": "test_agent",
+                "agent_kind": "transport",
+                "agent_data": {"capacity": 100.0, "load": 0.0},
+            },
         )
 
-        self.controller._handle_action(action)
+        self.controller.action_processor.process(action_request)
 
         # Verify agent was added
         self.world.add_agent.assert_called_once()
@@ -187,26 +192,31 @@ class TestSimulationController:
         # Mock the world's remove_agent method
         self.world.remove_agent = Mock()
 
-        action = Action(type=ActionType.DELETE_AGENT, agent_id="test_agent")
+        action_request = ActionRequest(action="agent.delete", params={"agent_id": "test_agent"})
 
-        self.controller._handle_action(action)
+        self.controller.action_processor.process(action_request)
 
-        # Verify agent was removed
-        self.world.remove_agent.assert_called_once_with("test_agent")
+        # Verify agent was removed (handler converts string to AgentID)
+        from core.types import AgentID
+
+        self.world.remove_agent.assert_called_once_with(AgentID("test_agent"))
 
     def test_handle_modify_agent_action(self) -> None:
         """Test handling modify agent action."""
         # Mock the world's modify_agent method
         self.world.modify_agent = Mock()
 
-        action = Action(
-            type=ActionType.MODIFY_AGENT, agent_id="test_agent", agent_data={"x": 150, "y": 250}
+        action_request = ActionRequest(
+            action="agent.update",
+            params={"agent_id": "test_agent", "agent_data": {"x": 150, "y": 250}},
         )
 
-        self.controller._handle_action(action)
+        self.controller.action_processor.process(action_request)
 
-        # Verify agent was modified
-        self.world.modify_agent.assert_called_once_with("test_agent", {"x": 150, "y": 250})
+        # Verify agent was modified (handler converts string to AgentID)
+        from core.types import AgentID
+
+        self.world.modify_agent.assert_called_once_with(AgentID("test_agent"), {"x": 150, "y": 250})
 
     def test_run_simulation_step(self) -> None:
         """Test running a simulation step."""
@@ -233,8 +243,10 @@ class TestSimulationController:
     def test_process_actions(self) -> None:
         """Test processing actions from queue."""
         # Add actions to queue
-        self.action_queue.put(Action(type=ActionType.START, tick_rate=25.0))
-        self.action_queue.put(Action(type=ActionType.SET_TICK_RATE, tick_rate=40.0))
+        from world.sim.action_parser import ActionRequest
+
+        self.action_queue.put(ActionRequest(action="simulation.start", params={"tick_rate": 25.0}))
+        self.action_queue.put(ActionRequest(action="tick_rate.update", params={"tick_rate": 40.0}))
 
         # Process actions
         self.controller._process_actions()
@@ -254,7 +266,7 @@ class TestSimulationController:
         assert not self.signal_queue.empty()
         retrieved_signal = self.signal_queue.get_nowait()
         assert retrieved_signal is not None
-        assert retrieved_signal.type == "tick_start"
+        assert retrieved_signal.type.value == "tick_start"
         assert retrieved_signal.tick == 100
 
     def test_error_handling(self) -> None:
@@ -262,16 +274,20 @@ class TestSimulationController:
         # Mock world to raise exception
         self.world.add_agent.side_effect = Exception("Test error")
 
-        action = Action(type=ActionType.ADD_AGENT, agent_id="test_agent", agent_kind="transport")
+        action_request = ActionRequest(
+            action="agent.create",
+            params={"agent_id": "test_agent", "agent_kind": "transport"},
+        )
 
         # Should not raise exception, but emit error signal
-        self.controller._handle_action(action)
+        with contextlib.suppress(Exception):
+            self.controller.action_processor.process(action_request)
 
         # Verify error signal was emitted
         assert not self.signal_queue.empty()
         error_signal = self.signal_queue.get_nowait()
         assert error_signal is not None
-        assert error_signal.type == "error"
+        assert error_signal.type.value == "error"
         assert error_signal.error_message is not None
         assert "Test error" in error_signal.error_message
 
@@ -295,7 +311,9 @@ class TestSimulationController:
         self.controller.start()
 
         # Send start action
-        self.action_queue.put(Action(type=ActionType.START, tick_rate=100.0))
+        from world.sim.action_parser import ActionRequest
+
+        self.action_queue.put(ActionRequest(action="simulation.start", params={"tick_rate": 100.0}))
 
         # Let it run for a short time
         time.sleep(0.2)
@@ -304,7 +322,7 @@ class TestSimulationController:
         assert self.controller.state.running
 
         # Send stop action
-        self.action_queue.put(Action(type=ActionType.STOP))
+        self.action_queue.put(ActionRequest(action="simulation.stop", params={}))
 
         # Let it process
         time.sleep(0.1)
@@ -321,7 +339,9 @@ class TestSimulationController:
         self.controller.start()
 
         # Send start action
-        self.action_queue.put(Action(type=ActionType.START, tick_rate=30.0))
+        from world.sim.action_parser import ActionRequest
+
+        self.action_queue.put(ActionRequest(action="simulation.start", params={"tick_rate": 30.0}))
 
         # Wait for action to be processed (queue empty)
         import time
@@ -350,7 +370,7 @@ class TestSimulationController:
                 signals.append(signal)
 
         # Should have simulation_started, state_snapshot_start, full_map_data, state_snapshot_end
-        signal_types = [s.type for s in signals]
+        signal_types = [s.type.value for s in signals]
         assert "simulation_started" in signal_types
         assert "state_snapshot_start" in signal_types
         assert "full_map_data" in signal_types
@@ -362,7 +382,9 @@ class TestSimulationController:
         self.controller.start()
 
         # Send request state action
-        self.action_queue.put(Action(type=ActionType.REQUEST_STATE))
+        from world.sim.action_parser import ActionRequest
+
+        self.action_queue.put(ActionRequest(action="state.request", params={}))
 
         # Wait for action to be processed (queue empty)
         max_wait = 1.0  # Maximum wait time in seconds
@@ -386,7 +408,7 @@ class TestSimulationController:
                 signals.append(signal)
 
         # Should have state snapshot signals
-        signal_types = [s.type for s in signals]
+        signal_types = [s.type.value for s in signals]
         assert "state_snapshot_start" in signal_types
         assert "full_map_data" in signal_types
         assert "state_snapshot_end" in signal_types

@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from world.io.websocket_server import ConnectionManager, WebSocketServer
-from world.sim.queues import ActionQueue, ActionType, Signal, SignalQueue
+from world.sim.action_parser import ActionRequest
+from world.sim.queues import ActionQueue, Signal, SignalQueue
 
 
 class TestConnectionManager:
@@ -90,18 +91,19 @@ class TestWebSocketServer:
         # Mock the connection manager
         self.server.manager.active_connections = [websocket]
 
-        # Create valid action message
-        action_data = {"type": "start", "tick_rate": 30.0}
+        # Create valid action message (new format)
+        action_data = {"action": "simulation.start", "params": {"tick_rate": 30.0}}
         message = json.dumps(action_data)
 
         await self.server._handle_client_message(message, connection_id)
 
         # Verify action was queued
         assert not self.action_queue.empty()
-        action = self.action_queue.get_nowait()
-        assert action is not None
-        assert action.type == ActionType.START
-        assert action.tick_rate == 30.0
+        action_request = self.action_queue.get_nowait()
+        assert action_request is not None
+        assert isinstance(action_request, ActionRequest)
+        assert action_request.action == "simulation.start"
+        assert action_request.params == {"tick_rate": 30.0}
 
     @pytest.mark.asyncio  # type: ignore[misc]
     async def test_handle_invalid_json(self) -> None:
@@ -129,10 +131,10 @@ class TestWebSocketServer:
         # Mock the connection manager
         self.server.manager.active_connections = [websocket]
 
-        # Invalid command (missing required fields)
+        # Invalid command (missing required 'action' field)
         command_data = {
-            "type": "add_agent"
-            # Missing agent_id and agent_kind
+            "params": {"tick_rate": 30.0}
+            # Missing 'action' field
         }
         message = json.dumps(command_data)
 
@@ -263,7 +265,7 @@ class TestWebSocketServer:
         # First call returns a message, second call raises disconnect
         websocket.receive_text = AsyncMock(
             side_effect=[
-                '{"type": "start", "tick_rate": 25.0}',
+                '{"action": "simulation.start", "params": {"tick_rate": 25.0}}',
                 WebSocketDisconnect(),
             ]
         )
@@ -314,9 +316,9 @@ class TestWebSocketIntegration:
         websocket.accept = AsyncMock()
         websocket.receive_text = AsyncMock(
             side_effect=[
-                '{"type": "start", "tick_rate": 30.0}',
-                '{"type": "add_agent", "agent_id": "agent1", "agent_kind": "transport"}',
-                '{"type": "stop"}',
+                '{"action": "simulation.start", "params": {"tick_rate": 30.0}}',
+                '{"action": "agent.create", "params": {"agent_id": "agent1", "agent_kind": "transport"}}',
+                '{"action": "simulation.stop", "params": {}}',
             ]
         )
         websocket.send_text = AsyncMock()
@@ -328,30 +330,37 @@ class TestWebSocketIntegration:
         connection_id = "test_conn"
 
         # Start action
-        await server._handle_client_message('{"type": "start", "tick_rate": 30.0}', connection_id)
+        await server._handle_client_message(
+            '{"action": "simulation.start", "params": {"tick_rate": 30.0}}', connection_id
+        )
         assert not action_queue.empty()
-        action = action_queue.get_nowait()
-        assert action is not None
-        assert action.type == ActionType.START
-        assert action.tick_rate == 30.0
+        action_request = action_queue.get_nowait()
+        assert action_request is not None
+        assert isinstance(action_request, ActionRequest)
+        assert action_request.action == "simulation.start"
+        assert action_request.params == {"tick_rate": 30.0}
 
         # Add agent action
         await server._handle_client_message(
-            '{"type": "add_agent", "agent_id": "agent1", "agent_kind": "transport"}', connection_id
+            '{"action": "agent.create", "params": {"agent_id": "agent1", "agent_kind": "transport"}}',
+            connection_id,
         )
         assert not action_queue.empty()
-        action = action_queue.get_nowait()
-        assert action is not None
-        assert action.type == ActionType.ADD_AGENT
-        assert action.agent_id == "agent1"
-        assert action.agent_kind == "transport"
+        action_request = action_queue.get_nowait()
+        assert action_request is not None
+        assert isinstance(action_request, ActionRequest)
+        assert action_request.action == "agent.create"
+        assert action_request.params == {"agent_id": "agent1", "agent_kind": "transport"}
 
         # Stop action
-        await server._handle_client_message('{"type": "stop"}', connection_id)
+        await server._handle_client_message(
+            '{"action": "simulation.stop", "params": {}}', connection_id
+        )
         assert not action_queue.empty()
-        action = action_queue.get_nowait()
-        assert action is not None
-        assert action.type == ActionType.STOP
+        action_request = action_queue.get_nowait()
+        assert action_request is not None
+        assert isinstance(action_request, ActionRequest)
+        assert action_request.action == "simulation.stop"
 
     @pytest.mark.asyncio  # type: ignore[misc]
     async def test_error_handling_flow(self) -> None:
@@ -370,10 +379,12 @@ class TestWebSocketIntegration:
         await server._handle_client_message("invalid json", connection_id)
         assert action_queue.empty()  # No action should be queued
 
-        # Test invalid action
-        await server._handle_client_message('{"type": "invalid_type"}', connection_id)
+        # Test invalid action format
+        await server._handle_client_message(
+            '{"action": "invalid_format"}', connection_id
+        )  # Invalid format (should be "domain.action")
         assert action_queue.empty()  # No action should be queued
 
         # Test missing required fields
-        await server._handle_client_message('{"type": "add_agent"}', connection_id)
+        await server._handle_client_message('{"params": {}}', connection_id)  # Missing 'action'
         assert action_queue.empty()  # No action should be queued

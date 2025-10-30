@@ -3,7 +3,7 @@ title: "WebSocket Server"
 summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management, event broadcasting, and robust error handling."
 source_paths:
   - "world/io/websocket_server.py"
-last_updated: "2025-10-26"
+last_updated: "2025-10-30"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -65,7 +65,7 @@ Simulation → EventQueue → Event Broadcasting → WebSocket → Frontend
 ```
 Client Connect → ConnectionManager → Active Connections
 Client Disconnect → ConnectionManager → Remove from Active
-Message → Validation → CommandQueue → Acknowledgment
+Message → Validation → CommandQueue
 ```
 
 ## Algorithms & Complexity
@@ -132,6 +132,8 @@ await server.stop_event_broadcast()  # Stop event broadcasting
 - Validation errors result in error messages to client
 - Connection errors isolated from simulation
 
+**Serialization Safety**: Before broadcasting, the server normalizes all mapping keys to strings to satisfy strict JSON serialization requirements.
+
 **Event Broadcasting**: Continuous event streaming from simulation
 - Background task for signal broadcasting
 - Robust task cancellation handling for different event loop scenarios
@@ -172,7 +174,6 @@ This ensures new clients joining mid-simulation receive complete context before 
 - `agent_update`: Agent state changes
 - `world_event`: General world events
 - `error`: Error notifications
-- `command_ack`: Command acknowledgments
 - `simulation_*`: Simulation state changes
 - `map_exported`/`map_imported`: Map operation confirmations
 - `state_snapshot_start`/`state_snapshot_end`: State snapshot boundaries

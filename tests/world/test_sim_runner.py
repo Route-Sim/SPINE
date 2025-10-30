@@ -54,9 +54,9 @@ class TestSimulationRunnerSignals(unittest.TestCase):
         self.runner.controller.start()
 
         # Send a start action to make the simulation actually run
-        from world.sim.queues import Action, ActionType
+        from world.sim.action_parser import ActionRequest
 
-        start_action = Action(type=ActionType.START, tick_rate=20.0)
+        start_action = ActionRequest(action="simulation.start", params={"tick_rate": 20.0})
         self.runner.action_queue.put(start_action)
 
         # Give it time to process the action
@@ -183,9 +183,9 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
         time.sleep(0.5)
 
         # Send a start action to make the simulation actually run
-        from world.sim.queues import Action, ActionType
+        from world.sim.action_parser import ActionRequest
 
-        start_action = Action(type=ActionType.START, tick_rate=20.0)
+        start_action = ActionRequest(action="simulation.start", params={"tick_rate": 20.0})
         self.runner.action_queue.put(start_action)
 
         # Give it time to process the action

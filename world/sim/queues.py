@@ -3,9 +3,12 @@
 import queue
 import threading
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, model_validator
+
+if TYPE_CHECKING:
+    from .action_parser import ActionRequest
 
 
 class ActionType(str, Enum):
@@ -119,28 +122,30 @@ class Signal(BaseModel):
 
 
 class ActionQueue:
-    """Thread-safe queue for Actions from Frontend to Backend."""
+    """Thread-safe queue for ActionRequests from Frontend to Backend."""
 
     def __init__(self, maxsize: int = 1000) -> None:
-        self._queue: queue.Queue[Action] = queue.Queue(maxsize=maxsize)
+        from .action_parser import ActionRequest
+
+        self._queue: queue.Queue[ActionRequest] = queue.Queue(maxsize=maxsize)
         self._lock = threading.Lock()
 
-    def put(self, action: Action, timeout: float | None = None) -> None:
-        """Put an action into the queue."""
+    def put(self, action_request: "ActionRequest", timeout: float | None = None) -> None:
+        """Put an action request into the queue."""
         try:
-            self._queue.put(action, timeout=timeout)
+            self._queue.put(action_request, timeout=timeout)
         except queue.Full:
             raise RuntimeError("Action queue is full")
 
-    def get(self, timeout: float | None = None) -> Action:
-        """Get an action from the queue."""
+    def get(self, timeout: float | None = None) -> "ActionRequest":
+        """Get an action request from the queue."""
         try:
             return self._queue.get(timeout=timeout)
         except queue.Empty:
             raise RuntimeError("No actions available")
 
-    def get_nowait(self) -> Action | None:
-        """Get an action from the queue without blocking."""
+    def get_nowait(self) -> "ActionRequest | None":
+        """Get an action request from the queue without blocking."""
         try:
             return self._queue.get_nowait()
         except queue.Empty:

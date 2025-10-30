@@ -8,8 +8,8 @@ import orjson
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from ..sim.action_parser import ActionParser
 from ..sim.queues import (
-    Action,
     ActionQueue,
     SignalQueue,
     create_full_agent_data_signal,
@@ -72,6 +72,20 @@ class ConnectionManager:
                     self.active_connections.remove(connection)
 
 
+def _ensure_str_keys(obj: Any) -> Any:
+    """Recursively convert all dict keys to strings for JSON serialization.
+
+    orjson requires mapping keys to be strings at all nesting levels.
+    """
+    if isinstance(obj, dict):
+        return {str(k): _ensure_str_keys(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_ensure_str_keys(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_ensure_str_keys(v) for v in obj)
+    return obj
+
+
 class WebSocketServer:
     """WebSocket server for Frontend-Backend communication (Actions ↔ Signals)."""
 
@@ -88,6 +102,7 @@ class WebSocketServer:
         self.logger = logger or logging.getLogger(__name__)
         self.manager = ConnectionManager()
         self.app = FastAPI(title="SPINE Simulation WebSocket API")
+        self.action_parser = ActionParser()
         self._setup_routes()
         self._signal_broadcast_task: asyncio.Task[None] | None = None
 
@@ -134,12 +149,12 @@ class WebSocketServer:
             # Parse JSON message
             data = orjson.loads(message)
 
-            # Validate and create action
-            action = Action(**data)
+            # Validate and parse action request
+            action_request = self.action_parser.parse(data)
 
-            # Send action to backend
+            # Send action request to backend
             try:
-                self.action_queue.put(action, timeout=1.0)
+                self.action_queue.put(action_request, timeout=1.0)
             except Exception as e:
                 self.logger.error(f"Failed to queue action from {connection_id}: {e}")
                 error_message = orjson.dumps(
@@ -152,15 +167,9 @@ class WebSocketServer:
                 await self._send_error_to_connection(connection_id, error_message)
                 return
 
-            self.logger.debug(f"Received action from {connection_id}: {action.type}")
+            self.logger.debug(f"Received action from {connection_id}: {action_request.action}")
 
-            # Send acknowledgment back to client
-            ack_message = orjson.dumps(
-                {"type": "action_ack", "action_type": action.type, "status": "received"}
-            ).decode()
-            await self._send_message_to_connection(connection_id, ack_message)
-
-        except ValidationError as e:
+        except (ValidationError, ValueError) as e:
             self.logger.warning(f"Invalid action from {connection_id}: {e}")
             error_message = orjson.dumps(
                 {"type": "error", "message": f"Invalid action: {e}", "status": "error"}
@@ -249,9 +258,10 @@ class WebSocketServer:
                     await asyncio.sleep(0.01)  # Short sleep to avoid busy waiting
                     continue
 
-                # Convert signal to JSON
+                # Convert signal to JSON (ensure all dict keys are strings)
                 signal_dict = signal.model_dump()
-                message = orjson.dumps(signal_dict).decode()
+                safe_signal_dict = _ensure_str_keys(signal_dict)
+                message = orjson.dumps(safe_signal_dict, option=orjson.OPT_NON_STR_KEYS).decode()
 
                 # Broadcast to all connected clients
                 await self.manager.broadcast(message)
@@ -280,14 +290,22 @@ class WebSocketServer:
             # Send start signal
             start_signal = create_state_snapshot_start_signal()
             await self.manager.send_personal_message(
-                orjson.dumps(start_signal.model_dump()).decode(), websocket
+                orjson.dumps(
+                    _ensure_str_keys(start_signal.model_dump()),
+                    option=orjson.OPT_NON_STR_KEYS,
+                ).decode(),
+                websocket,
             )
             self.logger.info("Sent state_snapshot_start signal")
 
             # Send map data
             map_signal = create_full_map_data_signal(full_state["graph"])
             await self.manager.send_personal_message(
-                orjson.dumps(map_signal.model_dump()).decode(), websocket
+                orjson.dumps(
+                    _ensure_str_keys(map_signal.model_dump()),
+                    option=orjson.OPT_NON_STR_KEYS,
+                ).decode(),
+                websocket,
             )
             self.logger.info("Sent full_map_data signal")
 
@@ -295,14 +313,22 @@ class WebSocketServer:
             for agent_data in full_state["agents"]:
                 agent_signal = create_full_agent_data_signal(agent_data)
                 await self.manager.send_personal_message(
-                    orjson.dumps(agent_signal.model_dump()).decode(), websocket
+                    orjson.dumps(
+                        _ensure_str_keys(agent_signal.model_dump()),
+                        option=orjson.OPT_NON_STR_KEYS,
+                    ).decode(),
+                    websocket,
                 )
             self.logger.info(f"Sent {len(full_state['agents'])} full_agent_data signals")
 
             # Send end signal
             end_signal = create_state_snapshot_end_signal()
             await self.manager.send_personal_message(
-                orjson.dumps(end_signal.model_dump()).decode(), websocket
+                orjson.dumps(
+                    _ensure_str_keys(end_signal.model_dump()),
+                    option=orjson.OPT_NON_STR_KEYS,
+                ).decode(),
+                websocket,
             )
             self.logger.info("Sent state_snapshot_end signal")
 
