@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0](https://github.com/Route-Sim/SPINE/compare/v0.8.0...v0.9.0) (2025-10-30)
+
+
+### 🚀 Features
+
+* **action:** implement action parsing and processing for simulation commands ([433fbfa](https://github.com/Route-Sim/SPINE/commit/433fbfac3679894c7dad35de7e0f400749d1d5ef))
+
 ## [0.8.0](https://github.com/Route-Sim/SPINE/compare/v0.7.0...v0.8.0) (2025-10-29)
 
 
