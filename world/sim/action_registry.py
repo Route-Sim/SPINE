@@ -37,6 +37,7 @@ class ActionRegistry:
         # Map actions
         self.register("map.export", MapActionHandler.handle_export)
         self.register("map.import", MapActionHandler.handle_import)
+        self.register("map.create", MapActionHandler.handle_create)
 
         # State actions
         self.register("state.request", StateActionHandler.handle_request)

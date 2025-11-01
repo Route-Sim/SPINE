@@ -2,7 +2,14 @@
 
 from typing import Any
 
-from ..queues import create_error_signal, create_map_exported_signal, create_map_imported_signal
+from world.generation import GenerationParams, MapGenerator
+
+from ..queues import (
+    create_error_signal,
+    create_map_created_signal,
+    create_map_exported_signal,
+    create_map_imported_signal,
+)
 from .base import HandlerContext
 
 
@@ -106,4 +113,85 @@ class MapActionHandler:
         except Exception as e:
             context.logger.error(f"Unexpected error importing map {map_name}: {e}", exc_info=True)
             _emit_error(context, f"Unexpected error importing map: {e}")
+            raise
+
+    @staticmethod
+    def handle_create(params: dict[str, Any], context: HandlerContext) -> None:
+        """Handle create map action.
+
+        Args:
+            params: Action parameters (required: width, height, nodes, density, urban_areas)
+            context: Handler context
+
+        Raises:
+            ValueError: If parameters are missing, invalid, or simulation is running
+        """
+        # Validate required parameters
+        required_params = ["width", "height", "nodes", "density", "urban_areas"]
+        for param in required_params:
+            if param not in params:
+                raise ValueError(f"{param} is required for map.create action")
+
+        # Validate parameter types
+        width = params["width"]
+        height = params["height"]
+        nodes = params["nodes"]
+        density = params["density"]
+        urban_areas = params["urban_areas"]
+
+        if not isinstance(width, int | float) or width <= 0:
+            raise ValueError("width must be a positive number")
+        if not isinstance(height, int | float) or height <= 0:
+            raise ValueError("height must be a positive number")
+        if not isinstance(nodes, int) or not (0 <= nodes <= 100):
+            raise ValueError("nodes must be an integer between 0 and 100")
+        if not isinstance(density, int) or not (0 <= density <= 100):
+            raise ValueError("density must be an integer between 0 and 100")
+        if not isinstance(urban_areas, int) or urban_areas <= 0:
+            raise ValueError("urban_areas must be a positive integer")
+
+        # Reject if simulation is running
+        if context.state.running:
+            error_msg = "Cannot create map while simulation is running"
+            context.logger.warning(error_msg)
+            _emit_error(context, error_msg)
+            raise ValueError(error_msg)
+
+        try:
+            # Create generation parameters
+            gen_params = GenerationParams(
+                width=float(width),
+                height=float(height),
+                nodes=nodes,
+                density=density,
+                urban_areas=urban_areas,
+            )
+
+            # Generate the map
+            generator = MapGenerator(gen_params)
+            new_graph = generator.generate()
+
+            # Replace the world's graph
+            context.world.graph = new_graph
+
+            # Emit success signal with generation info
+            signal_data = {
+                "width": width,
+                "height": height,
+                "nodes": nodes,
+                "density": density,
+                "urban_areas": urban_areas,
+                "generated_nodes": new_graph.get_node_count(),
+                "generated_edges": new_graph.get_edge_count(),
+            }
+            _emit_signal(context, create_map_created_signal(signal_data))
+            context.logger.info(f"Map created: {signal_data}")
+
+        except ValueError as e:
+            context.logger.error(f"Failed to create map: {e}")
+            _emit_error(context, f"Failed to create map: {e}")
+            raise
+        except Exception as e:
+            context.logger.error(f"Unexpected error creating map: {e}", exc_info=True)
+            _emit_error(context, f"Unexpected error creating map: {e}")
             raise

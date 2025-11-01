@@ -291,7 +291,49 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
-### 11. REQUEST_STATE - Request Full State Snapshot
+### 11. CREATE_MAP - Generate New Map Procedurally
+
+**Purpose**: Generate a new simulation map procedurally using advanced algorithms.
+
+**Action Type**: `map.create`
+
+**JSON Example**:
+```json
+{
+  "action": "map.create",
+  "params": {
+    "width": 10000,
+    "height": 10000,
+    "nodes": 75,
+    "density": 50,
+    "urban_areas": 5
+  }
+}
+```
+
+**Parameters**:
+- `width` (required): Map width in meters (must be positive)
+- `height` (required): Map height in meters (must be positive)
+- `nodes` (required): Node density factor (0-100, 0=sparse, 100=Tokyo-dense)
+- `density` (required): Clustering factor (0-100, 0=spread out, 100=tightly packed)
+- `urban_areas` (required): Number of cities/villages (must be positive integer)
+
+**Notes**:
+- Simulation must be stopped before creating a new map
+- Uses Poisson disk sampling for realistic node placement
+- Uses K-means clustering for city/village distribution
+- Uses Delaunay triangulation for natural road networks
+- Generates bidirectional roads in cities (95%) and highways (100%)
+- Returns signal with actual generated node/edge counts
+
+**Postman Test**:
+1. Ensure simulation is stopped
+2. Send the JSON above
+3. Expect acknowledgment and map.created signal with generation statistics
+
+---
+
+### 12. REQUEST_STATE - Request Full State Snapshot
 
 **Purpose**: Request a complete snapshot of the current simulation state (map + agents).
 
@@ -573,7 +615,43 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 12. STATE_SNAPSHOT_START - State Snapshot Started
+### 12. MAP_CREATED - Map Generation Confirmation
+
+**Purpose**: Confirms that a procedural map was successfully generated.
+
+**Signal Type**: `map_created`
+
+**JSON Example**:
+```json
+{
+  "type": "map_created",
+  "data": {
+    "width": 10000,
+    "height": 10000,
+    "nodes": 75,
+    "density": 50,
+    "urban_areas": 5,
+    "generated_nodes": 850,
+    "generated_edges": 2400
+  }
+}
+```
+
+**Fields**:
+- `data`: Generation parameters and results
+  - `width`: Map width in meters
+  - `height`: Map height in meters
+  - `nodes`: Requested node density (0-100)
+  - `density`: Requested clustering factor (0-100)
+  - `urban_areas`: Requested number of cities/villages
+  - `generated_nodes`: Actual number of nodes created
+  - `generated_edges`: Actual number of edges created
+
+**When Received**: After successful procedural map generation
+
+---
+
+### 13. STATE_SNAPSHOT_START - State Snapshot Started
 
 **Purpose**: Indicates the beginning of a complete state snapshot transmission.
 
@@ -592,7 +670,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 13. STATE_SNAPSHOT_END - State Snapshot Completed
+### 14. STATE_SNAPSHOT_END - State Snapshot Completed
 
 **Purpose**: Indicates the end of a complete state snapshot transmission.
 
@@ -611,7 +689,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 14. FULL_MAP_DATA - Complete Map Data
+### 15. FULL_MAP_DATA - Complete Map Data
 
 **Purpose**: Contains the complete graph structure (nodes and edges).
 
@@ -658,7 +736,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 15. FULL_AGENT_DATA - Complete Agent State
+### 16. FULL_AGENT_DATA - Complete Agent State
 
 **Purpose**: Contains the complete state of a single agent.
 
@@ -701,7 +779,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 16. PACKAGE_CREATED - Package Created
+### 17. PACKAGE_CREATED - Package Created
 
 **Purpose**: Notifies when a new package is created at a site.
 
@@ -736,7 +814,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 17. PACKAGE_EXPIRED - Package Expired
+### 18. PACKAGE_EXPIRED - Package Expired
 
 **Purpose**: Notifies when a package expires (not picked up by deadline).
 
@@ -765,7 +843,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 18. PACKAGE_PICKED_UP - Package Picked Up
+### 19. PACKAGE_PICKED_UP - Package Picked Up
 
 **Purpose**: Notifies when a package is picked up by an agent.
 
@@ -792,7 +870,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 19. PACKAGE_DELIVERED - Package Delivered
+### 20. PACKAGE_DELIVERED - Package Delivered
 
 **Purpose**: Notifies when a package is successfully delivered to its destination.
 
@@ -821,7 +899,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 20. SITE_STATS_UPDATE - Site Statistics Update
+### 21. SITE_STATS_UPDATE - Site Statistics Update
 
 **Purpose**: Provides periodic updates of site statistics for business intelligence.
 

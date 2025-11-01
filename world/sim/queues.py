@@ -46,6 +46,7 @@ class SignalType(str, Enum):
     SIMULATION_RESUMED = "simulation_resumed"
     MAP_EXPORTED = "map_exported"
     MAP_IMPORTED = "map_imported"
+    MAP_CREATED = "map_created"
     STATE_SNAPSHOT_START = "state_snapshot_start"
     STATE_SNAPSHOT_END = "state_snapshot_end"
     FULL_MAP_DATA = "full_map_data"
@@ -299,6 +300,11 @@ def create_map_exported_signal(map_name: str) -> Signal:
 def create_map_imported_signal(map_name: str) -> Signal:
     """Create a map imported signal."""
     return Signal(type=SignalType.MAP_IMPORTED, data={"map_name": map_name})
+
+
+def create_map_created_signal(data: dict[str, Any]) -> Signal:
+    """Create a map created signal."""
+    return Signal(type=SignalType.MAP_CREATED, data=data)
 
 
 def create_state_snapshot_start_signal() -> Signal:

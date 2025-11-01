@@ -15,6 +15,7 @@ orjson = "^3.10.0"
 numpy = "^2.0.0"
 networkx = "^3.3"
 prometheus-client = "^0.21.0"
+scipy = "^1.13.0"
 structlog = "^24.4.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -75,6 +76,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "prometheus_client.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
