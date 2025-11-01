@@ -2,9 +2,11 @@
 
 import threading
 import time
+from typing import Any
 
 import pytest
 
+from world.sim.action_parser import ActionRequest
 from world.sim.queues import (
     Action,
     ActionQueue,
@@ -21,7 +23,45 @@ from world.sim.queues import (
     create_stop_action,
     create_tick_end_signal,
     create_tick_start_signal,
+    signal_type_to_string,
 )
+
+
+def action_to_action_request(action: Action) -> ActionRequest:
+    """Convert Action to ActionRequest for testing."""
+    # Map ActionType to action string format
+    action_mapping: dict[ActionType, str] = {
+        ActionType.START: "simulation.start",
+        ActionType.STOP: "simulation.stop",
+        ActionType.PAUSE: "simulation.pause",
+        ActionType.RESUME: "simulation.resume",
+        ActionType.SET_TICK_RATE: "tick_rate.update",
+        ActionType.ADD_AGENT: "agent.create",
+        ActionType.DELETE_AGENT: "agent.delete",
+        ActionType.MODIFY_AGENT: "agent.update",
+        ActionType.EXPORT_MAP: "map.export",
+        ActionType.IMPORT_MAP: "map.import",
+        ActionType.REQUEST_STATE: "state.request",
+    }
+
+    action_str = action_mapping.get(action.type)
+    if action_str is None:
+        raise ValueError(f"No mapping for ActionType: {action.type}")
+
+    # Build params dict from action fields
+    params: dict[str, Any] = {}
+    if action.tick_rate is not None:
+        params["tick_rate"] = action.tick_rate
+    if action.agent_id is not None:
+        params["agent_id"] = action.agent_id
+    if action.agent_kind is not None:
+        params["agent_kind"] = action.agent_kind
+    if action.agent_data is not None:
+        params["agent_data"] = action.agent_data
+    if action.metadata is not None:
+        params.update(action.metadata)
+
+    return ActionRequest(action=action_str, params=params)
 
 
 class TestActionQueue:
@@ -31,12 +71,13 @@ class TestActionQueue:
         """Test basic put and get operations."""
         queue = ActionQueue()
         action = create_start_action(tick_rate=30.0)
+        action_request = action_to_action_request(action)
 
-        queue.put(action)
+        queue.put(action_request)
         retrieved = queue.get()
 
-        assert retrieved.type == ActionType.START
-        assert retrieved.tick_rate == 30.0
+        assert retrieved.action == "simulation.start"
+        assert retrieved.params["tick_rate"] == 30.0
 
     def test_empty_queue(self) -> None:
         """Test getting from empty queue."""
@@ -54,11 +95,12 @@ class TestActionQueue:
 
         # Add action and retrieve
         action = create_start_action()
-        queue.put(action)
+        action_request = action_to_action_request(action)
+        queue.put(action_request)
         retrieved = queue.get_nowait()
 
         assert retrieved is not None
-        assert retrieved.type == ActionType.START
+        assert retrieved.action == "simulation.start"
 
     def test_queue_size(self) -> None:
         """Test queue size tracking."""
@@ -67,7 +109,9 @@ class TestActionQueue:
         assert queue.empty()
         assert queue.qsize() == 0
 
-        queue.put(create_start_action())
+        action = create_start_action()
+        action_request = action_to_action_request(action)
+        queue.put(action_request)
         assert not queue.empty()
         assert queue.qsize() == 1
 
@@ -87,8 +131,8 @@ class TestSignalQueue:
         queue.put(signal)
         retrieved = queue.get()
 
-        assert retrieved.type == SignalType.TICK_START
-        assert retrieved.tick == 123
+        assert retrieved.signal == signal_type_to_string(SignalType.TICK_START)
+        assert retrieved.data == {"tick": 123}
 
     def test_empty_queue(self) -> None:
         """Test getting from empty queue."""
@@ -110,8 +154,8 @@ class TestSignalQueue:
         retrieved = queue.get_nowait()
 
         assert retrieved is not None
-        assert retrieved.type == SignalType.TICK_START
-        assert retrieved.tick == 456
+        assert retrieved.signal == signal_type_to_string(SignalType.TICK_START)
+        assert retrieved.data == {"tick": 456}
 
 
 class TestAction:
@@ -157,31 +201,43 @@ class TestSignal:
 
     def test_tick_signals(self) -> None:
         """Test tick signal creation."""
-        start_signal = Signal(type=SignalType.TICK_START, tick=100)
-        end_signal = Signal(type=SignalType.TICK_END, tick=100)
+        start_signal = Signal(
+            signal=signal_type_to_string(SignalType.TICK_START), data={"tick": 100}
+        )
+        end_signal = Signal(signal=signal_type_to_string(SignalType.TICK_END), data={"tick": 100})
 
-        assert start_signal.type == SignalType.TICK_START
-        assert start_signal.tick == 100
-        assert end_signal.type == SignalType.TICK_END
-        assert end_signal.tick == 100
+        assert start_signal.signal == signal_type_to_string(SignalType.TICK_START)
+        assert start_signal.data == {"tick": 100}
+        assert end_signal.signal == signal_type_to_string(SignalType.TICK_END)
+        assert end_signal.data == {"tick": 100}
 
     def test_agent_update_signal(self) -> None:
         """Test agent update signal creation."""
-        data = {"position": {"x": 10, "y": 20}, "status": "moving"}
-        signal = Signal(type=SignalType.AGENT_UPDATE, agent_id="agent_1", data=data, tick=50)
+        data = {
+            "position": {"x": 10, "y": 20},
+            "status": "moving",
+            "agent_id": "agent_1",
+            "tick": 50,
+        }
+        signal = Signal(signal=signal_type_to_string(SignalType.AGENT_UPDATE), data=data)
 
-        assert signal.type == SignalType.AGENT_UPDATE
-        assert signal.agent_id == "agent_1"
-        assert signal.data == data
-        assert signal.tick == 50
+        assert signal.signal == signal_type_to_string(SignalType.AGENT_UPDATE)
+        assert signal.data["agent_id"] == "agent_1"
+        assert signal.data["position"] == {"x": 10, "y": 20}
+        assert signal.data["status"] == "moving"
+        assert signal.data["tick"] == 50
 
     def test_error_signal(self) -> None:
         """Test error signal creation."""
-        signal = Signal(type=SignalType.ERROR, error_message="Test error", tick=75)
+        signal = Signal(
+            signal=signal_type_to_string(SignalType.ERROR),
+            data={"code": "GENERIC_ERROR", "message": "Test error", "tick": 75},
+        )
 
-        assert signal.type == SignalType.ERROR
-        assert signal.error_message == "Test error"
-        assert signal.tick == 75
+        assert signal.signal == signal_type_to_string(SignalType.ERROR)
+        assert signal.data["message"] == "Test error"
+        assert signal.data["code"] == "GENERIC_ERROR"
+        assert signal.data["tick"] == 75
 
 
 class TestConvenienceFunctions:
@@ -206,10 +262,10 @@ class TestConvenienceFunctions:
         start_signal = create_tick_start_signal(tick=200)
         end_signal = create_tick_end_signal(tick=200)
 
-        assert start_signal.type == SignalType.TICK_START
-        assert start_signal.tick == 200
-        assert end_signal.type == SignalType.TICK_END
-        assert end_signal.tick == 200
+        assert start_signal.signal == signal_type_to_string(SignalType.TICK_START)
+        assert start_signal.data == {"tick": 200}
+        assert end_signal.signal == signal_type_to_string(SignalType.TICK_END)
+        assert end_signal.data == {"tick": 200}
 
 
 class TestThreadSafety:
@@ -223,14 +279,15 @@ class TestThreadSafety:
         def producer() -> None:
             for i in range(10):
                 action = Action(type=ActionType.START, tick_rate=float(i))
-                queue.put(action)
+                action_request = action_to_action_request(action)
+                queue.put(action_request)
                 time.sleep(0.01)
 
         def consumer() -> None:
             for _ in range(10):
                 try:
-                    action = queue.get(timeout=1.0)
-                    results.append(action.tick_rate)
+                    action_request = queue.get(timeout=1.0)
+                    results.append(action_request.params["tick_rate"])
                 except Exception:
                     break
 
@@ -253,12 +310,15 @@ class TestThreadSafety:
         queue = ActionQueue(maxsize=2)
 
         # Fill queue
-        queue.put(create_start_action())
-        queue.put(create_start_action())
+        action1 = create_start_action()
+        action2 = create_start_action()
+        action3 = create_start_action()
+        queue.put(action_to_action_request(action1))
+        queue.put(action_to_action_request(action2))
 
         # Try to put more - should raise exception
         with pytest.raises(RuntimeError, match="Action queue is full"):
-            queue.put(create_start_action(), timeout=0.1)
+            queue.put(action_to_action_request(action3), timeout=0.1)
 
 
 class TestStateSnapshotSignals:
@@ -268,17 +328,15 @@ class TestStateSnapshotSignals:
         """Test state snapshot start signal creation."""
         signal = create_state_snapshot_start_signal()
 
-        assert signal.type == SignalType.STATE_SNAPSHOT_START
-        assert signal.tick is None
-        assert signal.data is None
+        assert signal.signal == signal_type_to_string(SignalType.STATE_SNAPSHOT_START)
+        assert signal.data == {}
 
     def test_state_snapshot_end_signal(self) -> None:
         """Test state snapshot end signal creation."""
         signal = create_state_snapshot_end_signal()
 
-        assert signal.type == SignalType.STATE_SNAPSHOT_END
-        assert signal.tick is None
-        assert signal.data is None
+        assert signal.signal == signal_type_to_string(SignalType.STATE_SNAPSHOT_END)
+        assert signal.data == {}
 
     def test_full_map_data_signal(self) -> None:
         """Test full map data signal creation."""
@@ -288,9 +346,8 @@ class TestStateSnapshotSignals:
         }
         signal = create_full_map_data_signal(map_data)
 
-        assert signal.type == SignalType.FULL_MAP_DATA
+        assert signal.signal == signal_type_to_string(SignalType.FULL_MAP_DATA)
         assert signal.data == map_data
-        assert signal.tick is None
 
     def test_full_agent_data_signal(self) -> None:
         """Test full agent data signal creation."""
@@ -303,9 +360,8 @@ class TestStateSnapshotSignals:
         }
         signal = create_full_agent_data_signal(agent_data)
 
-        assert signal.type == SignalType.FULL_AGENT_DATA
+        assert signal.signal == signal_type_to_string(SignalType.FULL_AGENT_DATA)
         assert signal.data == agent_data
-        assert signal.tick is None
 
     def test_request_state_action(self) -> None:
         """Test request state action creation."""

@@ -5,7 +5,7 @@ import threading
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from .action_parser import ActionRequest
@@ -56,6 +56,41 @@ class SignalType(str, Enum):
     PACKAGE_PICKED_UP = "package_picked_up"
     PACKAGE_DELIVERED = "package_delivered"
     SITE_STATS_UPDATE = "site_stats_update"
+
+
+def signal_type_to_string(signal_type: SignalType) -> str:
+    """Convert SignalType enum to domain.signal format string.
+
+    Args:
+        signal_type: The SignalType enum value
+
+    Returns:
+        Domain.signal format string (e.g., "simulation.started")
+    """
+    mapping: dict[SignalType, str] = {
+        SignalType.TICK_START: "tick.start",
+        SignalType.TICK_END: "tick.end",
+        SignalType.AGENT_UPDATE: "agent.updated",
+        SignalType.WORLD_EVENT: "event.created",
+        SignalType.ERROR: "error",
+        SignalType.SIMULATION_STARTED: "simulation.started",
+        SignalType.SIMULATION_STOPPED: "simulation.stopped",
+        SignalType.SIMULATION_PAUSED: "simulation.paused",
+        SignalType.SIMULATION_RESUMED: "simulation.resumed",
+        SignalType.MAP_EXPORTED: "map.exported",
+        SignalType.MAP_IMPORTED: "map.imported",
+        SignalType.MAP_CREATED: "map.created",
+        SignalType.STATE_SNAPSHOT_START: "state.snapshot_start",
+        SignalType.STATE_SNAPSHOT_END: "state.snapshot_end",
+        SignalType.FULL_MAP_DATA: "state.full_map_data",
+        SignalType.FULL_AGENT_DATA: "state.full_agent_data",
+        SignalType.PACKAGE_CREATED: "package.created",
+        SignalType.PACKAGE_EXPIRED: "package.expired",
+        SignalType.PACKAGE_PICKED_UP: "package.picked_up",
+        SignalType.PACKAGE_DELIVERED: "package.delivered",
+        SignalType.SITE_STATS_UPDATE: "site.stats_update",
+    }
+    return mapping[signal_type]
 
 
 class Action(BaseModel):
@@ -112,14 +147,18 @@ class Action(BaseModel):
 
 
 class Signal(BaseModel):
-    """Signal emitted from Backend to Frontend."""
+    """Signal emitted from Backend to Frontend.
 
-    type: SignalType
-    tick: int | None = None
-    agent_id: str | None = None
-    data: dict[str, Any] | None = None
-    error_message: str | None = None
-    timestamp: float | None = None
+    Signals follow the format: {"signal": "domain.signal", "data": {...}}
+    where all contextual information is consolidated into the data dict.
+    """
+
+    signal: str  # Format: "domain.signal" (e.g., "simulation.started")
+    data: dict[str, Any] = Field(default_factory=dict)  # All context consolidated here
+
+    def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+        """Override model_dump to ensure consistent format."""
+        return {"signal": self.signal, "data": self.data}
 
 
 class ActionQueue:
@@ -249,82 +288,107 @@ def create_import_map_action(map_name: str) -> Action:
 # Convenience functions for creating common signals
 def create_tick_start_signal(tick: int) -> Signal:
     """Create a tick start signal."""
-    return Signal(type=SignalType.TICK_START, tick=tick)
+    return Signal(signal=signal_type_to_string(SignalType.TICK_START), data={"tick": tick})
 
 
 def create_tick_end_signal(tick: int) -> Signal:
     """Create a tick end signal."""
-    return Signal(type=SignalType.TICK_END, tick=tick)
+    return Signal(signal=signal_type_to_string(SignalType.TICK_END), data={"tick": tick})
 
 
 def create_agent_update_signal(agent_id: str, data: dict[str, Any], tick: int) -> Signal:
     """Create an agent update signal."""
-    return Signal(type=SignalType.AGENT_UPDATE, agent_id=agent_id, data=data, tick=tick)
+    signal_data = {**data, "agent_id": agent_id, "tick": tick}
+    return Signal(signal=signal_type_to_string(SignalType.AGENT_UPDATE), data=signal_data)
 
 
 def create_world_event_signal(data: dict[str, Any], tick: int) -> Signal:
     """Create a world event signal."""
-    return Signal(type=SignalType.WORLD_EVENT, data=data, tick=tick)
+    signal_data = {**data, "tick": tick}
+    return Signal(signal=signal_type_to_string(SignalType.WORLD_EVENT), data=signal_data)
 
 
 def create_error_signal(error_message: str, tick: int | None = None) -> Signal:
-    """Create an error signal."""
-    return Signal(type=SignalType.ERROR, error_message=error_message, tick=tick)
+    """Create an error signal.
+
+    Per API reference, error signals should have:
+    {
+      "signal": "error",
+      "data": {
+        "code": string,
+        "message": string
+      }
+    }
+    """
+    error_data: dict[str, Any] = {"message": error_message}
+    if tick is not None:
+        error_data["tick"] = tick
+    # Use generic error code if not provided
+    if "code" not in error_data:
+        error_data["code"] = "GENERIC_ERROR"
+    return Signal(signal=signal_type_to_string(SignalType.ERROR), data=error_data)
 
 
-def create_simulation_started_signal() -> Signal:
+def create_simulation_started_signal(tick_rate: int | None = None) -> Signal:
     """Create a simulation started signal."""
-    return Signal(type=SignalType.SIMULATION_STARTED)
+    data: dict[str, Any] = {}
+    if tick_rate is not None:
+        data["tick_rate"] = tick_rate
+    return Signal(signal=signal_type_to_string(SignalType.SIMULATION_STARTED), data=data)
 
 
 def create_simulation_stopped_signal() -> Signal:
     """Create a simulation stopped signal."""
-    return Signal(type=SignalType.SIMULATION_STOPPED)
+    return Signal(signal=signal_type_to_string(SignalType.SIMULATION_STOPPED), data={})
 
 
 def create_simulation_paused_signal() -> Signal:
     """Create a simulation paused signal."""
-    return Signal(type=SignalType.SIMULATION_PAUSED)
+    return Signal(signal=signal_type_to_string(SignalType.SIMULATION_PAUSED), data={})
 
 
 def create_simulation_resumed_signal() -> Signal:
     """Create a simulation resumed signal."""
-    return Signal(type=SignalType.SIMULATION_RESUMED)
+    return Signal(signal=signal_type_to_string(SignalType.SIMULATION_RESUMED), data={})
 
 
 def create_map_exported_signal(map_name: str) -> Signal:
     """Create a map exported signal."""
-    return Signal(type=SignalType.MAP_EXPORTED, data={"map_name": map_name})
+    return Signal(
+        signal=signal_type_to_string(SignalType.MAP_EXPORTED), data={"map_name": map_name}
+    )
 
 
 def create_map_imported_signal(map_name: str) -> Signal:
     """Create a map imported signal."""
-    return Signal(type=SignalType.MAP_IMPORTED, data={"map_name": map_name})
+    return Signal(
+        signal=signal_type_to_string(SignalType.MAP_IMPORTED), data={"map_name": map_name}
+    )
 
 
 def create_map_created_signal(data: dict[str, Any]) -> Signal:
     """Create a map created signal."""
-    return Signal(type=SignalType.MAP_CREATED, data=data)
+    return Signal(signal=signal_type_to_string(SignalType.MAP_CREATED), data=data)
 
 
 def create_state_snapshot_start_signal() -> Signal:
     """Create a state snapshot start signal."""
-    return Signal(type=SignalType.STATE_SNAPSHOT_START)
+    return Signal(signal=signal_type_to_string(SignalType.STATE_SNAPSHOT_START), data={})
 
 
 def create_state_snapshot_end_signal() -> Signal:
     """Create a state snapshot end signal."""
-    return Signal(type=SignalType.STATE_SNAPSHOT_END)
+    return Signal(signal=signal_type_to_string(SignalType.STATE_SNAPSHOT_END), data={})
 
 
 def create_full_map_data_signal(graph_data: dict[str, Any]) -> Signal:
     """Create a full map data signal."""
-    return Signal(type=SignalType.FULL_MAP_DATA, data=graph_data)
+    return Signal(signal=signal_type_to_string(SignalType.FULL_MAP_DATA), data=graph_data)
 
 
 def create_full_agent_data_signal(agent_data: dict[str, Any]) -> Signal:
     """Create a full agent data signal."""
-    return Signal(type=SignalType.FULL_AGENT_DATA, data=agent_data)
+    return Signal(signal=signal_type_to_string(SignalType.FULL_AGENT_DATA), data=agent_data)
 
 
 def create_request_state_action() -> Action:
@@ -335,7 +399,8 @@ def create_request_state_action() -> Action:
 # Package-related signal factory functions
 def create_package_created_signal(package_data: dict[str, Any], tick: int) -> Signal:
     """Create a package created signal."""
-    return Signal(type=SignalType.PACKAGE_CREATED, data=package_data, tick=tick)
+    signal_data = {**package_data, "tick": tick}
+    return Signal(signal=signal_type_to_string(SignalType.PACKAGE_CREATED), data=signal_data)
 
 
 def create_package_expired_signal(
@@ -343,25 +408,25 @@ def create_package_expired_signal(
 ) -> Signal:
     """Create a package expired signal."""
     return Signal(
-        type=SignalType.PACKAGE_EXPIRED,
+        signal=signal_type_to_string(SignalType.PACKAGE_EXPIRED),
         data={
             "package_id": package_id,
             "site_id": site_id,
             "value_lost": value_lost,
+            "tick": tick,
         },
-        tick=tick,
     )
 
 
 def create_package_picked_up_signal(package_id: str, agent_id: str, tick: int) -> Signal:
     """Create a package picked up signal."""
     return Signal(
-        type=SignalType.PACKAGE_PICKED_UP,
+        signal=signal_type_to_string(SignalType.PACKAGE_PICKED_UP),
         data={
             "package_id": package_id,
             "agent_id": agent_id,
+            "tick": tick,
         },
-        tick=tick,
     )
 
 
@@ -370,23 +435,23 @@ def create_package_delivered_signal(
 ) -> Signal:
     """Create a package delivered signal."""
     return Signal(
-        type=SignalType.PACKAGE_DELIVERED,
+        signal=signal_type_to_string(SignalType.PACKAGE_DELIVERED),
         data={
             "package_id": package_id,
             "site_id": site_id,
             "value": value,
+            "tick": tick,
         },
-        tick=tick,
     )
 
 
 def create_site_stats_signal(site_id: str, stats: dict[str, Any], tick: int) -> Signal:
     """Create a site statistics update signal."""
     return Signal(
-        type=SignalType.SITE_STATS_UPDATE,
+        signal=signal_type_to_string(SignalType.SITE_STATS_UPDATE),
         data={
             "site_id": site_id,
-            "statistics": stats,
+            "stats": stats,
+            "tick": tick,
         },
-        tick=tick,
     )

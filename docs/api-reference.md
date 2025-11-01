@@ -367,18 +367,20 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Indicates the start of a simulation tick.
 
-**Signal Type**: `tick_start`
+**Signal**: `tick.start`
 
 **JSON Example**:
 ```json
 {
-  "type": "tick_start",
-  "tick": 123
+  "signal": "tick.start",
+  "data": {
+    "tick": 123
+  }
 }
 ```
 
 **Fields**:
-- `tick`: Current simulation tick number
+- `data.tick`: Current simulation tick number
 
 **When Received**: At the beginning of each simulation step
 
@@ -388,18 +390,20 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Indicates the end of a simulation tick.
 
-**Signal Type**: `tick_end`
+**Signal**: `tick.end`
 
 **JSON Example**:
 ```json
 {
-  "type": "tick_end",
-  "tick": 123
+  "signal": "tick.end",
+  "data": {
+    "tick": 123
+  }
 }
 ```
 
 **Fields**:
-- `tick`: Current simulation tick number
+- `data.tick`: Current simulation tick number
 
 **When Received**: At the end of each simulation step
 
@@ -409,14 +413,15 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Notifies about changes in agent state.
 
-**Signal Type**: `agent_update`
+**Signal**: `agent.updated`
 
 **JSON Example**:
 ```json
 {
-  "type": "agent_update",
-  "agent_id": "truck1",
+  "signal": "agent.updated",
   "data": {
+    "agent_id": "truck1",
+    "tick": 123,
     "id": "truck1",
     "kind": "transport",
     "tags": {
@@ -426,15 +431,14 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     },
     "inbox_count": 0,
     "outbox_count": 1
-  },
-  "tick": 123
+  }
 }
 ```
 
 **Fields**:
-- `agent_id`: ID of the changed agent
-- `data`: New agent state
-- `tick`: Simulation tick when change occurred
+- `data.agent_id`: ID of the changed agent
+- `data.tick`: Simulation tick when change occurred
+- `data.*`: New agent state fields
 
 **When Received**: When an agent's state changes
 
@@ -444,25 +448,25 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Reports general simulation events.
 
-**Signal Type**: `world_event`
+**Signal**: `event.created`
 
 **JSON Example**:
 ```json
 {
-  "type": "world_event",
+  "signal": "event.created",
   "data": {
+    "tick": 123,
     "event_type": "agent_added",
     "agent_id": "truck1",
     "agent_kind": "transport",
     "timestamp": 1640995200
-  },
-  "tick": 123
+  }
 }
 ```
 
 **Fields**:
-- `data`: Event details
-- `tick`: Simulation tick when event occurred
+- `data.tick`: Simulation tick when event occurred
+- `data.*`: Event details
 
 **When Received**: When simulation events occur
 
@@ -472,20 +476,24 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Reports errors that occurred in the simulation.
 
-**Signal Type**: `error`
+**Signal**: `error`
 
 **JSON Example**:
 ```json
 {
-  "type": "error",
-  "error_message": "Agent truck1 not found",
-  "tick": 123
+  "signal": "error",
+  "data": {
+    "code": "GENERIC_ERROR",
+    "message": "Agent truck1 not found",
+    "tick": 123
+  }
 }
 ```
 
 **Fields**:
-- `error_message`: Description of the error
-- `tick`: Simulation tick when error occurred
+- `data.code`: Error code (e.g., "GENERIC_ERROR")
+- `data.message`: Description of the error
+- `data.tick`: Simulation tick when error occurred (optional)
 
 **When Received**: When errors occur in the simulation
 
@@ -495,16 +503,20 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that the simulation has started.
 
-**Signal Type**: `simulation_started`
+**Signal**: `simulation.started`
 
 **JSON Example**:
 ```json
 {
-  "type": "simulation_started"
+  "signal": "simulation.started",
+  "data": {
+    "tick_rate": 30
+  }
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data.tick_rate`: Simulation tick rate in Hz (optional)
 
 **When Received**: After successful start action
 
@@ -514,16 +526,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that the simulation has stopped.
 
-**Signal Type**: `simulation_stopped`
+**Signal**: `simulation.stopped`
 
 **JSON Example**:
 ```json
 {
-  "type": "simulation_stopped"
+  "signal": "simulation.stopped",
+  "data": {}
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data`: Empty object
 
 **When Received**: After successful stop action
 
@@ -533,16 +547,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that the simulation has been paused.
 
-**Signal Type**: `simulation_paused`
+**Signal**: `simulation.paused`
 
 **JSON Example**:
 ```json
 {
-  "type": "simulation_paused"
+  "signal": "simulation.paused",
+  "data": {}
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data`: Empty object
 
 **When Received**: After successful pause action
 
@@ -552,16 +568,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that the simulation has been resumed.
 
-**Signal Type**: `simulation_resumed`
+**Signal**: `simulation.resumed`
 
 **JSON Example**:
 ```json
 {
-  "type": "simulation_resumed"
+  "signal": "simulation.resumed",
+  "data": {}
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data`: Empty object
 
 **When Received**: After successful resume action
 
@@ -571,12 +589,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that a map was successfully exported.
 
-**Signal Type**: `map_exported`
+**Signal**: `map.exported`
 
 **JSON Example**:
 ```json
 {
-  "type": "map_exported",
+  "signal": "map.exported",
   "data": {
     "map_name": "my_custom_map"
   }
@@ -584,8 +602,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 ```
 
 **Fields**:
-- `data`: Map information
-  - `map_name`: Name of the exported map
+- `data.map_name`: Name of the exported map
 
 **When Received**: After successful map export
 
@@ -595,12 +612,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that a map was successfully imported.
 
-**Signal Type**: `map_imported`
+**Signal**: `map.imported`
 
 **JSON Example**:
 ```json
 {
-  "type": "map_imported",
+  "signal": "map.imported",
   "data": {
     "map_name": "my_custom_map"
   }
@@ -608,8 +625,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 ```
 
 **Fields**:
-- `data`: Map information
-  - `map_name`: Name of the imported map
+- `data.map_name`: Name of the imported map
 
 **When Received**: After successful map import
 
@@ -619,12 +635,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Confirms that a procedural map was successfully generated.
 
-**Signal Type**: `map_created`
+**Signal**: `map.created`
 
 **JSON Example**:
 ```json
 {
-  "type": "map_created",
+  "signal": "map.created",
   "data": {
     "width": 10000,
     "height": 10000,
@@ -638,14 +654,13 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 ```
 
 **Fields**:
-- `data`: Generation parameters and results
-  - `width`: Map width in meters
-  - `height`: Map height in meters
-  - `nodes`: Requested node density (0-100)
-  - `density`: Requested clustering factor (0-100)
-  - `urban_areas`: Requested number of cities/villages
-  - `generated_nodes`: Actual number of nodes created
-  - `generated_edges`: Actual number of edges created
+- `data.width`: Map width in meters
+- `data.height`: Map height in meters
+- `data.nodes`: Requested node density (0-100)
+- `data.density`: Requested clustering factor (0-100)
+- `data.urban_areas`: Requested number of cities/villages
+- `data.generated_nodes`: Actual number of nodes created
+- `data.generated_edges`: Actual number of edges created
 
 **When Received**: After successful procedural map generation
 
@@ -655,16 +670,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Indicates the beginning of a complete state snapshot transmission.
 
-**Signal Type**: `state_snapshot_start`
+**Signal**: `state.snapshot_start`
 
 **JSON Example**:
 ```json
 {
-  "type": "state_snapshot_start"
+  "signal": "state.snapshot_start",
+  "data": {}
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data`: Empty object
 
 **When Received**: Before sending complete state data (map + agents)
 
@@ -674,16 +691,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Indicates the end of a complete state snapshot transmission.
 
-**Signal Type**: `state_snapshot_end`
+**Signal**: `state.snapshot_end`
 
 **JSON Example**:
 ```json
 {
-  "type": "state_snapshot_end"
+  "signal": "state.snapshot_end",
+  "data": {}
 }
 ```
 
-**Fields**: None
+**Fields**:
+- `data`: Empty object
 
 **When Received**: After all state data has been sent
 
@@ -693,12 +712,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Contains the complete graph structure (nodes and edges).
 
-**Signal Type**: `full_map_data`
+**Signal**: `state.full_map_data`
 
 **JSON Example**:
 ```json
 {
-  "type": "full_map_data",
+  "signal": "state.full_map_data",
   "data": {
     "nodes": [
       {
@@ -740,12 +759,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Contains the complete state of a single agent.
 
-**Signal Type**: `full_agent_data`
+**Signal**: `state.full_agent_data`
 
 **JSON Example**:
 ```json
 {
-  "type": "full_agent_data",
+  "signal": "state.full_agent_data",
   "data": {
     "id": "truck1",
     "kind": "transport",
@@ -783,12 +802,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Notifies when a new package is created at a site.
 
-**Signal Type**: `package_created`
+**Signal**: `package.created`
 
 **JSON Example**:
 ```json
 {
-  "type": "package_created",
+  "signal": "package.created",
   "data": {
     "id": "pkg-123",
     "origin_site": "warehouse-a",
@@ -800,15 +819,14 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "spawn_tick": 1000,
     "pickup_deadline_tick": 4600,
     "delivery_deadline_tick": 8200,
-    "status": "WAITING_PICKUP"
-  },
-  "tick": 1000
+    "status": "WAITING_PICKUP",
+    "tick": 1000
+  }
 }
 ```
 
 **Fields**:
-- `data`: Complete package information
-- `tick`: Simulation tick when package was created
+- `data`: Complete package information including `tick` field
 
 **When Received**: When a site spawns a new package
 
@@ -818,18 +836,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Notifies when a package expires (not picked up by deadline).
 
-**Signal Type**: `package_expired`
+**Signal**: `package.expired`
 
 **JSON Example**:
 ```json
 {
-  "type": "package_expired",
+  "signal": "package.expired",
   "data": {
     "package_id": "pkg-123",
     "site_id": "warehouse-a",
-    "value_lost": 1500.0
-  },
-  "tick": 4600
+    "value_lost": 1500.0,
+    "tick": 4600
+  }
 }
 ```
 
@@ -837,7 +855,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.package_id`: ID of the expired package
 - `data.site_id`: Site where package expired
 - `data.value_lost`: Monetary value lost due to expiry
-- `tick`: Simulation tick when package expired
+- `data.tick`: Simulation tick when package expired
 
 **When Received**: When a package passes its pickup deadline
 
@@ -847,24 +865,24 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Notifies when a package is picked up by an agent.
 
-**Signal Type**: `package_picked_up`
+**Signal**: `package.picked_up`
 
 **JSON Example**:
 ```json
 {
-  "type": "package_picked_up",
+  "signal": "package.picked_up",
   "data": {
     "package_id": "pkg-123",
-    "agent_id": "truck-1"
-  },
-  "tick": 2000
+    "agent_id": "truck-1",
+    "tick": 2000
+  }
 }
 ```
 
 **Fields**:
 - `data.package_id`: ID of the picked up package
 - `data.agent_id`: ID of the agent that picked up the package
-- `tick`: Simulation tick when package was picked up
+- `data.tick`: Simulation tick when package was picked up
 
 **When Received**: When an agent picks up a package
 
@@ -874,18 +892,18 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Notifies when a package is successfully delivered to its destination.
 
-**Signal Type**: `package_delivered`
+**Signal**: `package.delivered`
 
 **JSON Example**:
 ```json
 {
-  "type": "package_delivered",
+  "signal": "package.delivered",
   "data": {
     "package_id": "pkg-123",
     "site_id": "warehouse-b",
-    "value": 1500.0
-  },
-  "tick": 5000
+    "value": 1500.0,
+    "tick": 5000
+  }
 }
 ```
 
@@ -893,7 +911,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.package_id`: ID of the delivered package
 - `data.site_id`: Destination site where package was delivered
 - `data.value`: Monetary value of the delivered package
-- `tick`: Simulation tick when package was delivered
+- `data.tick`: Simulation tick when package was delivered
 
 **When Received**: When a package reaches its destination site
 
@@ -903,12 +921,12 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Purpose**: Provides periodic updates of site statistics for business intelligence.
 
-**Signal Type**: `site_stats_update`
+**Signal**: `site.stats_update`
 
 **JSON Example**:
 ```json
 {
-  "type": "site_stats_update",
+  "signal": "site.stats_update",
   "data": {
     "site_id": "warehouse-a",
     "stats": {
@@ -918,16 +936,16 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
       "packages_expired": 5,
       "total_value_delivered": 150000.0,
       "total_value_expired": 5000.0
-    }
-  },
-  "tick": 1000
+    },
+    "tick": 1000
+  }
 }
 ```
 
 **Fields**:
 - `data.site_id`: ID of the site
 - `data.stats`: Complete statistics object
-- `tick`: Simulation tick when statistics were updated
+- `data.tick`: Simulation tick when statistics were updated
 
 **When Received**: Periodically or when significant changes occur
 
@@ -952,28 +970,28 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    {"type": "start", "tick_rate": 30}
    ```
    - Expect: `{"type": "action_ack", "action_type": "start", "status": "received"}`
-   - Expect: `{"type": "simulation_started"}`
+   - Expect: `{"signal": "simulation.started", "data": {"tick_rate": 30}}`
 
 2. **Pause Simulation**:
    ```json
    {"type": "pause"}
    ```
    - Expect: `{"type": "action_ack", "action_type": "pause", "status": "received"}`
-   - Expect: `{"type": "simulation_paused"}`
+   - Expect: `{"signal": "simulation.paused", "data": {}}`
 
 3. **Resume Simulation**:
    ```json
    {"type": "resume"}
    ```
    - Expect: `{"type": "action_ack", "action_type": "resume", "status": "received"}`
-   - Expect: `{"type": "simulation_resumed"}`
+   - Expect: `{"signal": "simulation.resumed", "data": {}}`
 
 4. **Stop Simulation**:
    ```json
    {"type": "stop"}
    ```
    - Expect: `{"type": "action_ack", "action_type": "stop", "status": "received"}`
-   - Expect: `{"type": "simulation_stopped"}`
+   - Expect: `{"signal": "simulation.stopped", "data": {}}`
 
 ### 3. Agent Management Test
 
@@ -1115,10 +1133,10 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    {"type": "request_state"}
    ```
    - Expect: `{"type": "action_ack", "action_type": "request_state", "status": "received"}`
-   - Expect: `{"type": "state_snapshot_start"}`
-   - Expect: `{"type": "full_map_data", "data": {...}}`
-   - Expect: Multiple `{"type": "full_agent_data", "data": {...}}` signals (one per agent)
-   - Expect: `{"type": "state_snapshot_end"}`
+   - Expect: `{"signal": "state.snapshot_start", "data": {}}`
+   - Expect: `{"signal": "state.full_map_data", "data": {...}}`
+   - Expect: Multiple `{"signal": "state.full_agent_data", "data": {...}}` signals (one per agent)
+   - Expect: `{"signal": "state.snapshot_end", "data": {}}`
 
 2. **Test Client Connection During Simulation**:
    - Start simulation: `{"type": "start", "tick_rate": 20}`

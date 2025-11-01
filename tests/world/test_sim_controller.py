@@ -9,7 +9,7 @@ from agents.base import AgentBase
 from core.types import AgentID
 from world.sim.action_parser import ActionRequest
 from world.sim.controller import SimulationController
-from world.sim.queues import ActionQueue, SignalQueue
+from world.sim.queues import ActionQueue, SignalQueue, SignalType, signal_type_to_string
 from world.sim.state import SimulationState
 from world.world import World
 
@@ -266,8 +266,8 @@ class TestSimulationController:
         assert not self.signal_queue.empty()
         retrieved_signal = self.signal_queue.get_nowait()
         assert retrieved_signal is not None
-        assert retrieved_signal.type.value == "tick_start"
-        assert retrieved_signal.tick == 100
+        assert retrieved_signal.signal == signal_type_to_string(SignalType.TICK_START)
+        assert retrieved_signal.data == {"tick": 100}
 
     def test_error_handling(self) -> None:
         """Test error handling in action processing."""
@@ -287,9 +287,9 @@ class TestSimulationController:
         assert not self.signal_queue.empty()
         error_signal = self.signal_queue.get_nowait()
         assert error_signal is not None
-        assert error_signal.type.value == "error"
-        assert error_signal.error_message is not None
-        assert "Test error" in error_signal.error_message
+        assert error_signal.signal == signal_type_to_string(SignalType.ERROR)
+        assert error_signal.data["message"] is not None
+        assert "Test error" in error_signal.data["message"]
 
     def test_controller_lifecycle(self) -> None:
         """Test full controller lifecycle."""
@@ -370,11 +370,11 @@ class TestSimulationController:
                 signals.append(signal)
 
         # Should have simulation_started, state_snapshot_start, full_map_data, state_snapshot_end
-        signal_types = [s.type.value for s in signals]
-        assert "simulation_started" in signal_types
-        assert "state_snapshot_start" in signal_types
-        assert "full_map_data" in signal_types
-        assert "state_snapshot_end" in signal_types
+        signal_strings = [s.signal for s in signals]
+        assert "simulation.started" in signal_strings
+        assert "state.snapshot_start" in signal_strings
+        assert "state.full_map_data" in signal_strings
+        assert "state.snapshot_end" in signal_strings
 
     def test_request_state_action(self) -> None:
         """Test REQUEST_STATE action handling."""
@@ -408,10 +408,10 @@ class TestSimulationController:
                 signals.append(signal)
 
         # Should have state snapshot signals
-        signal_types = [s.type.value for s in signals]
-        assert "state_snapshot_start" in signal_types
-        assert "full_map_data" in signal_types
-        assert "state_snapshot_end" in signal_types
+        signal_strings = [s.signal for s in signals]
+        assert "state.snapshot_start" in signal_strings
+        assert "state.full_map_data" in signal_strings
+        assert "state.snapshot_end" in signal_strings
 
     def test_agent_serialize_full(self) -> None:
         """Test agent serialize_full method."""

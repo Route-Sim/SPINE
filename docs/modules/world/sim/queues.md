@@ -53,9 +53,10 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 
 **Message Models**: Pydantic models for validation
 - `Action`: Validates incoming commands with context-aware field requirements
-- `Signal`: Validates outgoing events with optional fields
+- `Signal`: Validates outgoing events using domain.signal format (`{"signal": "domain.signal", "data": {...}}`)
 - Enum types for action/signal types
 - Model validators ensure required fields are present based on action type
+- Signal format matches API reference: all contextual information consolidated into `data` dict
 
 ### Data Flow
 
@@ -160,18 +161,35 @@ site_stats = create_site_stats_signal(
 - `CREATE_PACKAGE`/`CANCEL_PACKAGE`: Package management (future)
 - `ADD_SITE`/`MODIFY_SITE`: Site management (future)
 
-### Event Types
-- `TICK_START`/`TICK_END`: Tick boundary markers
-- `AGENT_UPDATE`: Agent state changes
-- `WORLD_EVENT`: General world events
-- `ERROR`: Error notifications
-- `SIMULATION_*`: Simulation state changes
-- `MAP_EXPORTED`/`MAP_IMPORTED`: Map operation confirmations
-- `STATE_SNAPSHOT_START`/`STATE_SNAPSHOT_END`: State snapshot boundaries
-- `FULL_MAP_DATA`: Complete map structure
-- `FULL_AGENT_DATA`: Complete agent state
-- `PACKAGE_CREATED`/`PACKAGE_EXPIRED`/`PACKAGE_PICKED_UP`/`PACKAGE_DELIVERED`: Package lifecycle events
-- `SITE_STATS_UPDATE`: Site statistics updates
+### Signal Format
+
+All signals follow the standardized format matching the API reference:
+
+```json
+{
+  "signal": "domain.signal",
+  "data": {
+    "field1": value1,
+    "field2": value2,
+    ...
+  }
+}
+```
+
+All contextual information (tick, agent_id, error messages, etc.) is consolidated into the `data` dict. The `signal` field uses domain.signal format (e.g., `"simulation.started"`, `"agent.updated"`, `"error"`).
+
+### Signal Types
+- `tick.start`/`tick.end`: Tick boundary markers (data includes `tick`)
+- `agent.updated`: Agent state changes (data includes `agent_id`, `tick`, and agent state)
+- `event.created`: General world events (data includes `tick` and event details)
+- `error`: Error notifications (data includes `code`, `message`, optional `tick`)
+- `simulation.started`/`simulation.stopped`/`simulation.paused`/`simulation.resumed`: Simulation state changes
+- `map.exported`/`map.imported`/`map.created`: Map operation confirmations
+- `state.snapshot_start`/`state.snapshot_end`: State snapshot boundaries
+- `state.full_map_data`: Complete map structure
+- `state.full_agent_data`: Complete agent state
+- `package.created`/`package.expired`/`package.picked_up`/`package.delivered`: Package lifecycle events
+- `site.stats_update`: Site statistics updates
 
 ## Implementation Notes
 

@@ -79,7 +79,8 @@ class SimulationActionHandler:
             context.state.set_tick_rate(float(tick_rate))
 
         context.state.start()
-        _emit_signal(context, create_simulation_started_signal())
+        tick_rate_int = int(context.state.tick_rate) if context.state.tick_rate else None
+        _emit_signal(context, create_simulation_started_signal(tick_rate=tick_rate_int))
 
         # Emit state snapshot when simulation starts
         _emit_state_snapshot(context)

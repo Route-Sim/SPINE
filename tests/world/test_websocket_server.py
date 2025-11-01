@@ -8,7 +8,7 @@ import pytest
 
 from world.io.websocket_server import ConnectionManager, WebSocketServer
 from world.sim.action_parser import ActionRequest
-from world.sim.queues import ActionQueue, Signal, SignalQueue
+from world.sim.queues import ActionQueue, SignalQueue, create_tick_start_signal
 
 
 class TestConnectionManager:
@@ -190,9 +190,7 @@ class TestWebSocketServer:
     async def test_broadcast_signals(self) -> None:
         """Test broadcasting signals from queue."""
         # Add signal to queue
-        from world.sim.queues import SignalType
-
-        signal = Signal(type=SignalType.TICK_START, tick=100)
+        signal = create_tick_start_signal(tick=100)
         self.signal_queue.put(signal)
 
         # Mock broadcast method

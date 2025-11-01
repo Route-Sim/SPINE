@@ -259,6 +259,7 @@ class WebSocketServer:
                     continue
 
                 # Convert signal to JSON (ensure all dict keys are strings)
+                # Signal.model_dump() already returns {"signal": "...", "data": {...}}
                 signal_dict = signal.model_dump()
                 safe_signal_dict = _ensure_str_keys(signal_dict)
                 message = orjson.dumps(safe_signal_dict, option=orjson.OPT_NON_STR_KEYS).decode()
@@ -266,7 +267,7 @@ class WebSocketServer:
                 # Broadcast to all connected clients
                 await self.manager.broadcast(message)
 
-                self.logger.debug(f"Broadcasted signal: {signal.type}")
+                self.logger.debug(f"Broadcasted signal: {signal.signal}")
 
             except Exception as e:
                 self.logger.error(f"Error in signal broadcast: {e}", exc_info=True)
