@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0](https://github.com/Route-Sim/SPINE/compare/v0.9.0...v0.10.0) (2025-11-01)
+
+
+### 🚀 Features
+
+* **map-generation:** implement procedural map generation ([76f424c](https://github.com/Route-Sim/SPINE/commit/76f424c544b1befb1a73664b98c0547537e91b91))
+
 ## [0.9.0](https://github.com/Route-Sim/SPINE/compare/v0.8.0...v0.9.0) (2025-10-30)
 
 
