@@ -293,7 +293,7 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 11. CREATE_MAP - Generate New Map Procedurally
 
-**Purpose**: Generate a new simulation map procedurally using advanced algorithms.
+**Purpose**: Generate a new simulation map procedurally using hierarchical algorithms with Polish road classification.
 
 **Action Type**: `map.create`
 
@@ -302,29 +302,78 @@ Actions are commands sent from the Frontend to control the simulation.
 {
   "action": "map.create",
   "params": {
-    "width": 10000,
-    "height": 10000,
-    "nodes": 75,
-    "density": 50,
-    "urban_areas": 5
+    "map_width": 10000,
+    "map_height": 10000,
+    "num_major_centers": 3,
+    "minor_per_major": 2.0,
+    "center_separation": 2500.0,
+    "urban_sprawl": 800.0,
+    "local_density": 50.0,
+    "rural_density": 5.0,
+    "intra_connectivity": 0.3,
+    "inter_connectivity": 2,
+    "arterial_ratio": 0.2,
+    "gridness": 0.3,
+    "ring_road_prob": 0.5,
+    "highway_curviness": 0.2,
+    "rural_settlement_prob": 0.15,
+    "seed": 42
   }
 }
 ```
 
 **Parameters**:
-- `width` (required): Map width in meters (must be positive)
-- `height` (required): Map height in meters (must be positive)
-- `nodes` (required): Node density factor (0-100, 0=sparse, 100=Tokyo-dense)
-- `density` (required): Clustering factor (0-100, 0=spread out, 100=tightly packed)
-- `urban_areas` (required): Number of cities/villages (must be positive integer)
+- `map_width` (required): Map width in meters (must be positive)
+- `map_height` (required): Map height in meters (must be positive)
+- `num_major_centers` (required): Number of major cities (must be ≥1)
+- `minor_per_major` (required): Average number of minor towns per major city (≥0)
+- `center_separation` (required): Minimum distance between major centers in meters (>0)
+- `urban_sprawl` (required): Typical city radius in meters (>0)
+- `local_density` (required): Node density inside cities (nodes per km², >0)
+- `rural_density` (required): Node density outside cities (nodes per km², ≥0)
+- `intra_connectivity` (required): Edge density within cities (0-1, higher = more roads)
+- `inter_connectivity` (required): Highway redundancy factor (≥1, higher = more alternatives)
+- `arterial_ratio` (required): Share of arterial roads in cities (0-1)
+- `gridness` (required): Street pattern (0=organic, 1=grid-like, 0-1)
+- `ring_road_prob` (required): Probability of ring roads around major cities (0-1)
+- `highway_curviness` (required): Highway path curvature (0=straight, 1=curved, 0-1)
+- `rural_settlement_prob` (required): Probability of rural settlements (0-1)
+- `seed` (required): Random seed for reproducibility (integer)
 
 **Notes**:
 - Simulation must be stopped before creating a new map
-- Uses Poisson disk sampling for realistic node placement
-- Uses K-means clustering for city/village distribution
-- Uses Delaunay triangulation for natural road networks
-- Generates bidirectional roads in cities (95%) and highways (100%)
-- Returns signal with actual generated node/edge counts
+- Uses hierarchical generation: centers → nodes → intra-city roads → highways → rings
+- Implements Polish road classification (A, S, GP, G, Z, L, D)
+- Assigns lane counts (1-6), speed limits (20-140 km/h), and weight restrictions
+- Uses Poisson disk sampling for natural node placement
+- Uses Delaunay triangulation + Gabriel graph for realistic road networks
+- Highways connect cities via k-nearest neighbor graph
+- 95% of city roads are bidirectional, 100% of highways are bidirectional
+- Returns signal with generation statistics
+
+**Example Configurations**:
+
+*Dense Urban Map:*
+```json
+{
+  "num_major_centers": 5,
+  "local_density": 80.0,
+  "rural_density": 0.0,
+  "gridness": 0.7,
+  "ring_road_prob": 1.0
+}
+```
+
+*Sparse Rural Map:*
+```json
+{
+  "num_major_centers": 2,
+  "local_density": 20.0,
+  "rural_density": 10.0,
+  "gridness": 0.0,
+  "rural_settlement_prob": 0.3
+}
+```
 
 **Postman Test**:
 1. Ensure simulation is stopped
@@ -633,7 +682,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ### 12. MAP_CREATED - Map Generation Confirmation
 
-**Purpose**: Confirms that a procedural map was successfully generated.
+**Purpose**: Confirms that a procedural map was successfully generated with hierarchical structure.
 
 **Signal**: `map.created`
 
@@ -642,11 +691,22 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 {
   "signal": "map.created",
   "data": {
-    "width": 10000,
-    "height": 10000,
-    "nodes": 75,
-    "density": 50,
-    "urban_areas": 5,
+    "map_width": 10000,
+    "map_height": 10000,
+    "num_major_centers": 3,
+    "minor_per_major": 2.0,
+    "center_separation": 2500.0,
+    "urban_sprawl": 800.0,
+    "local_density": 50.0,
+    "rural_density": 5.0,
+    "intra_connectivity": 0.3,
+    "inter_connectivity": 2,
+    "arterial_ratio": 0.2,
+    "gridness": 0.3,
+    "ring_road_prob": 0.5,
+    "highway_curviness": 0.2,
+    "rural_settlement_prob": 0.15,
+    "seed": 42,
     "generated_nodes": 850,
     "generated_edges": 2400
   }
@@ -654,15 +714,26 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 ```
 
 **Fields**:
-- `data.width`: Map width in meters
-- `data.height`: Map height in meters
-- `data.nodes`: Requested node density (0-100)
-- `data.density`: Requested clustering factor (0-100)
-- `data.urban_areas`: Requested number of cities/villages
+- `data.map_width`: Map width in meters
+- `data.map_height`: Map height in meters
+- `data.num_major_centers`: Number of major cities generated
+- `data.minor_per_major`: Average minor towns per major city
+- `data.center_separation`: Minimum distance between major centers
+- `data.urban_sprawl`: Typical city radius
+- `data.local_density`: Node density inside cities (nodes per km²)
+- `data.rural_density`: Node density outside cities (nodes per km²)
+- `data.intra_connectivity`: Edge density within cities (0-1)
+- `data.inter_connectivity`: Highway redundancy factor
+- `data.arterial_ratio`: Share of arterial roads in cities (0-1)
+- `data.gridness`: Street pattern (0=organic, 1=grid-like)
+- `data.ring_road_prob`: Probability of ring roads (0-1)
+- `data.highway_curviness`: Highway curvature (0=straight, 1=curved)
+- `data.rural_settlement_prob`: Probability of rural settlements (0-1)
+- `data.seed`: Random seed used for generation
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created
 
-**When Received**: After successful procedural map generation
+**When Received**: After successful procedural map generation with hierarchical algorithm
 
 ---
 

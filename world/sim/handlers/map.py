@@ -120,35 +120,91 @@ class MapActionHandler:
         """Handle create map action.
 
         Args:
-            params: Action parameters (required: width, height, nodes, density, urban_areas)
+            params: Action parameters (required: map_width, map_height, num_major_centers,
+                    minor_per_major, center_separation, urban_sprawl, local_density,
+                    rural_density, intra_connectivity, inter_connectivity, arterial_ratio,
+                    gridness, ring_road_prob, highway_curviness, rural_settlement_prob, seed)
             context: Handler context
 
         Raises:
             ValueError: If parameters are missing, invalid, or simulation is running
         """
         # Validate required parameters
-        required_params = ["width", "height", "nodes", "density", "urban_areas"]
+        required_params = [
+            "map_width",
+            "map_height",
+            "num_major_centers",
+            "minor_per_major",
+            "center_separation",
+            "urban_sprawl",
+            "local_density",
+            "rural_density",
+            "intra_connectivity",
+            "inter_connectivity",
+            "arterial_ratio",
+            "gridness",
+            "ring_road_prob",
+            "highway_curviness",
+            "rural_settlement_prob",
+            "seed",
+        ]
         for param in required_params:
             if param not in params:
                 raise ValueError(f"{param} is required for map.create action")
 
-        # Validate parameter types
-        width = params["width"]
-        height = params["height"]
-        nodes = params["nodes"]
-        density = params["density"]
-        urban_areas = params["urban_areas"]
+        # Extract and validate parameters
+        map_width = params["map_width"]
+        map_height = params["map_height"]
+        num_major_centers = params["num_major_centers"]
+        minor_per_major = params["minor_per_major"]
+        center_separation = params["center_separation"]
+        urban_sprawl = params["urban_sprawl"]
+        local_density = params["local_density"]
+        rural_density = params["rural_density"]
+        intra_connectivity = params["intra_connectivity"]
+        inter_connectivity = params["inter_connectivity"]
+        arterial_ratio = params["arterial_ratio"]
+        gridness = params["gridness"]
+        ring_road_prob = params["ring_road_prob"]
+        highway_curviness = params["highway_curviness"]
+        rural_settlement_prob = params["rural_settlement_prob"]
+        seed = params["seed"]
 
-        if not isinstance(width, int | float) or width <= 0:
-            raise ValueError("width must be a positive number")
-        if not isinstance(height, int | float) or height <= 0:
-            raise ValueError("height must be a positive number")
-        if not isinstance(nodes, int) or not (0 <= nodes <= 100):
-            raise ValueError("nodes must be an integer between 0 and 100")
-        if not isinstance(density, int) or not (0 <= density <= 100):
-            raise ValueError("density must be an integer between 0 and 100")
-        if not isinstance(urban_areas, int) or urban_areas <= 0:
-            raise ValueError("urban_areas must be a positive integer")
+        # Type validation
+        if not isinstance(map_width, int | float) or map_width <= 0:
+            raise ValueError("map_width must be a positive number")
+        if not isinstance(map_height, int | float) or map_height <= 0:
+            raise ValueError("map_height must be a positive number")
+        if not isinstance(num_major_centers, int) or num_major_centers < 1:
+            raise ValueError("num_major_centers must be a positive integer")
+        if not isinstance(minor_per_major, int | float) or minor_per_major < 0:
+            raise ValueError("minor_per_major must be a non-negative number")
+        if not isinstance(center_separation, int | float) or center_separation <= 0:
+            raise ValueError("center_separation must be a positive number")
+        if not isinstance(urban_sprawl, int | float) or urban_sprawl <= 0:
+            raise ValueError("urban_sprawl must be a positive number")
+        if not isinstance(local_density, int | float) or local_density <= 0:
+            raise ValueError("local_density must be a positive number")
+        if not isinstance(rural_density, int | float) or rural_density < 0:
+            raise ValueError("rural_density must be a non-negative number")
+        if not isinstance(intra_connectivity, int | float) or not (0 <= intra_connectivity <= 1):
+            raise ValueError("intra_connectivity must be between 0 and 1")
+        if not isinstance(inter_connectivity, int) or inter_connectivity < 1:
+            raise ValueError("inter_connectivity must be a positive integer")
+        if not isinstance(arterial_ratio, int | float) or not (0 <= arterial_ratio <= 1):
+            raise ValueError("arterial_ratio must be between 0 and 1")
+        if not isinstance(gridness, int | float) or not (0 <= gridness <= 1):
+            raise ValueError("gridness must be between 0 and 1")
+        if not isinstance(ring_road_prob, int | float) or not (0 <= ring_road_prob <= 1):
+            raise ValueError("ring_road_prob must be between 0 and 1")
+        if not isinstance(highway_curviness, int | float) or not (0 <= highway_curviness <= 1):
+            raise ValueError("highway_curviness must be between 0 and 1")
+        if not isinstance(rural_settlement_prob, int | float) or not (
+            0 <= rural_settlement_prob <= 1
+        ):
+            raise ValueError("rural_settlement_prob must be between 0 and 1")
+        if not isinstance(seed, int):
+            raise ValueError("seed must be an integer")
 
         # Reject if simulation is running
         if context.state.running:
@@ -160,11 +216,22 @@ class MapActionHandler:
         try:
             # Create generation parameters
             gen_params = GenerationParams(
-                width=float(width),
-                height=float(height),
-                nodes=nodes,
-                density=density,
-                urban_areas=urban_areas,
+                map_width=float(map_width),
+                map_height=float(map_height),
+                num_major_centers=num_major_centers,
+                minor_per_major=float(minor_per_major),
+                center_separation=float(center_separation),
+                urban_sprawl=float(urban_sprawl),
+                local_density=float(local_density),
+                rural_density=float(rural_density),
+                intra_connectivity=float(intra_connectivity),
+                inter_connectivity=inter_connectivity,
+                arterial_ratio=float(arterial_ratio),
+                gridness=float(gridness),
+                ring_road_prob=float(ring_road_prob),
+                highway_curviness=float(highway_curviness),
+                rural_settlement_prob=float(rural_settlement_prob),
+                seed=seed,
             )
 
             # Generate the map
@@ -176,11 +243,22 @@ class MapActionHandler:
 
             # Emit success signal with generation info
             signal_data = {
-                "width": width,
-                "height": height,
-                "nodes": nodes,
-                "density": density,
-                "urban_areas": urban_areas,
+                "map_width": map_width,
+                "map_height": map_height,
+                "num_major_centers": num_major_centers,
+                "minor_per_major": minor_per_major,
+                "center_separation": center_separation,
+                "urban_sprawl": urban_sprawl,
+                "local_density": local_density,
+                "rural_density": rural_density,
+                "intra_connectivity": intra_connectivity,
+                "inter_connectivity": inter_connectivity,
+                "arterial_ratio": arterial_ratio,
+                "gridness": gridness,
+                "ring_road_prob": ring_road_prob,
+                "highway_curviness": highway_curviness,
+                "rural_settlement_prob": rural_settlement_prob,
+                "seed": seed,
                 "generated_nodes": new_graph.get_node_count(),
                 "generated_edges": new_graph.get_edge_count(),
             }

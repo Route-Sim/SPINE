@@ -6,15 +6,11 @@ import signal
 import sys
 import threading
 import time
-from typing import Any, cast
+from typing import Any
 
 import uvicorn
 
-from core.buildings.site import Site
-from core.types import BuildingID, EdgeID, NodeID, SiteID
-from world.graph.edge import Edge, Mode
 from world.graph.graph import Graph
-from world.graph.node import Node
 from world.io.websocket_server import WebSocketServer
 from world.world import World
 
@@ -190,64 +186,16 @@ class SimulationRunner:
         }
 
 
-def create_default_world() -> World:
-    """Create a default world for testing."""
-    # Create a simple graph
+def create_empty_world() -> World:
+    """Create an empty world with no map.
+
+    The client must use map.import or map.create actions to load a map
+    before starting the simulation.
+    """
+    # Create empty graph
     graph = Graph()
 
-    # Add some nodes
-    node1 = Node(id=NodeID(1), x=0, y=0)
-    node2 = Node(id=NodeID(2), x=100, y=0)
-    node3 = Node(id=NodeID(3), x=50, y=50)
-
-    graph.add_node(node1)
-    graph.add_node(node2)
-    graph.add_node(node3)
-
-    # Add some edges
-    edge1 = Edge(id=EdgeID(1), from_node=NodeID(1), to_node=NodeID(2), length_m=100, mode=Mode.ROAD)
-    edge2 = Edge(id=EdgeID(2), from_node=NodeID(1), to_node=NodeID(3), length_m=50, mode=Mode.ROAD)
-    edge3 = Edge(id=EdgeID(3), from_node=NodeID(3), to_node=NodeID(2), length_m=50, mode=Mode.ROAD)
-
-    graph.add_edge(edge1)
-    graph.add_edge(edge2)
-    graph.add_edge(edge3)
-
-    # Add sites to nodes
-    site1 = Site(
-        id=cast(BuildingID, SiteID("site-1")),
-        name="Site A",
-        activity_rate=5.0,  # 5 packages/hour
-        destination_weights={
-            SiteID("site-2"): 0.6,
-            SiteID("site-3"): 0.4,
-        },
-    )
-    node1.add_building(site1)
-
-    site2 = Site(
-        id=cast(BuildingID, SiteID("site-2")),
-        name="Site B",
-        activity_rate=4.0,  # 4 packages/hour
-        destination_weights={
-            SiteID("site-1"): 0.5,
-            SiteID("site-3"): 0.5,
-        },
-    )
-    node2.add_building(site2)
-
-    site3 = Site(
-        id=cast(BuildingID, SiteID("site-3")),
-        name="Site C",
-        activity_rate=3.0,  # 3 packages/hour
-        destination_weights={
-            SiteID("site-1"): 0.4,
-            SiteID("site-2"): 0.6,
-        },
-    )
-    node3.add_building(site3)
-
-    # Create world with dummy router and traffic
+    # Create world with empty graph
     world = World(graph=graph, router=None, traffic=None)
 
     return world
@@ -263,8 +211,8 @@ def main() -> None:
     parser.add_argument("--log-level", default="INFO", help="Log level")
     args = parser.parse_args()
 
-    # Create world
-    world = create_default_world()
+    # Create empty world (client must import or generate a map)
+    world = create_empty_world()
 
     # Create and start runner
     runner = SimulationRunner(

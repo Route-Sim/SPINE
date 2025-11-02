@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from core.types import EdgeID, NodeID
-from world.graph.edge import Edge, Mode
+from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.graph import Graph
 from world.graph.node import Node
 from world.io.map_manager import (
@@ -105,6 +105,10 @@ class TestExportImportMap:
             to_node=NodeID(2),
             length_m=100.0,
             mode=Mode.ROAD,
+            road_class=RoadClass.G,
+            lanes=2,
+            max_speed_kph=50.0,
+            weight_limit_kg=None,
         )
         edge2 = Edge(
             id=EdgeID(2),
@@ -112,6 +116,10 @@ class TestExportImportMap:
             to_node=NodeID(3),
             length_m=150.0,
             mode=Mode.ROAD,
+            road_class=RoadClass.G,
+            lanes=2,
+            max_speed_kph=50.0,
+            weight_limit_kg=None,
         )
 
         graph.add_edge(edge1)

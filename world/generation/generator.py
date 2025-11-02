@@ -1,42 +1,94 @@
-"""Procedural map generation module using Poisson disk sampling and Delaunay triangulation."""
+"""Hierarchical procedural map generation with realistic road networks."""
 
 import math
 import random
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, cKDTree
 
 from core.types import EdgeID, NodeID
-from world.graph.edge import Edge, Mode
+from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.graph import Graph
 from world.graph.node import Node
 
 
 @dataclass
 class GenerationParams:
-    """Parameters for procedural map generation."""
+    """Parameters for hierarchical procedural map generation."""
 
-    width: float
-    height: float
-    nodes: int  # 0-100 density factor
-    density: int  # 0-100 clustering factor
-    urban_areas: int  # Number of cities/villages
+    map_width: float
+    map_height: float
+    num_major_centers: int
+    minor_per_major: float
+    center_separation: float
+    urban_sprawl: float
+    local_density: float
+    rural_density: float
+    intra_connectivity: float
+    inter_connectivity: int
+    arterial_ratio: float
+    gridness: float
+    ring_road_prob: float
+    highway_curviness: float
+    rural_settlement_prob: float
+    seed: int
 
     def __post_init__(self) -> None:
         """Validate parameters after initialization."""
-        if self.width <= 0 or self.height <= 0:
-            raise ValueError("Width and height must be positive")
-        if not 0 <= self.nodes <= 100:
-            raise ValueError("nodes parameter must be between 0 and 100")
-        if not 0 <= self.density <= 100:
-            raise ValueError("density parameter must be between 0 and 100")
-        if self.urban_areas <= 0:
-            raise ValueError("urban_areas must be positive")
+        if self.map_width <= 0 or self.map_height <= 0:
+            raise ValueError("map_width and map_height must be positive")
+        if self.num_major_centers < 1:
+            raise ValueError("num_major_centers must be at least 1")
+        if self.minor_per_major < 0:
+            raise ValueError("minor_per_major must be non-negative")
+        if self.center_separation <= 0:
+            raise ValueError("center_separation must be positive")
+        if self.urban_sprawl <= 0:
+            raise ValueError("urban_sprawl must be positive")
+        if self.local_density <= 0:
+            raise ValueError("local_density must be positive")
+        if self.rural_density < 0:
+            raise ValueError("rural_density must be non-negative")
+        if not 0 <= self.intra_connectivity <= 1:
+            raise ValueError("intra_connectivity must be between 0 and 1")
+        if self.inter_connectivity < 1:
+            raise ValueError("inter_connectivity must be at least 1")
+        if not 0 <= self.arterial_ratio <= 1:
+            raise ValueError("arterial_ratio must be between 0 and 1")
+        if not 0 <= self.gridness <= 1:
+            raise ValueError("gridness must be between 0 and 1")
+        if not 0 <= self.ring_road_prob <= 1:
+            raise ValueError("ring_road_prob must be between 0 and 1")
+        if not 0 <= self.highway_curviness <= 1:
+            raise ValueError("highway_curviness must be between 0 and 1")
+        if not 0 <= self.rural_settlement_prob <= 1:
+            raise ValueError("rural_settlement_prob must be between 0 and 1")
+
+
+@dataclass
+class Center:
+    """Represents a city center (major or minor)."""
+
+    x: float
+    y: float
+    is_major: bool
+    radius: float
+
+
+@dataclass
+class CityNode:
+    """Node with city membership information."""
+
+    idx: int
+    x: float
+    y: float
+    center_idx: int
+    is_rural: bool
 
 
 class MapGenerator:
-    """Generator for procedural map creation using realistic algorithms."""
+    """Hierarchical generator for realistic road network creation."""
 
     def __init__(self, params: GenerationParams) -> None:
         """Initialize the map generator.
@@ -46,321 +98,978 @@ class MapGenerator:
         """
         self.params = params
         self._validate_params()
+        random.seed(params.seed)
+        np.random.seed(params.seed)
+
+        # State tracking
+        self.centers: list[Center] = []
+        self.city_nodes: list[CityNode] = []
+        self.rural_nodes: list[tuple[float, float]] = []
+        self.edge_count = 0
 
     def _validate_params(self) -> None:
         """Validate generation parameters."""
         self.params.__post_init__()
 
     def generate(self) -> Graph:
-        """Generate a complete graph with nodes and edges.
+        """Generate a complete hierarchical graph.
 
         Returns:
-            A fully generated Graph instance
+            A fully generated Graph instance with hierarchical structure
         """
-        # Step 1: Generate node positions using Poisson disk sampling
-        node_positions = self._generate_node_positions()
+        # Step 0: Generate centers (major + minor)
+        self._generate_centers()
 
-        # Step 2: Cluster nodes into urban areas (cities/villages)
-        clusters = self._cluster_nodes(node_positions)
+        # Step 1: Populate nodes (urban + rural + settlements)
+        self._populate_nodes()
 
-        # Step 3: Create graph with nodes
-        graph = self._create_nodes(node_positions)
+        # Step 2: Create graph and add all nodes
+        graph = self._create_graph_with_nodes()
 
-        # Step 4: Create edges using Delaunay triangulation
-        self._create_edges(graph, node_positions, clusters)
+        # Step 3: Intra-city roads
+        self._create_intra_city_roads(graph)
+
+        # Step 4: Inter-city highways
+        self._create_inter_city_highways(graph)
+
+        # Step 5: Ring roads
+        self._create_ring_roads(graph)
+
+        # Step 6: Cleanup and ensure connectivity
+        self._cleanup_and_connect(graph)
+
+        # Step 7: Reassign edge IDs to be sequential
+        self._reassign_edge_ids(graph)
 
         return graph
 
-    def _generate_node_positions(self) -> list[tuple[float, float]]:
-        """Generate node positions using Poisson disk sampling.
+    def _generate_centers(self) -> None:
+        """Generate major and minor centers using Poisson disk sampling."""
+        # Generate major centers with Poisson disk sampling
+        major_centers = self._poisson_disk_sampling(
+            width=self.params.map_width,
+            height=self.params.map_height,
+            min_distance=self.params.center_separation,
+            max_attempts=30,
+            target_count=self.params.num_major_centers,
+        )
 
-        Returns:
-            List of (x, y) coordinates for nodes
-        """
-        # Calculate number of nodes based on density parameter
-        # Formula: approximately (density/100) * area / min_distance^2
-        area = self.params.width * self.params.height
+        # Add major centers
+        for x, y in major_centers:
+            radius = np.random.normal(self.params.urban_sprawl, 0.3 * self.params.urban_sprawl)
+            radius = max(radius, self.params.urban_sprawl * 0.5)  # Minimum radius
+            self.centers.append(Center(x=x, y=y, is_major=True, radius=radius))
 
-        # Minimum distance scales with density parameter
-        # density=0 -> large spacing, density=100 -> tight spacing
-        base_distance = min(self.params.width, self.params.height) * 0.05  # 5% of smaller dimension
-        min_distance = base_distance * (1.0 - self.params.density / 100.0 * 0.8)
+        # Generate minor centers around each major center
+        for major_center in [c for c in self.centers if c.is_major]:
+            num_minors = int(np.random.poisson(self.params.minor_per_major))
 
-        # Calculate target node count
-        if self.params.nodes == 0:
-            target_nodes = 10  # Minimum nodes
-        elif self.params.nodes == 100:
-            target_nodes = int(area / (min_distance * min_distance / 4))  # Tokyo-dense
-        else:
-            # Interpolate between minimum and maximum
-            sparse_count = max(10, int(area / (base_distance * base_distance)))
-            dense_count = int(area / (min_distance * min_distance / 4))
-            target_nodes = int(
-                sparse_count + (self.params.nodes / 100.0) * (dense_count - sparse_count)
+            for _ in range(num_minors):
+                # Place minor centers in a ring around major center
+                angle = random.uniform(0, 2 * math.pi)
+                distance = np.random.normal(major_center.radius * 2.5, major_center.radius * 0.5)
+                distance = max(distance, major_center.radius * 1.5)
+
+                x = major_center.x + distance * math.cos(angle)
+                y = major_center.y + distance * math.sin(angle)
+
+                # Check bounds
+                if 0 <= x < self.params.map_width and 0 <= y < self.params.map_height:
+                    radius = np.random.normal(
+                        self.params.urban_sprawl * 0.4, self.params.urban_sprawl * 0.1
+                    )
+                    radius = max(radius, self.params.urban_sprawl * 0.2)
+                    self.centers.append(Center(x=x, y=y, is_major=False, radius=radius))
+
+    def _populate_nodes(self) -> None:
+        """Populate nodes in urban areas, rural areas, and settlements."""
+        # Generate nodes for each center
+        for center_idx, center in enumerate(self.centers):
+            city_nodes = self._generate_city_nodes(center, center_idx)
+            self.city_nodes.extend(city_nodes)
+
+        # Generate rural nodes
+        if self.params.rural_density > 0:
+            self._generate_rural_nodes()
+
+        # Generate rural settlements
+        if self.params.rural_settlement_prob > 0:
+            self._generate_rural_settlements()
+
+    def _generate_city_nodes(self, center: Center, center_idx: int) -> list[CityNode]:
+        """Generate nodes within a city using radial Poisson disk sampling."""
+        # Calculate spacing from density (nodes per km²)
+        area_km2 = math.pi * (center.radius / 1000.0) ** 2
+        target_nodes = int(area_km2 * self.params.local_density)
+        target_nodes = max(target_nodes, 5)  # Minimum nodes per city
+
+        # Calculate minimum spacing
+        min_spacing = center.radius / math.sqrt(target_nodes) * 0.8
+
+        # Generate positions within circle
+        positions = self._poisson_disk_in_circle(
+            cx=center.x,
+            cy=center.y,
+            radius=center.radius,
+            min_distance=min_spacing,
+            max_attempts=30,
+        )
+
+        # Apply gridness
+        if self.params.gridness > 0:
+            positions = self._apply_gridness(positions, center.x, center.y)
+
+        # Create CityNode objects
+        city_nodes: list[CityNode] = []
+        for x, y in positions:
+            node = CityNode(
+                idx=len(self.city_nodes) + len(city_nodes),
+                x=x,
+                y=y,
+                center_idx=center_idx,
+                is_rural=False,
+            )
+            city_nodes.append(node)
+
+        return city_nodes
+
+    def _generate_rural_nodes(self) -> None:
+        """Generate sparse rural waypoint nodes."""
+        # Calculate rural area (total - urban areas)
+        urban_area_km2 = sum(math.pi * (c.radius / 1000.0) ** 2 for c in self.centers)
+        total_area_km2 = (self.params.map_width * self.params.map_height) / 1_000_000
+        rural_area_km2 = max(0, total_area_km2 - urban_area_km2)
+
+        target_rural = int(rural_area_km2 * self.params.rural_density)
+
+        if target_rural == 0:
+            return
+
+        # Calculate spacing
+        min_spacing = (
+            math.sqrt((self.params.map_width * self.params.map_height) / target_rural) * 0.8
+        )
+
+        # Generate rural nodes avoiding urban areas
+        attempts = 0
+        max_attempts = target_rural * 100
+
+        while len(self.rural_nodes) < target_rural and attempts < max_attempts:
+            attempts += 1
+            x = random.uniform(0, self.params.map_width)
+            y = random.uniform(0, self.params.map_height)
+
+            # Check if in urban area
+            if self._is_in_urban_area(x, y):
+                continue
+
+            # Check minimum distance from other rural nodes
+            if self._is_too_close_to_rural(x, y, min_spacing):
+                continue
+
+            self.rural_nodes.append((x, y))
+
+    def _generate_rural_settlements(self) -> None:
+        """Generate small rural settlements probabilistically."""
+        # For each rural node, probabilistically create a small settlement
+        settlements_to_add: list[CityNode] = []
+
+        for rural_x, rural_y in self.rural_nodes:
+            if random.random() < self.params.rural_settlement_prob:
+                # Create a small cluster around this rural node
+                settlement_radius = self.params.urban_sprawl * 0.15
+                num_settlement_nodes = random.randint(3, 8)
+                min_spacing = settlement_radius / math.sqrt(num_settlement_nodes)
+
+                positions = self._poisson_disk_in_circle(
+                    cx=rural_x,
+                    cy=rural_y,
+                    radius=settlement_radius,
+                    min_distance=min_spacing,
+                    max_attempts=20,
+                )
+
+                # Add as city nodes with a special center index
+                settlement_center_idx = len(self.centers)
+                for x, y in positions[:num_settlement_nodes]:
+                    node = CityNode(
+                        idx=len(self.city_nodes) + len(settlements_to_add),
+                        x=x,
+                        y=y,
+                        center_idx=settlement_center_idx,
+                        is_rural=False,
+                    )
+                    settlements_to_add.append(node)
+
+        self.city_nodes.extend(settlements_to_add)
+
+    def _create_graph_with_nodes(self) -> Graph:
+        """Create graph and add all nodes."""
+        graph = Graph()
+
+        # Add city nodes
+        for city_node in self.city_nodes:
+            node = Node(id=NodeID(city_node.idx), x=city_node.x, y=city_node.y)
+            graph.add_node(node)
+
+        # Add rural nodes
+        base_idx = len(self.city_nodes)
+        for i, (x, y) in enumerate(self.rural_nodes):
+            node = Node(id=NodeID(base_idx + i), x=x, y=y)
+            graph.add_node(node)
+
+        return graph
+
+    def _create_intra_city_roads(self, graph: Graph) -> None:
+        """Create roads within each city using Delaunay → Gabriel/RNG → MST."""
+        # Group nodes by center
+        nodes_by_center: dict[int, list[CityNode]] = {}
+        for city_node in self.city_nodes:
+            if city_node.center_idx not in nodes_by_center:
+                nodes_by_center[city_node.center_idx] = []
+            nodes_by_center[city_node.center_idx].append(city_node)
+
+        # Process each city
+        for center_idx, nodes in nodes_by_center.items():
+            if len(nodes) < 3:
+                # Too few nodes for Delaunay, just connect them linearly
+                for i in range(len(nodes) - 1):
+                    self._add_city_edge(graph, nodes[i], nodes[i + 1], center_idx)
+                continue
+
+            # Build Delaunay triangulation
+            points = np.array([(n.x, n.y) for n in nodes])
+            tri = Delaunay(points)
+
+            # Extract edges from triangulation
+            edge_set: set[tuple[int, int]] = set()
+            for simplex in tri.simplices:
+                for i in range(3):
+                    p1, p2 = simplex[i], simplex[(i + 1) % 3]
+                    edge_key = (min(p1, p2), max(p1, p2))
+                    edge_set.add(edge_key)
+
+            # Convert to Gabriel graph (remove long edges)
+            gabriel_edges = self._to_gabriel_graph(points, edge_set)
+
+            # Build MST for connectivity
+            mst_edges = self._compute_mst(points, gabriel_edges)
+
+            # Add additional edges up to intra_connectivity
+            target_edge_count = int(len(mst_edges) * (1 + self.params.intra_connectivity))
+            remaining_edges = gabriel_edges - mst_edges
+            sorted_remaining = sorted(
+                remaining_edges,
+                key=lambda e: np.linalg.norm(points[e[0]] - points[e[1]]),
             )
 
-        # Poisson disk sampling with Bridson's algorithm
+            final_edges = mst_edges.copy()
+            for edge in sorted_remaining:
+                if len(final_edges) >= target_edge_count:
+                    break
+                final_edges.add(edge)
+
+            # Classify edges as arterial or local
+            arterial_edges = self._select_arterial_edges(
+                points, final_edges, self.params.arterial_ratio
+            )
+
+            # Add edges to graph
+            for local_i, local_j in final_edges:
+                node_i = nodes[local_i]
+                node_j = nodes[local_j]
+                is_arterial = (local_i, local_j) in arterial_edges or (
+                    local_j,
+                    local_i,
+                ) in arterial_edges
+
+                self._add_city_edge(graph, node_i, node_j, center_idx, is_arterial)
+
+    def _create_inter_city_highways(self, graph: Graph) -> None:
+        """Create highways between city centers."""
+        if len(self.centers) < 2:
+            return
+
+        # Build centroid graph
+        centroids = np.array([(c.x, c.y) for c in self.centers])
+
+        # Compute MST on centroids
+        mst_edges = self._compute_mst_indices(centroids, list(range(len(self.centers))))
+
+        # Add k-nearest neighbors for redundancy
+        tree = cKDTree(centroids)
+        k = min(self.params.inter_connectivity + 1, len(self.centers))
+
+        highway_edges: set[tuple[int, int]] = set()
+        for i in range(len(self.centers)):
+            distances, neighbors = tree.query(centroids[i], k=k)
+            for j in neighbors:
+                if i != j:
+                    edge_key = (min(i, j), max(i, j))
+                    highway_edges.add(edge_key)
+
+        # Combine MST with k-nearest
+        highway_edges.update(mst_edges)
+
+        # Realize each highway as a path through waypoints
+        for center_i, center_j in highway_edges:
+            self._add_highway_path(graph, center_i, center_j)
+
+    def _create_ring_roads(self, graph: Graph) -> None:
+        """Create ring roads around major centers."""
+        for _center_idx, center in enumerate(self.centers):
+            if not center.is_major:
+                continue
+
+            if random.random() > self.params.ring_road_prob:
+                continue
+
+            # Create ring at ~0.7 * radius
+            ring_radius = center.radius * 0.7
+            num_ring_points = max(8, int(2 * math.pi * ring_radius / 200))  # ~200m spacing
+
+            ring_nodes = []
+            for i in range(num_ring_points):
+                angle = (2 * math.pi * i) / num_ring_points
+                x = center.x + ring_radius * math.cos(angle)
+                y = center.y + ring_radius * math.sin(angle)
+
+                # Check bounds
+                if not (0 <= x < self.params.map_width and 0 <= y < self.params.map_height):
+                    continue
+
+                # Create node
+                node_id = NodeID(len(graph.nodes))
+                node = Node(id=node_id, x=x, y=y)
+                graph.add_node(node)
+                ring_nodes.append(node_id)
+
+            # Connect ring nodes
+            for i in range(len(ring_nodes)):
+                from_node = ring_nodes[i]
+                to_node = ring_nodes[(i + 1) % len(ring_nodes)]
+
+                from_pos = (graph.nodes[from_node].x, graph.nodes[from_node].y)
+                to_pos = (graph.nodes[to_node].x, graph.nodes[to_node].y)
+                distance = math.hypot(to_pos[0] - from_pos[0], to_pos[1] - from_pos[1])
+
+                # Ring roads are collectors (class Z)
+                lanes = random.randint(2, 4)
+                speed = random.uniform(60, 80)
+
+                # Bidirectional
+                edge1 = Edge(
+                    id=EdgeID(self.edge_count),
+                    from_node=from_node,
+                    to_node=to_node,
+                    length_m=distance,
+                    mode=Mode.ROAD,
+                    road_class=RoadClass.Z,
+                    lanes=lanes,
+                    max_speed_kph=speed,
+                    weight_limit_kg=None,
+                )
+                graph.add_edge(edge1)
+                self.edge_count += 1
+
+                edge2 = Edge(
+                    id=EdgeID(self.edge_count),
+                    from_node=to_node,
+                    to_node=from_node,
+                    length_m=distance,
+                    mode=Mode.ROAD,
+                    road_class=RoadClass.Z,
+                    lanes=lanes,
+                    max_speed_kph=speed,
+                    weight_limit_kg=None,
+                )
+                graph.add_edge(edge2)
+                self.edge_count += 1
+
+    def _cleanup_and_connect(self, graph: Graph) -> None:
+        """Prune long edges, remove dead ends, ensure connectivity."""
+        # Remove very long edges (outliers)
+        edges_to_remove = []
+        edge_lengths = [e.length_m for e in graph.edges.values()]
+        if edge_lengths:
+            mean_length = np.mean(edge_lengths)
+            std_length = np.std(edge_lengths)
+            threshold = mean_length + 3 * std_length
+
+            for edge_id, edge in graph.edges.items():
+                if edge.length_m > threshold:
+                    edges_to_remove.append(edge_id)
+
+            for edge_id in edges_to_remove:
+                graph.remove_edge(edge_id)
+
+        # Remove short dead-ends (degree-1 nodes with short edges)
+        dead_end_threshold = 50.0  # meters
+        removed_any = True
+        while removed_any:
+            removed_any = False
+            for node_id in list(graph.nodes.keys()):
+                if node_id not in graph.nodes:
+                    continue
+
+                out_edges = graph.get_outgoing_edges(node_id)
+                in_edges = graph.get_incoming_edges(node_id)
+
+                if len(out_edges) + len(in_edges) == 1:
+                    # Degree-1 node
+                    edge = out_edges[0] if out_edges else in_edges[0]
+                    if edge.length_m < dead_end_threshold:
+                        graph.remove_node(node_id)
+                        removed_any = True
+
+        # Ensure connectivity
+        if not graph.is_connected():
+            self._ensure_connectivity(graph)
+
+    def _ensure_connectivity(self, graph: Graph) -> None:
+        """Connect disconnected components with shortest feasible edges."""
+        # Find all connected components
+        components = self._find_components(graph)
+
+        if len(components) <= 1:
+            return
+
+        # Connect components pairwise
+        while len(components) > 1:
+            # Find closest pair of components
+            best_distance = float("inf")
+            best_pair = (0, 0)
+            best_nodes = (NodeID(0), NodeID(0))
+
+            for i in range(len(components)):
+                for j in range(i + 1, len(components)):
+                    for node_i in components[i]:
+                        for node_j in components[j]:
+                            pos_i = (graph.nodes[node_i].x, graph.nodes[node_i].y)
+                            pos_j = (graph.nodes[node_j].x, graph.nodes[node_j].y)
+                            dist = math.hypot(pos_j[0] - pos_i[0], pos_j[1] - pos_i[1])
+
+                            if dist < best_distance:
+                                best_distance = dist
+                                best_pair = (i, j)
+                                best_nodes = (node_i, node_j)
+
+            # Connect the closest pair
+            node_i, node_j = best_nodes
+            pos_i = (graph.nodes[node_i].x, graph.nodes[node_i].y)
+            pos_j = (graph.nodes[node_j].x, graph.nodes[node_j].y)
+            distance = math.hypot(pos_j[0] - pos_i[0], pos_j[1] - pos_i[1])
+
+            # Add bidirectional connection (main road)
+            edge1 = Edge(
+                id=EdgeID(self.edge_count),
+                from_node=node_i,
+                to_node=node_j,
+                length_m=distance,
+                mode=Mode.ROAD,
+                road_class=RoadClass.G,
+                lanes=2,
+                max_speed_kph=70.0,
+                weight_limit_kg=None,
+            )
+            graph.add_edge(edge1)
+            self.edge_count += 1
+
+            edge2 = Edge(
+                id=EdgeID(self.edge_count),
+                from_node=node_j,
+                to_node=node_i,
+                length_m=distance,
+                mode=Mode.ROAD,
+                road_class=RoadClass.G,
+                lanes=2,
+                max_speed_kph=70.0,
+                weight_limit_kg=None,
+            )
+            graph.add_edge(edge2)
+            self.edge_count += 1
+
+            # Merge components
+            components[best_pair[0]].update(components[best_pair[1]])
+            components.pop(best_pair[1])
+
+    # Helper methods
+
+    def _poisson_disk_sampling(
+        self,
+        width: float,
+        height: float,
+        min_distance: float,
+        max_attempts: int,
+        target_count: int | None = None,
+    ) -> list[tuple[float, float]]:
+        """Poisson disk sampling in a rectangle."""
         positions: list[tuple[float, float]] = []
         active_list: list[tuple[float, float]] = []
 
-        # Initial random point
-        first_x = random.uniform(0, self.params.width)
-        first_y = random.uniform(0, self.params.height)
+        # Initial point
+        first_x = random.uniform(0, width)
+        first_y = random.uniform(0, height)
         positions.append((first_x, first_y))
         active_list.append((first_x, first_y))
 
-        # Grid cell size for acceleration
+        # Grid for acceleration
         cell_size = min_distance / math.sqrt(2)
-        cols = int(self.params.width / cell_size) + 1
-        rows = int(self.params.height / cell_size) + 1
-
-        # Initialize grid
+        cols = int(width / cell_size) + 1
+        rows = int(height / cell_size) + 1
         grid: list[list[int | None]] = [[None for _ in range(cols)] for _ in range(rows)]
 
         def get_cell(x: float, y: float) -> tuple[int, int]:
-            """Get grid cell indices for a point."""
             return (int(x / cell_size), int(y / cell_size))
 
-        def get_cell_neighbors(cx: int, cy: int) -> list[tuple[int, int]]:
-            """Get neighboring grid cells."""
-            neighbors = []
+        def is_valid(x: float, y: float) -> bool:
+            if not (0 <= x < width and 0 <= y < height):
+                return False
+
+            cell_x, cell_y = get_cell(x, y)
             for dx in [-1, 0, 1]:
                 for dy in [-1, 0, 1]:
-                    nx, ny = cx + dx, cy + dy
+                    nx, ny = cell_x + dx, cell_y + dy
                     if 0 <= nx < cols and 0 <= ny < rows:
-                        neighbors.append((nx, ny))
-            return neighbors
-
-        def is_valid_point(x: float, y: float) -> bool:
-            """Check if a point is valid (far enough from others)."""
-            cell_x, cell_y = get_cell(x, y)
-            for nx, ny in get_cell_neighbors(cell_x, cell_y):
-                idx = grid[ny][nx]
-                if idx is not None:
-                    pos = positions[idx]
-                    dist = math.hypot(x - pos[0], y - pos[1])
-                    if dist < min_distance:
-                        return False
+                        idx = grid[ny][nx]
+                        if idx is not None:
+                            pos = positions[idx]
+                            if math.hypot(x - pos[0], y - pos[1]) < min_distance:
+                                return False
             return True
+
+        # Mark initial point in grid
+        cx, cy = get_cell(first_x, first_y)
+        grid[cy][cx] = 0
 
         # Generate points
         attempts = 0
-        max_attempts = 30
+        max_total_attempts = 10000
 
-        while active_list and len(positions) < target_nodes and attempts < 10000:
-            attempts += 1
-            if attempts % 1000 == 0 and len(positions) >= 10:
-                # If we can't generate enough points, accept what we have
+        while active_list and attempts < max_total_attempts:
+            if target_count and len(positions) >= target_count:
                 break
 
-            # Pick random active point
+            attempts += 1
             seed_idx = random.randint(0, len(active_list) - 1)
             seed = active_list[seed_idx]
 
-            # Try to generate new point near seed
             found = False
             for _ in range(max_attempts):
-                # Generate point in annulus around seed
                 angle = random.uniform(0, 2 * math.pi)
                 radius = random.uniform(min_distance, 2 * min_distance)
 
                 x = seed[0] + radius * math.cos(angle)
                 y = seed[1] + radius * math.sin(angle)
 
-                # Check bounds
-                if not (0 <= x < self.params.width and 0 <= y < self.params.height):
-                    continue
-
-                # Check minimum distance
-                if is_valid_point(x, y):
+                if is_valid(x, y):
                     positions.append((x, y))
-                    cell_x, cell_y = get_cell(x, y)
-                    grid[cell_y][cell_x] = len(positions) - 1
+                    cx, cy = get_cell(x, y)
+                    grid[cy][cx] = len(positions) - 1
                     active_list.append((x, y))
                     found = True
                     break
 
-            # Remove seed if no valid point found
             if not found:
                 active_list.pop(seed_idx)
 
         return positions
 
-    def _cluster_nodes(self, positions: list[tuple[float, float]]) -> list[list[int]]:
-        """Cluster nodes into urban areas using K-means.
+    def _poisson_disk_in_circle(
+        self,
+        cx: float,
+        cy: float,
+        radius: float,
+        min_distance: float,
+        max_attempts: int,
+    ) -> list[tuple[float, float]]:
+        """Poisson disk sampling within a circle."""
+        positions: list[tuple[float, float]] = []
+        active_list: list[tuple[float, float]] = []
 
-        Args:
-            positions: List of (x, y) node positions
+        # Initial point at center
+        positions.append((cx, cy))
+        active_list.append((cx, cy))
 
-        Returns:
-            List of clusters, where each cluster is a list of node indices
-        """
-        if len(positions) < self.params.urban_areas:
-            # Not enough nodes to cluster, return one cluster per node
-            return [[i] for i in range(len(positions))]
+        def is_in_circle(x: float, y: float) -> bool:
+            return math.hypot(x - cx, y - cy) <= radius
 
-        # Convert to numpy array for clustering
-        points = np.array(positions)
+        def is_valid(x: float, y: float) -> bool:
+            # Check map bounds
+            if not (0 <= x < self.params.map_width and 0 <= y < self.params.map_height):
+                return False
 
-        # Initialize centroids randomly
-        np.random.seed(42)  # For reproducibility
-        random.seed(42)
+            if not is_in_circle(x, y):
+                return False
 
-        centroids = np.random.uniform(
-            low=[0, 0],
-            high=[self.params.width, self.params.height],
-            size=(self.params.urban_areas, 2),
+            return all(math.hypot(x - pos[0], y - pos[1]) >= min_distance for pos in positions)
+
+        attempts = 0
+        max_total_attempts = 5000
+
+        while active_list and attempts < max_total_attempts:
+            attempts += 1
+            seed_idx = random.randint(0, len(active_list) - 1)
+            seed = active_list[seed_idx]
+
+            found = False
+            for _ in range(max_attempts):
+                angle = random.uniform(0, 2 * math.pi)
+                r = random.uniform(min_distance, 2 * min_distance)
+
+                x = seed[0] + r * math.cos(angle)
+                y = seed[1] + r * math.sin(angle)
+
+                if is_valid(x, y):
+                    positions.append((x, y))
+                    active_list.append((x, y))
+                    found = True
+                    break
+
+            if not found:
+                active_list.pop(seed_idx)
+
+        return positions
+
+    def _apply_gridness(
+        self, positions: list[tuple[float, float]], cx: float, cy: float
+    ) -> list[tuple[float, float]]:
+        """Apply gridness to positions by snapping angles."""
+        result = []
+        for x, y in positions:
+            dx = x - cx
+            dy = y - cy
+
+            if dx == 0 and dy == 0:
+                result.append((x, y))
+                continue
+
+            # Current angle
+            angle = math.atan2(dy, dx)
+
+            # Snap to nearest 45-degree increment with probability = gridness
+            if random.random() < self.params.gridness:
+                snap_angle = round(angle / (math.pi / 4)) * (math.pi / 4)
+                distance = math.hypot(dx, dy)
+                new_x = cx + distance * math.cos(snap_angle)
+                new_y = cy + distance * math.sin(snap_angle)
+
+                # Clamp to map bounds
+                new_x = max(0, min(new_x, self.params.map_width))
+                new_y = max(0, min(new_y, self.params.map_height))
+                result.append((new_x, new_y))
+            else:
+                result.append((x, y))
+
+        return result
+
+    def _is_in_urban_area(self, x: float, y: float) -> bool:
+        """Check if point is within any urban area."""
+        for center in self.centers:
+            dist = math.hypot(x - center.x, y - center.y)
+            if dist <= center.radius:
+                return True
+        return False
+
+    def _is_too_close_to_rural(self, x: float, y: float, min_spacing: float) -> bool:
+        """Check if point is too close to existing rural nodes."""
+        return any(math.hypot(x - rx, y - ry) < min_spacing for rx, ry in self.rural_nodes)
+
+    def _to_gabriel_graph(
+        self, points: np.ndarray, edges: set[tuple[int, int]]
+    ) -> set[tuple[int, int]]:
+        """Convert edge set to Gabriel graph (remove edges with closer points in circle)."""
+        gabriel_edges = set()
+
+        for i, j in edges:
+            p1 = points[i]
+            p2 = points[j]
+            midpoint = (p1 + p2) / 2
+            radius = np.linalg.norm(p1 - p2) / 2
+
+            # Check if any other point is inside the circle
+            is_gabriel = True
+            for k in range(len(points)):
+                if k in (i, j):
+                    continue
+                if np.linalg.norm(points[k] - midpoint) < radius:
+                    is_gabriel = False
+                    break
+
+            if is_gabriel:
+                gabriel_edges.add((i, j))
+
+        return gabriel_edges
+
+    def _compute_mst(self, points: np.ndarray, edges: set[tuple[int, int]]) -> set[tuple[int, int]]:
+        """Compute minimum spanning tree using Kruskal's algorithm."""
+        # Sort edges by length
+        sorted_edges = sorted(edges, key=lambda e: np.linalg.norm(points[e[0]] - points[e[1]]))
+
+        # Union-find
+        parent = list(range(len(points)))
+
+        def find(x: int) -> int:
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+
+        def union(x: int, y: int) -> bool:
+            px, py = find(x), find(y)
+            if px == py:
+                return False
+            parent[px] = py
+            return True
+
+        mst_edges = set()
+        for i, j in sorted_edges:
+            if union(i, j):
+                mst_edges.add((i, j))
+
+        return mst_edges
+
+    def _compute_mst_indices(self, points: np.ndarray, indices: list[int]) -> set[tuple[int, int]]:
+        """Compute MST on a subset of points."""
+        if len(indices) < 2:
+            return set()
+
+        # Build all edges
+        edges = []
+        for i in range(len(indices)):
+            for j in range(i + 1, len(indices)):
+                dist = np.linalg.norm(points[indices[i]] - points[indices[j]])
+                edges.append((dist, indices[i], indices[j]))
+
+        edges.sort()
+
+        # Union-find
+        parent = {idx: idx for idx in indices}
+
+        def find(x: int) -> int:
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+
+        def union(x: int, y: int) -> bool:
+            px, py = find(x), find(y)
+            if px == py:
+                return False
+            parent[px] = py
+            return True
+
+        mst_edges = set()
+        for _, i, j in edges:
+            if union(i, j):
+                mst_edges.add((min(i, j), max(i, j)))
+
+        return mst_edges
+
+    def _select_arterial_edges(
+        self, points: np.ndarray, edges: set[tuple[int, int]], ratio: float
+    ) -> set[tuple[int, int]]:
+        """Select arterial edges (longest edges up to ratio)."""
+        sorted_edges = sorted(
+            edges, key=lambda e: np.linalg.norm(points[e[0]] - points[e[1]]), reverse=True
         )
 
-        # K-means iterations
-        max_iterations = 100
-        for _ in range(max_iterations):
-            # Assign points to nearest centroid
-            distances = np.sqrt(((points[:, np.newaxis] - centroids) ** 2).sum(axis=2))
-            assignments = np.argmin(distances, axis=1)
+        num_arterials = int(len(edges) * ratio)
+        return set(sorted_edges[:num_arterials])
 
-            # Update centroids
-            new_centroids = np.array(
-                [
-                    points[assignments == k].mean(axis=0)
-                    if np.any(assignments == k)
-                    else centroids[k]
-                    for k in range(self.params.urban_areas)
-                ]
-            )
-
-            # Check convergence
-            if np.allclose(centroids, new_centroids):
-                break
-            centroids = new_centroids
-
-        # Build cluster lists
-        clusters: list[list[int]] = [[] for _ in range(self.params.urban_areas)]
-        for i, cluster_id in enumerate(assignments):
-            clusters[cluster_id].append(i)
-
-        # Filter out empty clusters
-        return [c for c in clusters if c]
-
-    def _create_nodes(self, positions: list[tuple[float, float]]) -> Graph:
-        """Create graph with nodes.
-
-        Args:
-            positions: List of (x, y) node positions
-
-        Returns:
-            Graph instance with nodes added
-        """
-        graph = Graph()
-        for i, (x, y) in enumerate(positions):
-            node = Node(id=NodeID(i), x=x, y=y)
-            graph.add_node(node)
-        return graph
-
-    def _create_edges(
-        self, graph: Graph, positions: list[tuple[float, float]], clusters: list[list[int]]
+    def _add_city_edge(
+        self,
+        graph: Graph,
+        node_i: CityNode,
+        node_j: CityNode,
+        center_idx: int,
+        is_arterial: bool = False,
     ) -> None:
-        """Create edges using Delaunay triangulation.
+        """Add a bidirectional or unidirectional city edge with classification."""
+        from_node = NodeID(node_i.idx)
+        to_node = NodeID(node_j.idx)
 
-        Args:
-            graph: Graph instance to add edges to
-            positions: List of (x, y) node positions
-            clusters: List of clusters, each containing node indices
-        """
-        # Build reverse mapping: node_index -> cluster_id
-        node_to_cluster: dict[int, int] = {}
-        for cluster_id, cluster in enumerate(clusters):
-            for node_idx in cluster:
-                node_to_cluster[node_idx] = cluster_id
+        distance = math.hypot(node_j.x - node_i.x, node_j.y - node_i.y)
 
-        # Compute Delaunay triangulation
-        points = np.array(positions)
-        tri = Delaunay(points)
+        # Determine road class
+        if is_arterial:
+            if center_idx < len(self.centers) and self.centers[center_idx].is_major:
+                road_class = RoadClass.G  # Main road in major city
+                lanes = random.randint(2, 4)
+                speed = random.uniform(50, 70)
+            else:
+                road_class = RoadClass.Z  # Collector in minor city
+                lanes = random.randint(2, 3)
+                speed = random.uniform(40, 60)
+            weight_limit = None
+        else:
+            # Local or access road
+            if random.random() < 0.5:
+                road_class = RoadClass.L
+                lanes = random.randint(1, 2)
+                speed = random.uniform(30, 50)
+            else:
+                road_class = RoadClass.D
+                lanes = 1
+                speed = random.uniform(20, 40)
 
-        # Set up random state for bidirectional decisions
-        random.seed(42)
+            # Probabilistic weight limit for small roads
+            weight_limit = random.uniform(3500, 7500) if random.random() < 0.3 else None
 
-        # Create edges from triangulation
-        edge_count = 0
-        edge_set: set[tuple[int, int]] = set()  # Track edges to avoid duplicates
+        # 95% bidirectional, 5% one-way in cities
+        is_bidirectional = random.random() < 0.95
 
-        for simplex in tri.simplices:
-            # Each simplex has 3 edges
-            for i in range(3):
-                p1, p2 = simplex[i], simplex[(i + 1) % 3]
+        edge1 = Edge(
+            id=EdgeID(self.edge_count),
+            from_node=from_node,
+            to_node=to_node,
+            length_m=distance,
+            mode=Mode.ROAD,
+            road_class=road_class,
+            lanes=lanes,
+            max_speed_kph=speed,
+            weight_limit_kg=weight_limit,
+        )
+        graph.add_edge(edge1)
+        self.edge_count += 1
 
-                # Ensure consistent ordering to avoid duplicates
-                edge_key = (min(p1, p2), max(p1, p2))
+        if is_bidirectional:
+            edge2 = Edge(
+                id=EdgeID(self.edge_count),
+                from_node=to_node,
+                to_node=from_node,
+                length_m=distance,
+                mode=Mode.ROAD,
+                road_class=road_class,
+                lanes=lanes,
+                max_speed_kph=speed,
+                weight_limit_kg=weight_limit,
+            )
+            graph.add_edge(edge2)
+            self.edge_count += 1
 
-                if edge_key in edge_set:
+    def _add_highway_path(self, graph: Graph, center_i: int, center_j: int) -> None:
+        """Add highway path between two centers through rural waypoints."""
+        c1 = self.centers[center_i]
+        c2 = self.centers[center_j]
+
+        # Determine highway class based on distance and importance
+        distance = math.hypot(c2.x - c1.x, c2.y - c1.y)
+
+        if c1.is_major and c2.is_major and distance > 5000:
+            road_class = RoadClass.A  # Motorway
+            lanes = random.randint(4, 6)
+            speed = random.uniform(120, 140)
+        elif (c1.is_major or c2.is_major) and distance > 3000:
+            road_class = RoadClass.S  # Expressway
+            lanes = random.randint(3, 5)
+            speed = random.uniform(100, 120)
+        else:
+            road_class = RoadClass.GP  # Main accelerated road
+            lanes = random.randint(2, 4)
+            speed = random.uniform(90, 110)
+
+        # Find nodes near centers to connect
+        city_nodes_i = [n for n in self.city_nodes if n.center_idx == center_i]
+        city_nodes_j = [n for n in self.city_nodes if n.center_idx == center_j]
+
+        if not city_nodes_i or not city_nodes_j:
+            return
+
+        # Pick nodes closest to the other center
+        node_i = min(city_nodes_i, key=lambda n: math.hypot(n.x - c2.x, n.y - c2.y))
+        node_j = min(city_nodes_j, key=lambda n: math.hypot(n.x - c1.x, n.y - c1.y))
+
+        # Simple direct connection (can be enhanced with waypoint routing)
+        from_node = NodeID(node_i.idx)
+        to_node = NodeID(node_j.idx)
+        dist = math.hypot(node_j.x - node_i.x, node_j.y - node_i.y)
+
+        # Highways are always bidirectional and have no weight limits
+        edge1 = Edge(
+            id=EdgeID(self.edge_count),
+            from_node=from_node,
+            to_node=to_node,
+            length_m=dist,
+            mode=Mode.ROAD,
+            road_class=road_class,
+            lanes=lanes,
+            max_speed_kph=speed,
+            weight_limit_kg=None,
+        )
+        graph.add_edge(edge1)
+        self.edge_count += 1
+
+        edge2 = Edge(
+            id=EdgeID(self.edge_count),
+            from_node=to_node,
+            to_node=from_node,
+            length_m=dist,
+            mode=Mode.ROAD,
+            road_class=road_class,
+            lanes=lanes,
+            max_speed_kph=speed,
+            weight_limit_kg=None,
+        )
+        graph.add_edge(edge2)
+        self.edge_count += 1
+
+    def _find_components(self, graph: Graph) -> list[set[NodeID]]:
+        """Find all connected components in the graph."""
+        visited: set[NodeID] = set()
+        components: list[set[NodeID]] = []
+
+        for node_id in graph.nodes:
+            if node_id in visited:
+                continue
+
+            # BFS to find component
+            component: set[NodeID] = set()
+            queue = [node_id]
+
+            while queue:
+                current = queue.pop(0)
+                if current in visited:
                     continue
-                edge_set.add(edge_key)
 
-                # Calculate distance
-                pos1 = positions[p1]
-                pos2 = positions[p2]
-                distance = math.hypot(pos1[0] - pos2[0], pos1[1] - pos2[1])
+                visited.add(current)
+                component.add(current)
 
-                # Determine if nodes are in the same cluster
-                same_cluster = (
-                    p1 in node_to_cluster
-                    and p2 in node_to_cluster
-                    and node_to_cluster[p1] == node_to_cluster[p2]
-                )
+                # Add neighbors
+                for neighbor in graph.get_neighbors(current):
+                    if neighbor not in visited:
+                        queue.append(neighbor)
 
-                # Create edges based on location
-                if same_cluster:
-                    # Within cities: 95% bidirectional, 5% one-way
-                    if random.random() < 0.95:
-                        # Bidirectional
-                        edge1 = Edge(
-                            id=EdgeID(edge_count),
-                            from_node=NodeID(p1),
-                            to_node=NodeID(p2),
-                            length_m=distance,
-                            mode=Mode.ROAD,
-                        )
-                        graph.add_edge(edge1)
-                        edge_count += 1
+            components.append(component)
 
-                        edge2 = Edge(
-                            id=EdgeID(edge_count),
-                            from_node=NodeID(p2),
-                            to_node=NodeID(p1),
-                            length_m=distance,
-                            mode=Mode.ROAD,
-                        )
-                        graph.add_edge(edge2)
-                        edge_count += 1
-                    else:
-                        # One-way
-                        edge = Edge(
-                            id=EdgeID(edge_count),
-                            from_node=NodeID(p1),
-                            to_node=NodeID(p2),
-                            length_m=distance,
-                            mode=Mode.ROAD,
-                        )
-                        graph.add_edge(edge)
-                        edge_count += 1
-                else:
-                    # Between cities (highways): all bidirectional
-                    edge1 = Edge(
-                        id=EdgeID(edge_count),
-                        from_node=NodeID(p1),
-                        to_node=NodeID(p2),
-                        length_m=distance,
-                        mode=Mode.ROAD,
-                    )
-                    graph.add_edge(edge1)
-                    edge_count += 1
+        return components
 
-                    edge2 = Edge(
-                        id=EdgeID(edge_count),
-                        from_node=NodeID(p2),
-                        to_node=NodeID(p1),
-                        length_m=distance,
-                        mode=Mode.ROAD,
-                    )
-                    graph.add_edge(edge2)
-                    edge_count += 1
+    def _reassign_edge_ids(self, graph: Graph) -> None:
+        """Reassign edge IDs to be sequential after cleanup."""
+        # Get all edges sorted by current ID
+        edges_list = sorted(graph.edges.items(), key=lambda x: x[0])
+
+        # Remove all edges temporarily
+        for edge_id in list(graph.edges.keys()):
+            edge = graph.edges[edge_id]
+            # Remove from adjacency lists
+            if edge_id in graph.out_adj[edge.from_node]:
+                graph.out_adj[edge.from_node].remove(edge_id)
+            if edge_id in graph.in_adj[edge.to_node]:
+                graph.in_adj[edge.to_node].remove(edge_id)
+            del graph.edges[edge_id]
+
+        # Re-add edges with sequential IDs
+        for new_id, (_, edge) in enumerate(edges_list):
+            new_edge = Edge(
+                id=EdgeID(new_id),
+                from_node=edge.from_node,
+                to_node=edge.to_node,
+                length_m=edge.length_m,
+                mode=edge.mode,
+                road_class=edge.road_class,
+                lanes=edge.lanes,
+                max_speed_kph=edge.max_speed_kph,
+                weight_limit_kg=edge.weight_limit_kg,
+            )
+            graph.edges[EdgeID(new_id)] = new_edge
+            graph.out_adj[edge.from_node].append(EdgeID(new_id))
+            graph.in_adj[edge.to_node].append(EdgeID(new_id))

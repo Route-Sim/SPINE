@@ -1,319 +1,362 @@
 ---
-title: "Procedural Map Generation"
-summary: "Procedural generation of realistic road network maps with cities, villages, and highways using Poisson disk sampling and Delaunay triangulation."
+title: "Hierarchical Procedural Map Generation"
+summary: "Advanced hierarchical generation of realistic road networks with Polish road classification system, featuring major/minor centers, intra-city roads, inter-city highways, and optional ring roads."
 source_paths:
   - "world/generation/generator.py"
-last_updated: "2025-01-27"
+last_updated: "2025-11-02"
 owner: "Mateusz Polis"
-tags: ["module", "algorithm", "generation", "procedural", "network"]
+tags: ["module", "algorithm", "generation", "procedural", "network", "hierarchical"]
 links:
   parent: "../../SUMMARY.md"
   siblings: ["world", "graph/graph"]
 ---
 
-# Procedural Map Generation
+# Hierarchical Procedural Map Generation
 
-> **Purpose:** Generates realistic road network maps procedurally using advanced algorithms for natural-looking distributions, clustering, and connectivity suitable for logistics simulations.
+> **Purpose:** Generates realistic, hierarchical road network maps using advanced algorithms that simulate real-world urban planning patterns, complete with Polish road classification, speed limits, lane counts, and weight restrictions.
 
 ## Context & Motivation
 
-The Map Generation module provides a fully automated way to create simulation environments without manual map design. This is essential for:
+The Hierarchical Map Generation module provides a sophisticated approach to creating simulation environments that mirror real-world transportation networks. This is essential for:
 
-- **Rapid prototyping** of different network topologies
-- **Testing scalability** with various map sizes and densities
-- **Creating diverse scenarios** with realistic urban/suburban/highway distributions
-- **Research applications** where controlled randomization is needed
+- **Realistic simulations** with proper road hierarchies (motorways, expressways, local roads)
+- **Urban planning research** with configurable city layouts and densities
+- **Logistics optimization** testing with realistic road constraints
+- **Scalability testing** across various map sizes and complexities
+- **Reproducible experiments** with seed-based generation
 
-The system uses established algorithms from computational geometry and computer graphics to ensure realistic, natural-looking results.
+The system uses a multi-stage hierarchical approach inspired by real urban planning principles, ensuring natural-looking networks with proper connectivity and realistic road characteristics.
 
 ## Responsibilities & Boundaries
 
 ### In-scope
 
-- Node placement using Poisson disk sampling
-- Urban area clustering via K-means
-- Road network topology via Delaunay triangulation
-- Bidirectional/one-way road assignment based on location
-- Highway identification and connection
+- Hierarchical center generation (major cities and minor towns)
+- Node placement using Poisson disk sampling with configurable density
+- Intra-city road networks using Delaunay triangulation and Gabriel graphs
+- Inter-city highway systems with k-nearest neighbor connectivity
+- Ring roads around major centers
+- Polish road classification (A, S, GP, G, Z, L, D)
+- Lane assignment, speed limits, and weight restrictions
+- Rural settlements and waypoint generation
+- Grid-like vs organic street patterns (gridness parameter)
+- Connectivity enforcement and cleanup
 
 ### Out-of-scope
 
 - Routing algorithms (handled by router module)
-- Traffic simulation (handled by traffic module)
+- Traffic simulation (handled by simulation module)
 - Building placement (future enhancement)
-- Agent spawning (handled by simulation)
+- Terrain elevation (future enhancement)
+- Public transport networks (future enhancement)
 
 ## Architecture & Design
 
 ### Core Components
 
+#### GenerationParams
+
 ```python
 @dataclass
 class GenerationParams:
-    width: float           # Map width in meters
-    height: float          # Map height in meters
-    nodes: int             # 0-100 density factor
-    density: int           # 0-100 clustering factor
-    urban_areas: int       # Number of cities/villages
-
-class MapGenerator:
-    def __init__(self, params: GenerationParams)
-    def generate() -> Graph
+    map_width: float              # Map dimensions in meters
+    map_height: float
+    num_major_centers: int        # Number of large cities
+    minor_per_major: float        # Avg minor towns per major city
+    center_separation: float      # Min distance between major centers (m)
+    urban_sprawl: float           # Typical city radius (m)
+    local_density: float          # Nodes per km² inside cities
+    rural_density: float          # Nodes per km² outside cities
+    intra_connectivity: float     # 0-1: edge density within cities
+    inter_connectivity: int       # k-nearest for highway network
+    arterial_ratio: float         # 0-1: share of arterial roads
+    gridness: float               # 0-1: organic vs grid-like streets
+    ring_road_prob: float         # Probability of ring roads
+    highway_curviness: float      # 0-1: straight vs curved highways
+    rural_settlement_prob: float  # Probability of rural settlements
+    seed: int                     # Random seed for reproducibility
 ```
+
+#### MapGenerator
+
+The main generator class that orchestrates the hierarchical generation process.
 
 ### Generation Pipeline
 
-1. **Node Placement (Poisson Disk Sampling)**
-   - Distributes nodes evenly without clustering artifacts
-   - Adjusts density based on `nodes` parameter (0 = sparse, 100 = Tokyo-dense)
-   - Uses Bridson's algorithm for O(N) complexity
+The generation follows a seven-step hierarchical approach:
 
-2. **City Clustering (K-means)**
-   - Groups nodes into `urban_areas` clusters
-   - Identifies cluster centers as city cores
-   - Distinguishes cities (large clusters) from villages (small clusters)
+#### Step 0: Generate Centers
 
-3. **Edge Creation (Delaunay Triangulation)**
-   - Builds natural-looking road networks
-   - Connects nodes into triangles for complete coverage
-   - Ensures graph connectivity
+- **Major centers**: Placed using Poisson disk sampling with `center_separation` as minimum distance
+- **Minor centers**: Distributed around each major center using Poisson distribution
+  - Average count per major: `minor_per_major`
+  - Placed in a ring at distance ~2.5 × major center radius
+  - Smaller radius (~40% of `urban_sprawl`)
 
-4. **Road Direction Assignment**
-   - **Within cities**: 95% bidirectional, 5% one-way (realistic urban traffic)
-   - **Highways (between cities)**: 100% bidirectional (main arteries)
-   - Configurable for different traffic patterns
+#### Step 1: Populate Nodes
+
+**Urban nodes:**
+- Generated within each center's radius using Poisson disk sampling
+- Density controlled by `local_density` (nodes per km²)
+- Optional gridness applied to snap angles to 45° increments
+
+**Rural nodes:**
+- Sparse waypoints in non-urban areas
+- Density controlled by `rural_density`
+- Avoid urban areas
+
+**Rural settlements:**
+- Probabilistically created around rural nodes (`rural_settlement_prob`)
+- Small clusters of 3-8 nodes
+- Mini road networks
+
+#### Step 2: Intra-City Roads
+
+For each city:
+1. **Delaunay triangulation** on city nodes
+2. **Gabriel graph** conversion (removes long cross-edges)
+3. **MST** computation for guaranteed connectivity
+4. **Edge addition** up to `intra_connectivity` ratio
+5. **Arterial selection**: Longest edges marked as arterials (`arterial_ratio`)
+
+**Road classification:**
+- Arterials in major cities: **G** (Main road), 2-4 lanes, 50-70 km/h
+- Arterials in minor cities: **Z** (Collector), 2-3 lanes, 40-60 km/h
+- Local roads: **L** (Local), 1-2 lanes, 30-50 km/h
+- Access roads: **D** (Access), 1 lane, 20-40 km/h
+
+**Weight limits:**
+- 30% of local/access roads get weight limits (3.5-7.5 tons)
+- Prevents heavy trucks on small roads
+
+**Directionality:**
+- 95% bidirectional
+- 5% one-way (simulating one-way streets)
+
+#### Step 3: Inter-City Highways
+
+1. **Centroid graph**: Connect city centers
+2. **MST**: Backbone connectivity
+3. **k-nearest neighbors**: Add redundancy (`inter_connectivity`)
+4. **Path realization**: Direct connections between nearest city nodes
+
+**Highway classification:**
+- **A** (Motorway): Major-to-major, distance > 5km, 4-6 lanes, 120-140 km/h
+- **S** (Expressway): Major-to-any, distance > 3km, 3-5 lanes, 100-120 km/h
+- **GP** (Main accelerated): Other connections, 2-4 lanes, 90-110 km/h
+
+**Properties:**
+- Always bidirectional
+- No weight limits
+- Higher speeds and lane counts
+
+#### Step 4: Ring Roads
+
+With probability `ring_road_prob` for each major center:
+- Create ring at ~70% of city radius
+- 8+ evenly spaced nodes
+- Connected in a circle
+- Classification: **Z** (Collector), 2-4 lanes, 60-80 km/h
+
+#### Step 5: Cleanup & Connectivity
+
+1. **Outlier removal**: Remove edges > mean + 3σ length
+2. **Dead-end pruning**: Remove degree-1 nodes with short edges (<50m)
+3. **Connectivity enforcement**: Connect disconnected components with shortest edges
+
+#### Step 6: Edge ID Reassignment
+
+Ensure sequential edge IDs (0, 1, 2, ...) after cleanup.
 
 ## Algorithms & Complexity
 
 ### Poisson Disk Sampling
-
-**Algorithm**: Bridson's Poisson disk sampling with grid acceleration
-- **Time Complexity**: O(N) where N = number of points
-- **Space Complexity**: O(N)
-- **Quality**: Guarantees minimum distance between points
-- **Realism**: Avoids grid artifacts, produces natural distributions
-
-**Implementation Details**:
-```python
-def _generate_node_positions(self) -> list[tuple[float, float]]:
-    # Calculate target nodes based on density
-    # Use grid-accelerated distance checking
-    # Maintain active list until target reached
-```
-
-### K-means Clustering
-
-**Algorithm**: Classic K-means with random centroid initialization
-- **Time Complexity**: O(N * K * I) where N = points, K = clusters, I = iterations
-- **Convergence**: Typically < 100 iterations
-- **Quality**: Balanced clustering suitable for urban areas
-
-**Implementation Details**:
-```python
-def _cluster_nodes(self, positions: list[tuple[float, float]]) -> list[list[int]]:
-    # Initialize random centroids
-    # Iterate: assign to nearest centroid, update centers
-    # Return cluster assignments
-```
+- **Algorithm**: Bridson's algorithm with spatial grid acceleration
+- **Complexity**: O(n) where n is number of points
+- **Purpose**: Natural-looking, evenly-spaced node placement
 
 ### Delaunay Triangulation
+- **Library**: scipy.spatial.Delaunay
+- **Complexity**: O(n log n)
+- **Purpose**: Initial connectivity for intra-city roads
 
-**Algorithm**: SciPy's optimized Delaunay implementation
-- **Time Complexity**: O(N log N) worst case, O(N) expected
-- **Quality**: Optimal triangulation for given points
-- **Connectivity**: Guarantees all points connect, natural angles
+### Gabriel Graph
+- **Complexity**: O(n²) for edge filtering
+- **Purpose**: Remove unnatural long edges from Delaunay
 
-**Implementation Details**:
-```python
-from scipy.spatial import Delaunay
+### Minimum Spanning Tree (MST)
+- **Algorithm**: Kruskal's with union-find
+- **Complexity**: O(E log E) where E is edges
+- **Purpose**: Guarantee connectivity
 
-points = np.array(positions)
-tri = Delaunay(points)
-# Process simplex edges
-```
+### K-Nearest Neighbors
+- **Library**: scipy.spatial.cKDTree
+- **Complexity**: O(log n) per query
+- **Purpose**: Highway network redundancy
 
 ## Public API / Usage
 
-### Basic Generation
+### Basic Usage
 
 ```python
 from world.generation import GenerationParams, MapGenerator
-from world.graph.graph import Graph
 
 # Define parameters
 params = GenerationParams(
-    width=10000.0,      # 10km wide
-    height=10000.0,     # 10km tall
-    nodes=75,           # 75% density (Tokyo-like)
-    density=50,         # 50% clustering
-    urban_areas=5       # 5 cities/villages
+    map_width=10000.0,
+    map_height=10000.0,
+    num_major_centers=3,
+    minor_per_major=2.0,
+    center_separation=2500.0,
+    urban_sprawl=800.0,
+    local_density=50.0,
+    rural_density=5.0,
+    intra_connectivity=0.3,
+    inter_connectivity=2,
+    arterial_ratio=0.2,
+    gridness=0.3,
+    ring_road_prob=0.5,
+    highway_curviness=0.2,
+    rural_settlement_prob=0.15,
+    seed=42,
 )
 
 # Generate map
 generator = MapGenerator(params)
 graph = generator.generate()
 
-# Use the graph
+# Access results
 print(f"Generated {graph.get_node_count()} nodes")
 print(f"Generated {graph.get_edge_count()} edges")
 ```
 
-### Parameter Guide
+### Parameter Tuning Guide
 
-**`width` / `height`**: Map dimensions in meters
-- Typical: 1000-100000m
-- Affects absolute scale of the network
-
-**`nodes`**: Density factor (0-100 scale)
-- `0`: Very sparse (~10 nodes minimum)
-- `50`: Medium density
-- `100`: Maximum density (Tokyo-city level)
-
-**`density`**: Node clustering (0-100 scale)
-- `0`: Nodes spread out evenly
-- `50`: Moderate clustering
-- `100`: Tight clustering in urban centers
-
-**`urban_areas`**: Number of distinct cities/villages
-- Determines how many clusters to create
-- Affects connectivity patterns
-- Minimum: 1, Recommended: 2-10
-
-### Action-Based Generation
-
-Generation is typically triggered via WebSocket action:
-
-```json
-{
-  "action": "map.create",
-  "params": {
-    "width": 10000,
-    "height": 10000,
-    "nodes": 75,
-    "density": 50,
-    "urban_areas": 5
-  }
-}
+**Dense urban map:**
+```python
+local_density=80.0,      # High urban density
+rural_density=0.0,       # No rural areas
+num_major_centers=5,     # Many cities
+gridness=0.7,            # Grid-like streets
 ```
 
-Response signal:
+**Sparse rural map:**
+```python
+local_density=20.0,      # Sparse cities
+rural_density=10.0,      # More rural nodes
+num_major_centers=2,     # Few cities
+gridness=0.0,            # Organic roads
+```
 
-```json
-{
-  "signal": "map.created",
-  "data": {
-    "width": 10000,
-    "height": 10000,
-    "nodes": 75,
-    "density": 50,
-    "urban_areas": 5,
-    "generated_nodes": 850,
-    "generated_edges": 2400
-  }
-}
+**Highway-focused:**
+```python
+inter_connectivity=4,    # Many highway alternatives
+arterial_ratio=0.4,      # More major roads
+ring_road_prob=1.0,      # Always create rings
 ```
 
 ## Implementation Notes
 
 ### Design Trade-offs
 
-1. **Deterministic vs Random**: Uses fixed random seeds (42) in some places for debugging, but allows variance in Poisson disk sampling for realism
+1. **Cleanup non-determinism**: Edge removal in cleanup phase introduces slight randomness even with fixed seed
+2. **Gabriel graph**: More expensive (O(n²)) but produces more realistic networks than pure Delaunay
+3. **Direct highway paths**: Simple implementation; could be enhanced with waypoint routing through rural nodes
+4. **Weight limits**: Probabilistic assignment simulates real-world variation
 
-2. **Connectivity**: Delaunay triangulation guarantees a connected graph, but may create unrealistic shortcuts in dense areas
+### Dependencies
 
-3. **Bidirectional Ratio**: 95% within cities is realistic for urban networks, but configurable
+- **numpy**: Array operations and random number generation
+- **scipy**: Delaunay triangulation and k-d trees
+- **dataclasses**: Parameter management
+- **random**: Additional randomization
 
-4. **Highway Detection**: Currently based on inter-cluster connections; future versions may add explicit highway tagging
+### Polish Road Classification
 
-### Third-party Libraries
+Based on Polish technical regulations for public roads:
 
-- **NumPy**: Efficient array operations for clustering
-- **SciPy**: Fast Delaunay triangulation implementation
-- **Standard Library**: `random`, `math`, `dataclasses`
-
-### Testing Hooks
-
-The generator is extensively unit tested (see `tests/world/test_generator.py`) with:
-- Parameter validation
-- Graph connectivity checks
-- Edge distribution analysis
-- Boundary condition verification
+- **A** (Autostrada): Motorways with controlled access
+- **S** (Droga ekspresowa): Expressways
+- **GP** (Droga główna ruchu przyspieszonego): Main accelerated traffic roads
+- **G** (Droga główna): Main roads
+- **Z** (Droga zbiorcza): Collector roads
+- **L** (Droga lokalna): Local roads
+- **D** (Droga dojazdowa): Access roads
 
 ## Tests
 
-Comprehensive test suite covers:
+### Test Coverage
 
-1. **Parameter Validation**: Invalid inputs rejected
-2. **Graph Properties**: Connectivity, node/edge counts, ID sequencing
-3. **Edge Distribution**: Bidirectional ratios, valid lengths, road modes
-4. **Boundary Conditions**: Large maps, sparse maps, dense maps
-5. **Reproducibility**: Similar results with same parameters
+- Parameter validation (all 16 parameters)
+- Hierarchical structure verification
+- Road classification distribution
+- Lane counts, speed limits, weight limits
+- Connectivity and reachability
+- Ring roads and gridness
+- Rural settlements
+- Reproducibility (with tolerance)
+- Bounds checking
 
-**Run tests**:
-```bash
-poetry run pytest tests/world/test_generator.py -v
-```
+### Critical Test Cases
+
+1. **Basic generation**: Verifies nodes and edges are created within bounds
+2. **Road classification**: Ensures all edges have valid Polish road classes
+3. **Highway generation**: Verifies high-class roads exist for distant cities
+4. **Connectivity**: Ensures graph is fully connected
+5. **Sequential IDs**: Verifies node and edge IDs are sequential after cleanup
 
 ## Performance
 
 ### Benchmarks
 
-- **Small map** (1000x1000, 30 nodes, 3 cities): ~50ms
-- **Medium map** (10000x10000, 500 nodes, 5 cities): ~200ms
-- **Large map** (100000x100000, 5000 nodes, 10 cities): ~2s
+- **Small map** (5km × 5km, 2 cities): ~1-2 seconds
+- **Medium map** (10km × 10km, 3-5 cities): ~3-10 seconds
+- **Large map** (20km × 20km, 10+ cities): ~30-120 seconds
 
 ### Bottlenecks
 
-1. **Poisson Disk Sampling**: Can be slow for very high densities
-2. **K-means Clustering**: Scales with cluster count
-3. **Delaunay**: Very efficient, not a bottleneck
+1. **Gabriel graph computation**: O(n²) dominates for large cities
+2. **Delaunay triangulation**: O(n log n) per city
+3. **Cleanup phase**: Multiple graph traversals
 
 ### Optimization Opportunities
 
-- Parallelize Poisson disk sampling
-- Use approximate K-means for very large datasets
-- Cache triangulation results if reusing point sets
+- Parallelize per-city generation
+- Use approximate Gabriel graph for very large cities
+- Cache k-d tree queries for highway generation
 
 ## Security & Reliability
 
 ### Validation
 
-- All parameters validated in `GenerationParams.__post_init__()`
-- Type checks for all inputs
-- Range validation for 0-100 parameters
-- Positive value checks for dimensions
+- All parameters validated in `__post_init__`
+- Bounds checking for generated coordinates
+- Edge length validation (positive values)
+- Connectivity verification with fallback
 
 ### Error Handling
 
-- Clear error messages for invalid parameters
-- Graceful degradation for edge cases (e.g., fewer nodes than clusters)
-- No file I/O, reduces attack surface
+- Graceful handling of insufficient nodes for triangulation
+- Automatic connectivity enforcement
+- Fallback to linear connections for small cities (<3 nodes)
 
 ### Logging
 
-Generation actions are logged at INFO level with:
-- Generation parameters used
-- Result statistics (nodes, edges)
-- Any warnings during processing
+- Generation statistics logged at INFO level
+- Warnings for unusual configurations
+- Error details for failures
 
 ## References
 
 ### Related Modules
 
-- **`world/graph/graph.py`**: Target graph structure
-- **`world/graph/node.py`**: Node types
-- **`world/graph/edge.py`**: Edge types
-- **`world/sim/handlers/map.py`**: Action handler integration
-- **`world/sim/queues.py`**: Signal dispatch
+- [`world/graph/graph`](graph/graph.md): Graph data structure
+- [`world/graph/edge`](graph/edge.md): Edge and RoadClass definitions
+- [`world/graph/node`](graph/node.md): Node structure
 
-### External Resources
+### External References
 
-- **Poisson Disk Sampling**:
-  - R. Bridson, "Fast Poisson Disk Sampling in Arbitrary Dimensions", 2007
-  - Provides the grid-accelerated algorithm used
-- **Delaunay Triangulation**:
-  - Standard computational geometry technique
-  - SciPy implementation is based on Qhull
-- **K-means Clustering**:
-  - J. MacQueen, "Some methods for classification and analysis of multivariate observations", 1967
-  - Classic unsupervised learning algorithm
+- Bridson, R. (2007). "Fast Poisson Disk Sampling in Arbitrary Dimensions"
+- Delaunay, B. (1934). "Sur la sphère vide"
+- Gabriel, K. R. & Sokal, R. R. (1969). "A New Statistical Approach to Geographic Variation Analysis"
+- Polish road classification: Rozporządzenie Ministra Infrastruktury w sprawie warunków technicznych

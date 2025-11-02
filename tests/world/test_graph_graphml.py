@@ -3,7 +3,7 @@ import unittest
 
 from core.buildings.base import Building
 from core.types import BuildingID, EdgeID, NodeID
-from world.graph.edge import Edge, Mode
+from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.graph import Graph
 from world.graph.node import Node
 
@@ -100,6 +100,10 @@ class TestGraphGraphML(unittest.TestCase):
             to_node=NodeID(2),
             length_m=100.0,
             mode=Mode.ROAD,
+            road_class=RoadClass.G,
+            lanes=2,
+            max_speed_kph=50.0,
+            weight_limit_kg=None,
         )
         graph.add_edge(edge1)
 
@@ -182,6 +186,10 @@ class TestGraphGraphML(unittest.TestCase):
             to_node=NodeID(2),
             length_m=100.0,
             mode=Mode.ROAD,
+            road_class=RoadClass.G,
+            lanes=2,
+            max_speed_kph=50.0,
+            weight_limit_kg=None,
         )
         graph.add_edge(edge1)
 
@@ -243,7 +251,15 @@ class TestGraphGraphML(unittest.TestCase):
 
         # Add edge
         edge = Edge(
-            id=EdgeID(1), from_node=NodeID(1), to_node=NodeID(2), length_m=100.0, mode=Mode.ROAD
+            id=EdgeID(1),
+            from_node=NodeID(1),
+            to_node=NodeID(2),
+            length_m=100.0,
+            mode=Mode.ROAD,
+            road_class=RoadClass.G,
+            lanes=2,
+            max_speed_kph=50.0,
+            weight_limit_kg=None,
         )
         graph.add_edge(edge)
 

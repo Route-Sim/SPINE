@@ -4,7 +4,7 @@ from typing import Any
 
 from core.buildings.base import Building
 from core.types import EdgeID, NodeID
-from world.graph.edge import Edge, Mode
+from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.node import Node
 
 
@@ -160,6 +160,10 @@ class Graph:
                     "to_node": str(edge.to_node),
                     "length_m": edge.length_m,
                     "mode": edge.mode.value,
+                    "road_class": edge.road_class.value,
+                    "lanes": edge.lanes,
+                    "max_speed_kph": edge.max_speed_kph,
+                    "weight_limit_kg": edge.weight_limit_kg,
                 }
                 for edge in self.edges.values()
             ],
@@ -192,6 +196,22 @@ class Graph:
 
         edge_mode_key = ET.SubElement(root, "key", id="edge_mode", for_="edge", type="int")
         edge_mode_key.set("attr.name", "mode")
+
+        edge_road_class_key = ET.SubElement(root, "key", id="edge_road_class", for_="edge")
+        edge_road_class_key.set("attr.name", "road_class")
+
+        edge_lanes_key = ET.SubElement(root, "key", id="edge_lanes", for_="edge", type="int")
+        edge_lanes_key.set("attr.name", "lanes")
+
+        edge_max_speed_key = ET.SubElement(
+            root, "key", id="edge_max_speed", for_="edge", type="double"
+        )
+        edge_max_speed_key.set("attr.name", "max_speed_kph")
+
+        edge_weight_limit_key = ET.SubElement(
+            root, "key", id="edge_weight_limit", for_="edge", type="double"
+        )
+        edge_weight_limit_key.set("attr.name", "weight_limit_kg")
 
         # Create graph element
         graph = ET.SubElement(root, "graph", id="graph", edgedefault="directed")
@@ -234,6 +254,23 @@ class Graph:
             # Add mode
             mode_data = ET.SubElement(edge_elem, "data", key="edge_mode")
             mode_data.text = str(edge.mode.value)
+
+            # Add road_class
+            road_class_data = ET.SubElement(edge_elem, "data", key="edge_road_class")
+            road_class_data.text = edge.road_class.value
+
+            # Add lanes
+            lanes_data = ET.SubElement(edge_elem, "data", key="edge_lanes")
+            lanes_data.text = str(edge.lanes)
+
+            # Add max_speed_kph
+            max_speed_data = ET.SubElement(edge_elem, "data", key="edge_max_speed")
+            max_speed_data.text = str(edge.max_speed_kph)
+
+            # Add weight_limit_kg
+            if edge.weight_limit_kg is not None:
+                weight_limit_data = ET.SubElement(edge_elem, "data", key="edge_weight_limit")
+                weight_limit_data.text = str(edge.weight_limit_kg)
 
         # Create ElementTree and write to file
         tree = ET.ElementTree(root)
@@ -334,6 +371,10 @@ class Graph:
             # Extract edge attributes
             length_m = None
             mode_value = None
+            road_class_str = None
+            lanes = None
+            max_speed_kph = None
+            weight_limit_kg = None
 
             data_elems = edge_elem.findall("default:data", namespace)
             if not data_elems:
@@ -346,18 +387,39 @@ class Graph:
                     length_m = float(data_elem.text)
                 elif key == "edge_mode" and data_elem.text is not None:
                     mode_value = int(data_elem.text)
+                elif key == "edge_road_class" and data_elem.text is not None:
+                    road_class_str = data_elem.text
+                elif key == "edge_lanes" and data_elem.text is not None:
+                    lanes = int(data_elem.text)
+                elif key == "edge_max_speed" and data_elem.text is not None:
+                    max_speed_kph = float(data_elem.text)
+                elif key == "edge_weight_limit" and data_elem.text is not None:
+                    weight_limit_kg = float(data_elem.text)
 
             if length_m is None or mode_value is None:
                 raise ValueError(f"Edge {edge_id} missing required attributes")
 
-            # Create edge with Mode enum
+            # For backward compatibility, provide defaults for new fields
+            if road_class_str is None:
+                road_class_str = "L"  # Default to local road
+            if lanes is None:
+                lanes = 2
+            if max_speed_kph is None:
+                max_speed_kph = 50.0
+
+            # Create edge with Mode and RoadClass enums
             mode = Mode(mode_value)
+            road_class = RoadClass(road_class_str)
             edge = Edge(
                 id=EdgeID(edge_id),
                 from_node=from_node,
                 to_node=to_node,
                 length_m=length_m,
                 mode=mode,
+                road_class=road_class,
+                lanes=lanes,
+                max_speed_kph=max_speed_kph,
+                weight_limit_kg=weight_limit_kg,
             )
 
             graph.add_edge(edge)

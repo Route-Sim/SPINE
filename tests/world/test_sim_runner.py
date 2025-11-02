@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest.mock import Mock
 
-from world.sim.runner import SimulationRunner, create_default_world
+from world.sim.runner import SimulationRunner, create_empty_world
 
 
 class TestSimulationRunnerSignals(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestSimulationRunnerSignals(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        self.world = create_default_world()
+        self.world = create_empty_world()
         # Use a unique port for each test to avoid conflicts
         import random
 
@@ -159,7 +159,7 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        self.world = create_default_world()
+        self.world = create_empty_world()
         # Use a unique port for each test to avoid conflicts
         import random
 

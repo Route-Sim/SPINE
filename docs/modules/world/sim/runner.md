@@ -101,14 +101,17 @@ python -m world.sim.runner --log-level DEBUG
 
 ### Programmatic Usage
 ```python
-from world.sim.runner import SimulationRunner, create_default_world
+from world.sim.runner import SimulationRunner, create_empty_world
 
-# Create world and runner
-world = create_default_world()
+# Create empty world (client must import or generate a map)
+world = create_empty_world()
 runner = SimulationRunner(world, host="localhost", port=8000)
 
 # Start the system
 runner.start()  # Blocks until shutdown
+
+# Note: Before starting the simulation, the client must use
+# map.import or map.create actions to load a map
 ```
 
 ### Status Monitoring
