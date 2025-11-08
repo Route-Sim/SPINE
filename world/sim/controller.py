@@ -7,8 +7,8 @@ from typing import Any
 
 from world.world import World
 
-from .action_processor import ActionProcessor
-from .action_registry import create_default_registry
+from .actions.action_processor import ActionProcessor
+from .actions.action_registry import create_default_registry
 from .queues import (
     ActionQueue,
     Signal,

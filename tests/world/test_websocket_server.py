@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from world.io.websocket_server import ConnectionManager, WebSocketServer
-from world.sim.action_parser import ActionRequest
-from world.sim.queues import ActionQueue, SignalQueue, create_tick_start_signal
+from world.sim.actions.action_parser import ActionRequest
+from world.sim.queues import ActionQueue, ActionType, SignalQueue, create_tick_start_signal
 
 
 class TestConnectionManager:
@@ -92,7 +92,7 @@ class TestWebSocketServer:
         self.server.manager.active_connections = [websocket]
 
         # Create valid action message (new format)
-        action_data = {"action": "simulation.start", "params": {"tick_rate": 30.0}}
+        action_data = {"action": ActionType.START.value, "params": {"tick_rate": 30.0}}
         message = json.dumps(action_data)
 
         await self.server._handle_client_message(message, connection_id)
@@ -102,7 +102,7 @@ class TestWebSocketServer:
         action_request = self.action_queue.get_nowait()
         assert action_request is not None
         assert isinstance(action_request, ActionRequest)
-        assert action_request.action == "simulation.start"
+        assert action_request.action == ActionType.START.value
         assert action_request.params == {"tick_rate": 30.0}
 
     @pytest.mark.asyncio  # type: ignore[misc]
@@ -263,7 +263,7 @@ class TestWebSocketServer:
         # First call returns a message, second call raises disconnect
         websocket.receive_text = AsyncMock(
             side_effect=[
-                '{"action": "simulation.start", "params": {"tick_rate": 25.0}}',
+                json.dumps({"action": ActionType.START.value, "params": {"tick_rate": 25.0}}),
                 WebSocketDisconnect(),
             ]
         )
@@ -314,9 +314,14 @@ class TestWebSocketIntegration:
         websocket.accept = AsyncMock()
         websocket.receive_text = AsyncMock(
             side_effect=[
-                '{"action": "simulation.start", "params": {"tick_rate": 30.0}}',
-                '{"action": "agent.create", "params": {"agent_id": "agent1", "agent_kind": "transport"}}',
-                '{"action": "simulation.stop", "params": {}}',
+                json.dumps({"action": ActionType.START.value, "params": {"tick_rate": 30.0}}),
+                json.dumps(
+                    {
+                        "action": ActionType.ADD_AGENT.value,
+                        "params": {"agent_id": "agent1", "agent_kind": "transport"},
+                    }
+                ),
+                json.dumps({"action": ActionType.STOP.value, "params": {}}),
             ]
         )
         websocket.send_text = AsyncMock()
@@ -329,36 +334,42 @@ class TestWebSocketIntegration:
 
         # Start action
         await server._handle_client_message(
-            '{"action": "simulation.start", "params": {"tick_rate": 30.0}}', connection_id
-        )
-        assert not action_queue.empty()
-        action_request = action_queue.get_nowait()
-        assert action_request is not None
-        assert isinstance(action_request, ActionRequest)
-        assert action_request.action == "simulation.start"
-        assert action_request.params == {"tick_rate": 30.0}
-
-        # Add agent action
-        await server._handle_client_message(
-            '{"action": "agent.create", "params": {"agent_id": "agent1", "agent_kind": "transport"}}',
+            json.dumps({"action": ActionType.START.value, "params": {"tick_rate": 30.0}}),
             connection_id,
         )
         assert not action_queue.empty()
         action_request = action_queue.get_nowait()
         assert action_request is not None
         assert isinstance(action_request, ActionRequest)
-        assert action_request.action == "agent.create"
-        assert action_request.params == {"agent_id": "agent1", "agent_kind": "transport"}
+        assert action_request.action == ActionType.START.value
+        assert action_request.params == {"tick_rate": 30.0}
 
-        # Stop action
+        # Add agent action
         await server._handle_client_message(
-            '{"action": "simulation.stop", "params": {}}', connection_id
+            json.dumps(
+                {
+                    "action": ActionType.ADD_AGENT.value,
+                    "params": {"agent_id": "agent1", "agent_kind": "transport"},
+                }
+            ),
+            connection_id,
         )
         assert not action_queue.empty()
         action_request = action_queue.get_nowait()
         assert action_request is not None
         assert isinstance(action_request, ActionRequest)
-        assert action_request.action == "simulation.stop"
+        assert action_request.action == ActionType.ADD_AGENT.value
+        assert action_request.params == {"agent_id": "agent1", "agent_kind": "transport"}
+
+        # Stop action
+        await server._handle_client_message(
+            json.dumps({"action": ActionType.STOP.value, "params": {}}), connection_id
+        )
+        assert not action_queue.empty()
+        action_request = action_queue.get_nowait()
+        assert action_request is not None
+        assert isinstance(action_request, ActionRequest)
+        assert action_request.action == ActionType.STOP.value
 
     @pytest.mark.asyncio  # type: ignore[misc]
     async def test_error_handling_flow(self) -> None:

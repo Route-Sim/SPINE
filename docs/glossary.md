@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-11-02"
+last_updated: "2025-11-08"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -16,7 +16,19 @@ links:
 
 **A (Autostrada)**: Polish road classification for motorways. Highest class roads with 4-6 lanes, speeds of 120-140 km/h, and no weight limits. Used for major inter-city connections.
 
-**Action**: A message sent from the Frontend to the Backend through the WebSocket connection to influence the simulation. Actions represent user commands or parameter changes, such as modifying an Agent's behavior, removing an Element, or controlling the simulation state (e.g. play, pause, reset).
+**Action**: A canonical command envelope sent from the frontend to the simulation in the form `{"action": "<domain>.<action>", "params": {...}}`. Actions express user commands such as starting the simulation, managing agents, or modifying map assets.
+
+**ActionQueue**: Thread-safe queue that transports validated `ActionRequest` envelopes from the WebSocket server to the simulation controller.
+
+**ActionRequest**: Pydantic model representing the canonical action envelope (`action` string plus `params` dictionary) produced by the parser and consumed by the queue infrastructure.
+
+**ActionType**: Enumeration of supported `<domain>.<action>` identifiers (e.g., `simulation.start`, `agent.create`, `map.export`) used by helpers and processors to avoid identifier drift.
+
+**ActionParser**: Component within `world.sim.actions` responsible for validating raw WebSocket payloads and producing typed `ActionRequest` envelopes.
+
+**ActionRegistry**: Central mapping in `world.sim.actions` that binds canonical action identifiers to their handler functions.
+
+**ActionProcessor**: Execution orchestrator in `world.sim.actions` that resolves handlers from the registry, invokes them with context, and emits error signals when necessary.
 
 **Agent**: An autonomous entity within the simulation that perceives its environment and acts according to defined behavioral rules. Agents may represent mobile entities (moving along the Edges), stationary entities (Buildings located at Nodes), or external entities not directly represented on the Map (e.g. a Broker agent coordinating routes). Each agent type possesses its own set of attributes and decision-making logic, allowing for dynamic interactions and emergent behaviors within the simulated Logistics Network.
 
@@ -38,7 +50,7 @@ links:
 
 **Command**: A message sent from frontend to simulation requesting an action (start, stop, add agent, etc.). *Note: This is the technical implementation term; see "Action" for the user-facing term.*
 
-**CommandQueue**: Thread-safe queue for commands from frontend to simulation.
+**CommandQueue**: Legacy name for the `ActionQueue`. Retained only in historical discussions; new code uses the canonical action terminology.
 
 ## D
 
@@ -60,7 +72,7 @@ links:
 
 **Event**: An occurrence within the simulation that represent a change of state in the Logistics Network. Events may take place at Nodes, within Buildings, along Edges, or for specific Agents. They capture dynamic phenomena such as vehicle arrivals, loading and unloading operations, traffic delays, equipment failures or decision triggers.
 
-**EventQueue**: Thread-safe queue for events from simulation to frontend.
+**EventQueue**: Legacy name for the `SignalQueue`. New implementations rely on canonical signal terminology.
 
 ## F
 
@@ -108,7 +120,7 @@ links:
 
 ## Q
 
-**Queue**: Thread-safe data structure for inter-thread communication.
+**Queue**: Thread-safe data structure for inter-thread communication. In SPINE the primary queues are `ActionQueue` (commands in) and `SignalQueue` (events out), both backed by Python's `queue.Queue`.
 
 **Expired Package**: A package that has passed its pickup deadline without being picked up by an agent. Expired packages are automatically removed from the simulation and generate failure metrics.
 
@@ -134,7 +146,11 @@ links:
 
 **S (Droga ekspresowa)**: Polish road classification for expressways. High-speed roads with 3-5 lanes, speeds of 100-120 km/h, no weight limits. Used for major inter-city connections.
 
-**Signal**: A message sent from the Backend to the Frontend describing state changes or events within the simulation. Signals inform the Frontend what has occurred – such as an Agent moving, an Event being triggered, or metrics being updated, so that it can update the 3D visualization accordingly.
+**Signal**: A canonical event envelope sent from the simulation to the frontend in the form `{"signal": "<domain>.<signal>", "data": {...}}`. Signals report state changes (agent updates, tick markers, package lifecycle events) that the frontend renders or stores.
+
+**SignalQueue**: Thread-safe queue that carries `Signal` envelopes from the simulation controller to the WebSocket broadcaster.
+
+**SignalType**: Enumeration capturing the supported `<domain>.<signal>` identifiers (e.g., `tick.start`, `simulation.started`, `package.delivered`) to keep publisher and subscriber code aligned.
 
 **SPINE**: Simulation Processing & INteraction Engine - the main project name.
 

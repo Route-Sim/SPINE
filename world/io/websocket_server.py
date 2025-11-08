@@ -8,7 +8,7 @@ import orjson
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from ..sim.action_parser import ActionParser
+from ..sim.actions.action_parser import ActionParser
 from ..sim.queues import (
     ActionQueue,
     SignalQueue,

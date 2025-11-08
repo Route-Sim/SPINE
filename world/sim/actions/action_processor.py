@@ -4,11 +4,11 @@ import logging
 
 from world.world import World
 
+from ..handlers.base import HandlerContext
+from ..queues import SignalQueue, create_error_signal
+from ..state import SimulationState
 from .action_parser import ActionRequest
 from .action_registry import ActionRegistry
-from .handlers.base import HandlerContext
-from .queues import SignalQueue, create_error_signal
-from .state import SimulationState
 
 
 class ActionProcessor:

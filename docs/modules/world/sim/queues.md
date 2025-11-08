@@ -1,14 +1,15 @@
 ---
 title: "Simulation Queue Infrastructure"
-summary: "Thread-safe queue infrastructure for communication between simulation and WebSocket threads with context-aware Pydantic message validation, including comprehensive package lifecycle signals."
+summary: "Thread-safe queues exposing canonical <domain>.<action>/<signal> envelopes between the simulation loop and WebSocket boundary."
 source_paths:
   - "world/sim/queues.py"
-last_updated: "2024-12-19"
+  - "tests/world/test_sim_queues.py"
+last_updated: "2025-11-08"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
   parent: "../../SUMMARY.md"
-  siblings: []
+  siblings: ["controller.md", "../../io/websocket_server.md"]
 ---
 
 # Simulation Queue Infrastructure
@@ -20,6 +21,7 @@ links:
 The SPINE simulation requires bidirectional communication between:
 - **Frontend → Simulation**: Commands to start/stop/pause simulation, add/remove agents, manage packages and sites
 - **Simulation → Frontend**: Events like tick markers, agent updates, world events, package lifecycle events
+- Canonical `<domain>.<action>` / `<domain>.<signal>` identifiers keep this communication aligned with the published WebSocket API.
 
 This module implements thread-safe queues with Pydantic validation to ensure reliable, type-safe communication between threads.
 
@@ -42,21 +44,20 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 
 ### Core Components
 
-**CommandQueue**: Thread-safe queue for frontend → simulation commands
-- Uses `queue.Queue` with configurable maxsize
-- Thread-safe put/get operations with timeout support
-- Non-blocking `get_nowait()` for polling
+**ActionQueue**: Thread-safe queue for frontend → simulation commands
+- Backed by `queue.Queue` with configurable maxsize
+- Exposes blocking, timeout-aware `put`/`get` plus `get_nowait()` for polling loops
+- Stores fully validated `ActionRequest` envelopes (`{"action": "<domain>.<action>", "params": {...}}`)
 
-**EventQueue**: Thread-safe queue for simulation → frontend events
-- Same interface as CommandQueue
-- Handles high-frequency event streaming
+**SignalQueue**: Thread-safe queue for simulation → frontend events
+- Mirrors the ActionQueue API for symmetry
+- Streams `Signal` envelopes back to the WebSocket broadcaster
 
-**Message Models**: Pydantic models for validation
-- `Action`: Validates incoming commands with context-aware field requirements
-- `Signal`: Validates outgoing events using domain.signal format (`{"signal": "domain.signal", "data": {...}}`)
-- Enum types for action/signal types
-- Model validators ensure required fields are present based on action type
-- Signal format matches API reference: all contextual information consolidated into `data` dict
+**Message Models & Enumerations**
+- `ActionRequest` (defined in `world/sim/actions/action_parser.py`) guarantees the canonical command shape and delegates field validation to the parser layer
+- `ActionType` enumerates the supported `<domain>.<action>` identifiers used throughout helpers and tests
+- `Signal` consolidates outbound payloads into `{ "signal": "<domain>.<signal>", "data": {...} }`
+- `SignalType` enumerates the canonical outbound identifiers, ensuring parity with the WebSocket contract
 
 ### Data Flow
 
@@ -84,12 +85,32 @@ World → SimulationController → EventQueue → WebSocket → Frontend
 ### Queue Management
 ```python
 # Create queues
-command_queue = CommandQueue(maxsize=1000)
-event_queue = EventQueue(maxsize=1000)
+action_queue = ActionQueue(maxsize=1000)
+signal_queue = SignalQueue(maxsize=1000)
 
-# Put/get operations
-command_queue.put(command, timeout=1.0)
-event = event_queue.get_nowait()
+# Enqueue validated envelopes
+action_queue.put(create_start_action(tick_rate=30.0), timeout=1.0)
+signal = signal_queue.get_nowait()
+```
+
+### Canonical Envelope Shapes
+
+```json
+{
+  "action": "<domain>.<action>",
+  "params": {
+    "param_1": "param_1_value",
+    "param_2": "param_2_value"
+  }
+}
+
+{
+  "signal": "<domain>.<signal>",
+  "data": {
+    "param_1": "value",
+    "param_2": 123
+  }
+}
 ```
 
 ### Package Lifecycle Signals
@@ -150,16 +171,16 @@ site_stats = create_site_stats_signal(
 )
 ```
 
-### Command Types
-- `START`: Begin simulation with optional tick rate
-- `STOP`: Stop simulation
-- `PAUSE`/`RESUME`: Pause/resume simulation
-- `SET_TICK_RATE`: Change simulation speed
-- `ADD_AGENT`/`DELETE_AGENT`/`MODIFY_AGENT`: Agent management
-- `EXPORT_MAP`/`IMPORT_MAP`: Map management
-- `REQUEST_STATE`: Request complete state snapshot
-- `CREATE_PACKAGE`/`CANCEL_PACKAGE`: Package management (future)
-- `ADD_SITE`/`MODIFY_SITE`: Site management (future)
+### ActionType Identifiers
+- `simulation.start`: Begin simulation with optional `tick_rate`
+- `simulation.stop`: Stop simulation
+- `simulation.pause` / `simulation.resume`: Pause or resume the loop
+- `tick_rate.update`: Change simulation speed (`tick_rate` required)
+- `agent.create` / `agent.delete` / `agent.update`: Agent management primitives
+- `map.export` / `map.import` / `map.create`: Map persistence controls
+- `state.request`: Request complete state snapshot
+- `package.create` / `package.cancel`: Package lifecycle (future)
+- `site.create` / `site.update`: Site management (future)
 
 ### Signal Format
 
@@ -195,11 +216,9 @@ All contextual information (tick, agent_id, error messages, etc.) is consolidate
 
 **Thread Safety**: Uses Python's built-in `queue.Queue` which is thread-safe
 
-**Validation**: All messages validated with Pydantic before queuing
-- `ADD_AGENT` actions require both `agent_id` and `agent_kind`
-- `DELETE_AGENT` and `MODIFY_AGENT` actions require `agent_id`
-- `START` and `SET_TICK_RATE` actions require `tick_rate`
-- Validation errors are caught and logged without queuing invalid actions
+**Validation**: Upstream `ActionParser` produces `ActionRequest` envelopes; queues assume canonical structure and focus on transport semantics
+- Helper factories ensure their payloads satisfy downstream handler expectations
+- `Signal` enforces the `data` payload to always be a dictionary, matching the documented API
 
 **Error Handling**: Queue full/timeout exceptions propagated to callers
 
@@ -213,6 +232,7 @@ Comprehensive test coverage includes:
 - Message validation and error handling
 - Convenience function correctness
 - Queue full/timeout scenarios
+- Canonical envelope helpers match the documented `<domain>.<action>` / `<domain>.<signal>` protocol
 
 ## Performance
 

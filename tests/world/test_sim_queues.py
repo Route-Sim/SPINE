@@ -2,21 +2,24 @@
 
 import threading
 import time
-from typing import Any
 
 import pytest
 
-from world.sim.action_parser import ActionRequest
+from world.sim.actions.action_parser import ActionRequest
 from world.sim.queues import (
-    Action,
     ActionQueue,
     ActionType,
     Signal,
     SignalQueue,
     SignalType,
+    create_add_agent_action,
+    create_delete_agent_action,
     create_full_agent_data_signal,
     create_full_map_data_signal,
+    create_pause_action,
     create_request_state_action,
+    create_resume_action,
+    create_set_tick_rate_action,
     create_start_action,
     create_state_snapshot_end_signal,
     create_state_snapshot_start_signal,
@@ -27,56 +30,18 @@ from world.sim.queues import (
 )
 
 
-def action_to_action_request(action: Action) -> ActionRequest:
-    """Convert Action to ActionRequest for testing."""
-    # Map ActionType to action string format
-    action_mapping: dict[ActionType, str] = {
-        ActionType.START: "simulation.start",
-        ActionType.STOP: "simulation.stop",
-        ActionType.PAUSE: "simulation.pause",
-        ActionType.RESUME: "simulation.resume",
-        ActionType.SET_TICK_RATE: "tick_rate.update",
-        ActionType.ADD_AGENT: "agent.create",
-        ActionType.DELETE_AGENT: "agent.delete",
-        ActionType.MODIFY_AGENT: "agent.update",
-        ActionType.EXPORT_MAP: "map.export",
-        ActionType.IMPORT_MAP: "map.import",
-        ActionType.REQUEST_STATE: "state.request",
-    }
-
-    action_str = action_mapping.get(action.type)
-    if action_str is None:
-        raise ValueError(f"No mapping for ActionType: {action.type}")
-
-    # Build params dict from action fields
-    params: dict[str, Any] = {}
-    if action.tick_rate is not None:
-        params["tick_rate"] = action.tick_rate
-    if action.agent_id is not None:
-        params["agent_id"] = action.agent_id
-    if action.agent_kind is not None:
-        params["agent_kind"] = action.agent_kind
-    if action.agent_data is not None:
-        params["agent_data"] = action.agent_data
-    if action.metadata is not None:
-        params.update(action.metadata)
-
-    return ActionRequest(action=action_str, params=params)
-
-
 class TestActionQueue:
     """Test ActionQueue functionality."""
 
     def test_put_and_get(self) -> None:
         """Test basic put and get operations."""
         queue = ActionQueue()
-        action = create_start_action(tick_rate=30.0)
-        action_request = action_to_action_request(action)
+        action_request = create_start_action(tick_rate=30.0)
 
         queue.put(action_request)
         retrieved = queue.get()
 
-        assert retrieved.action == "simulation.start"
+        assert retrieved.action == ActionType.START.value
         assert retrieved.params["tick_rate"] == 30.0
 
     def test_empty_queue(self) -> None:
@@ -94,13 +59,12 @@ class TestActionQueue:
         assert queue.get_nowait() is None
 
         # Add action and retrieve
-        action = create_start_action()
-        action_request = action_to_action_request(action)
+        action_request = create_start_action()
         queue.put(action_request)
         retrieved = queue.get_nowait()
 
         assert retrieved is not None
-        assert retrieved.action == "simulation.start"
+        assert retrieved.action == ActionType.START.value
 
     def test_queue_size(self) -> None:
         """Test queue size tracking."""
@@ -109,8 +73,7 @@ class TestActionQueue:
         assert queue.empty()
         assert queue.qsize() == 0
 
-        action = create_start_action()
-        action_request = action_to_action_request(action)
+        action_request = create_start_action()
         queue.put(action_request)
         assert not queue.empty()
         assert queue.qsize() == 1
@@ -156,44 +119,6 @@ class TestSignalQueue:
         assert retrieved is not None
         assert retrieved.signal == signal_type_to_string(SignalType.TICK_START)
         assert retrieved.data == {"tick": 456}
-
-
-class TestAction:
-    """Test Action model."""
-
-    def test_start_action(self) -> None:
-        """Test start action creation."""
-        action = Action(type=ActionType.START, tick_rate=25.0)
-
-        assert action.type == ActionType.START
-        assert action.tick_rate == 25.0
-        assert action.agent_id is None
-        assert action.agent_data is None
-
-    def test_add_agent_action(self) -> None:
-        """Test add agent action creation."""
-        agent_data = {"x": 100, "y": 200, "capacity": 50}
-        action = Action(
-            type=ActionType.ADD_AGENT,
-            agent_id="agent_1",
-            agent_kind="transport",
-            agent_data=agent_data,
-        )
-
-        assert action.type == ActionType.ADD_AGENT
-        assert action.agent_id == "agent_1"
-        assert action.agent_kind == "transport"
-        assert action.agent_data == agent_data
-
-    def test_action_validation(self) -> None:
-        """Test action validation."""
-        # Valid action
-        action = Action(type=ActionType.STOP)
-        assert action.type == ActionType.STOP
-
-        # Invalid action type should raise validation error
-        with pytest.raises(ValueError):
-            Action(type="invalid_type")  # type: ignore[arg-type]
 
 
 class TestSignal:
@@ -247,15 +172,49 @@ class TestConvenienceFunctions:
         """Test create_start_action function."""
         action = create_start_action(tick_rate=40.0)
 
-        assert action.type == ActionType.START
-        assert action.tick_rate == 40.0
+        assert isinstance(action, ActionRequest)
+        assert action.action == ActionType.START.value
+        assert action.params == {"tick_rate": 40.0}
 
     def test_create_stop_action(self) -> None:
         """Test create_stop_action function."""
         action = create_stop_action()
 
-        assert action.type == ActionType.STOP
-        assert action.tick_rate is None
+        assert isinstance(action, ActionRequest)
+        assert action.action == ActionType.STOP.value
+        assert action.params == {}
+
+    def test_create_pause_and_resume_actions(self) -> None:
+        """Test pause and resume convenience helpers."""
+        pause_action = create_pause_action()
+        resume_action = create_resume_action()
+
+        assert pause_action.action == ActionType.PAUSE.value
+        assert pause_action.params == {}
+        assert resume_action.action == ActionType.RESUME.value
+        assert resume_action.params == {}
+
+    def test_create_agent_actions(self) -> None:
+        """Test agent-related action helpers."""
+        agent_payload = {"capacity": 50}
+        add_action = create_add_agent_action("agent_1", "transport", agent_payload)
+        delete_action = create_delete_agent_action("agent_1")
+
+        assert add_action.action == ActionType.ADD_AGENT.value
+        assert add_action.params == {
+            "agent_id": "agent_1",
+            "agent_kind": "transport",
+            "agent_data": agent_payload,
+        }
+        assert delete_action.action == ActionType.DELETE_AGENT.value
+        assert delete_action.params == {"agent_id": "agent_1"}
+
+    def test_create_tick_rate_action(self) -> None:
+        """Test tick rate update helper."""
+        action = create_set_tick_rate_action(55.0)
+
+        assert action.action == ActionType.SET_TICK_RATE.value
+        assert action.params == {"tick_rate": 55.0}
 
     def test_create_tick_signals(self) -> None:
         """Test create tick signal functions."""
@@ -278,9 +237,7 @@ class TestThreadSafety:
 
         def producer() -> None:
             for i in range(10):
-                action = Action(type=ActionType.START, tick_rate=float(i))
-                action_request = action_to_action_request(action)
-                queue.put(action_request)
+                queue.put(create_start_action(tick_rate=float(i)))
                 time.sleep(0.01)
 
         def consumer() -> None:
@@ -313,12 +270,12 @@ class TestThreadSafety:
         action1 = create_start_action()
         action2 = create_start_action()
         action3 = create_start_action()
-        queue.put(action_to_action_request(action1))
-        queue.put(action_to_action_request(action2))
+        queue.put(action1)
+        queue.put(action2)
 
         # Try to put more - should raise exception
         with pytest.raises(RuntimeError, match="Action queue is full"):
-            queue.put(action_to_action_request(action3), timeout=0.1)
+            queue.put(action3, timeout=0.1)
 
 
 class TestStateSnapshotSignals:
@@ -367,9 +324,6 @@ class TestStateSnapshotSignals:
         """Test request state action creation."""
         action = create_request_state_action()
 
-        assert action.type == ActionType.REQUEST_STATE
-        assert action.tick_rate is None
-        assert action.agent_id is None
-        assert action.agent_data is None
-        assert action.agent_kind is None
-        assert action.metadata is None
+        assert isinstance(action, ActionRequest)
+        assert action.action == ActionType.REQUEST_STATE.value
+        assert action.params == {}

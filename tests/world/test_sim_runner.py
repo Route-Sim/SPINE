@@ -6,6 +6,7 @@ import time
 import unittest
 from unittest.mock import Mock
 
+from world.sim.queues import ActionType
 from world.sim.runner import SimulationRunner, create_empty_world
 
 
@@ -54,9 +55,9 @@ class TestSimulationRunnerSignals(unittest.TestCase):
         self.runner.controller.start()
 
         # Send a start action to make the simulation actually run
-        from world.sim.action_parser import ActionRequest
+        from world.sim.actions.action_parser import ActionRequest
 
-        start_action = ActionRequest(action="simulation.start", params={"tick_rate": 20.0})
+        start_action = ActionRequest(action=ActionType.START.value, params={"tick_rate": 20.0})
         self.runner.action_queue.put(start_action)
 
         # Give it time to process the action
@@ -183,9 +184,9 @@ class TestSimulationRunnerIntegration(unittest.TestCase):
         time.sleep(0.5)
 
         # Send a start action to make the simulation actually run
-        from world.sim.action_parser import ActionRequest
+        from world.sim.actions.action_parser import ActionRequest
 
-        start_action = ActionRequest(action="simulation.start", params={"tick_rate": 20.0})
+        start_action = ActionRequest(action=ActionType.START.value, params={"tick_rate": 20.0})
         self.runner.action_queue.put(start_action)
 
         # Give it time to process the action
