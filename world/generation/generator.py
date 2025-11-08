@@ -7,7 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import Delaunay, cKDTree
 
-from core.types import EdgeID, NodeID
+from core.buildings.site import Site
+from core.types import BuildingID, EdgeID, NodeID, SiteID
 from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.graph import Graph
 from world.graph.node import Node
@@ -32,6 +33,10 @@ class GenerationParams:
     ring_road_prob: float
     highway_curviness: float
     rural_settlement_prob: float
+    urban_sites_per_km2: float
+    rural_sites_per_km2: float
+    urban_activity_rate_range: tuple[float, float]
+    rural_activity_rate_range: tuple[float, float]
     seed: int
 
     def __post_init__(self) -> None:
@@ -64,6 +69,22 @@ class GenerationParams:
             raise ValueError("highway_curviness must be between 0 and 1")
         if not 0 <= self.rural_settlement_prob <= 1:
             raise ValueError("rural_settlement_prob must be between 0 and 1")
+        if self.urban_sites_per_km2 < 0:
+            raise ValueError("urban_sites_per_km2 must be non-negative")
+        if self.rural_sites_per_km2 < 0:
+            raise ValueError("rural_sites_per_km2 must be non-negative")
+        if len(self.urban_activity_rate_range) != 2:
+            raise ValueError("urban_activity_rate_range must be a tuple of 2 floats")
+        if self.urban_activity_rate_range[0] < 0 or self.urban_activity_rate_range[1] < 0:
+            raise ValueError("urban_activity_rate_range values must be non-negative")
+        if self.urban_activity_rate_range[0] > self.urban_activity_rate_range[1]:
+            raise ValueError("urban_activity_rate_range min must be <= max")
+        if len(self.rural_activity_rate_range) != 2:
+            raise ValueError("rural_activity_rate_range must be a tuple of 2 floats")
+        if self.rural_activity_rate_range[0] < 0 or self.rural_activity_rate_range[1] < 0:
+            raise ValueError("rural_activity_rate_range values must be non-negative")
+        if self.rural_activity_rate_range[0] > self.rural_activity_rate_range[1]:
+            raise ValueError("rural_activity_rate_range min must be <= max")
 
 
 @dataclass
@@ -106,6 +127,8 @@ class MapGenerator:
         self.city_nodes: list[CityNode] = []
         self.rural_nodes: list[tuple[float, float]] = []
         self.edge_count = 0
+        self.site_count = 0
+        self.sites: list[tuple[NodeID, bool]] = []  # (node_id, is_urban)
 
     def _validate_params(self) -> None:
         """Validate generation parameters."""
@@ -140,6 +163,9 @@ class MapGenerator:
 
         # Step 7: Reassign edge IDs to be sequential
         self._reassign_edge_ids(graph)
+
+        # Step 8: Place buildings (sites)
+        self._place_buildings(graph)
 
         return graph
 
@@ -1073,3 +1099,214 @@ class MapGenerator:
             graph.edges[EdgeID(new_id)] = new_edge
             graph.out_adj[edge.from_node].append(EdgeID(new_id))
             graph.in_adj[edge.to_node].append(EdgeID(new_id))
+
+    def _select_site_nodes(self, graph: Graph, is_urban: bool) -> list[NodeID]:
+        """Select valid nodes for site placement.
+
+        Args:
+            graph: The graph to select nodes from
+            is_urban: If True, select urban nodes; if False, select rural nodes
+
+        Returns:
+            List of valid node IDs for site placement
+        """
+        valid_nodes: list[NodeID] = []
+
+        for node_id in graph.nodes:
+            # Get all edges connected to this node
+            outgoing = graph.get_outgoing_edges(node_id)
+            incoming = graph.get_incoming_edges(node_id)
+            all_edges = outgoing + incoming
+
+            if not all_edges:
+                # Isolated node, skip
+                continue
+
+            # Check if node connects only to highways (A) or expressways (S)
+            non_highway_edges = [
+                e for e in all_edges if e.road_class not in (RoadClass.A, RoadClass.S)
+            ]
+
+            if not non_highway_edges:
+                # Node only connects to highways/expressways, skip
+                continue
+
+            # Check if node is in urban area
+            node = graph.nodes[node_id]
+            node_is_urban = self._is_in_urban_area(node.x, node.y)
+
+            if is_urban and node_is_urban or not is_urban and not node_is_urban:
+                valid_nodes.append(node_id)
+
+        return valid_nodes
+
+    def _create_site(self, node_id: NodeID, is_urban: bool) -> Site:
+        """Create a Site instance with appropriate configuration.
+
+        Args:
+            node_id: The node where the site will be placed
+            is_urban: Whether this is an urban or rural site
+
+        Returns:
+            A new Site instance
+        """
+
+        node_suffix = int(node_id)
+        site_identifier = f"node{node_suffix}_site_{self.site_count}"
+        site_id = SiteID(site_identifier)
+        self.site_count += 1
+
+        # Determine activity rate based on urban/rural
+        if is_urban:
+            min_rate, max_rate = self.params.urban_activity_rate_range
+            # Add a baseline boost for urban sites
+            baseline = max_rate * 0.3
+            activity_rate = baseline + random.uniform(min_rate, max_rate)
+        else:
+            min_rate, max_rate = self.params.rural_activity_rate_range
+            # Rural sites can occasionally be very active
+            if random.random() < 0.1:  # 10% chance of high activity rural site
+                activity_rate = random.uniform(max_rate * 0.8, max_rate * 1.5)
+            else:
+                activity_rate = random.uniform(min_rate, max_rate)
+
+        site = Site(
+            id=BuildingID(site_id),
+            name=f"Site {node_suffix}",
+            activity_rate=activity_rate,
+        )
+
+        return site
+
+    def _place_buildings(self, graph: Graph) -> None:
+        """Place Site buildings on the graph nodes.
+
+        Args:
+            graph: The graph to place buildings on
+        """
+
+        # Calculate urban area
+        urban_area_km2 = sum(math.pi * (c.radius / 1000.0) ** 2 for c in self.centers)
+
+        # Calculate rural area
+        total_area_km2 = (self.params.map_width * self.params.map_height) / 1_000_000
+        rural_area_km2 = max(0, total_area_km2 - urban_area_km2)
+
+        # Calculate target number of sites
+        target_urban_sites = int(urban_area_km2 * self.params.urban_sites_per_km2)
+        target_rural_sites = int(rural_area_km2 * self.params.rural_sites_per_km2)
+
+        # Get valid nodes for urban and rural sites
+        urban_nodes = self._select_site_nodes(graph, is_urban=True)
+        rural_nodes = self._select_site_nodes(graph, is_urban=False)
+
+        # Place urban sites
+        if urban_nodes and target_urban_sites > 0:
+            # Randomly select nodes for urban sites
+            num_urban = min(target_urban_sites, len(urban_nodes))
+            selected_urban = random.sample(urban_nodes, num_urban)
+
+            for node_id in selected_urban:
+                site = self._create_site(node_id, is_urban=True)
+                graph.nodes[node_id].add_building(site)
+                self.sites.append((node_id, True))
+
+        # Place rural sites
+        if rural_nodes and target_rural_sites > 0:
+            # Randomly select nodes for rural sites
+            num_rural = min(target_rural_sites, len(rural_nodes))
+            selected_rural = random.sample(rural_nodes, num_rural)
+
+            for node_id in selected_rural:
+                site = self._create_site(node_id, is_urban=False)
+                graph.nodes[node_id].add_building(site)
+                self.sites.append((node_id, False))
+
+        # Assign destination weights
+        self._assign_destination_weights(graph)
+
+    def _assign_destination_weights(self, graph: Graph) -> None:
+        """Assign destination weights to all sites based on location and city importance.
+
+        Args:
+            graph: The graph containing the sites
+        """
+
+        # Collect all sites with their properties
+        all_sites: list[tuple[SiteID, NodeID, bool]] = []  # (site_id, node_id, is_urban)
+
+        for node_id, is_urban in self.sites:
+            node = graph.nodes[node_id]
+            for building in node.buildings:
+                if isinstance(building, Site):
+                    all_sites.append((SiteID(building.id), node_id, is_urban))
+
+        if len(all_sites) < 2:
+            # Not enough sites for destination weights
+            return
+
+        # For each site, calculate weights to other sites
+        for site_id, node_id, is_urban in all_sites:
+            node = graph.nodes[node_id]
+            site: Site | None = None
+            for building in node.buildings:
+                if isinstance(building, Site) and str(building.id) == str(site_id):
+                    site = building
+                    break
+
+            if site is None:
+                continue
+
+            weights: dict[SiteID, float] = {}
+
+            for target_site_id, target_node_id, target_is_urban in all_sites:
+                if target_site_id == site_id:
+                    # Don't assign weight to self
+                    continue
+
+                # Determine base weight based on source and target type
+                if is_urban:
+                    # Urban site
+                    if target_is_urban:
+                        # Urban -> Urban: moderate weight, influenced by city importance
+                        # Try to find which center this belongs to
+                        city_importance = 1.0
+                        for city_node in self.city_nodes:
+                            if city_node.idx == target_node_id and city_node.center_idx < len(
+                                self.centers
+                            ):
+                                if self.centers[city_node.center_idx].is_major:
+                                    city_importance = 2.0
+                                break
+                        base_weight = random.uniform(0.8, 1.5) * city_importance
+                    else:
+                        # Urban -> Rural: small weight
+                        base_weight = random.uniform(0.1, 0.3)
+                else:
+                    # Rural site
+                    if target_is_urban:
+                        # Rural -> Urban: high weight (70-80% of total)
+                        # Higher weight for major cities
+                        city_importance = 1.0
+                        for city_node in self.city_nodes:
+                            if city_node.idx == target_node_id and city_node.center_idx < len(
+                                self.centers
+                            ):
+                                if self.centers[city_node.center_idx].is_major:
+                                    city_importance = 2.5
+                                else:
+                                    city_importance = 1.5
+                                break
+                        base_weight = random.uniform(2.0, 4.0) * city_importance
+                    else:
+                        # Rural -> Rural: low weight (10-20% of total)
+                        base_weight = random.uniform(0.2, 0.5)
+
+                weights[target_site_id] = base_weight
+
+            # Normalize weights
+            total_weight = sum(weights.values())
+            if total_weight > 0:
+                site.destination_weights = {
+                    dest_id: weight / total_weight for dest_id, weight in weights.items()
+                }

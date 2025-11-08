@@ -30,6 +30,7 @@
 * [Node](modules/world/graph/node.md)
 * [Edge](modules/world/graph/edge.md)
 * [Map Generation](modules/world/generation.md)
+* [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
 * [Queue Infrastructure](modules/world/sim/queues.md)
 * [Simulation Runner](modules/world/sim/runner.md)

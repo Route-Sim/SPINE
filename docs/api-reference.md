@@ -317,6 +317,10 @@ Actions are commands sent from the Frontend to control the simulation.
     "ring_road_prob": 0.5,
     "highway_curviness": 0.2,
     "rural_settlement_prob": 0.15,
+    "urban_sites_per_km2": 5.0,
+    "rural_sites_per_km2": 1.0,
+    "urban_activity_rate_range": [5.0, 20.0],
+    "rural_activity_rate_range": [1.0, 8.0],
     "seed": 42
   }
 }
@@ -338,17 +342,24 @@ Actions are commands sent from the Frontend to control the simulation.
 - `ring_road_prob` (required): Probability of ring roads around major cities (0-1)
 - `highway_curviness` (required): Highway path curvature (0=straight, 1=curved, 0-1)
 - `rural_settlement_prob` (required): Probability of rural settlements (0-1)
+- `urban_sites_per_km2` (required): Density of site buildings in urban areas (sites per km², ≥0)
+- `rural_sites_per_km2` (required): Density of site buildings in rural areas (sites per km², ≥0)
+- `urban_activity_rate_range` (required): Activity rate range for urban sites as [min, max] array (packages/hour, both ≥0)
+- `rural_activity_rate_range` (required): Activity rate range for rural sites as [min, max] array (packages/hour, both ≥0)
 - `seed` (required): Random seed for reproducibility (integer)
 
 **Notes**:
 - Simulation must be stopped before creating a new map
-- Uses hierarchical generation: centers → nodes → intra-city roads → highways → rings
+- Uses hierarchical generation: centers → nodes → intra-city roads → highways → rings → buildings
 - Implements Polish road classification (A, S, GP, G, Z, L, D)
 - Assigns lane counts (1-6), speed limits (20-140 km/h), and weight restrictions
 - Uses Poisson disk sampling for natural node placement
 - Uses Delaunay triangulation + Gabriel graph for realistic road networks
 - Highways connect cities via k-nearest neighbor graph
 - 95% of city roads are bidirectional, 100% of highways are bidirectional
+- Places Site buildings on nodes (excluding highway-only nodes)
+- Urban sites have higher baseline activity, rural sites can occasionally be very active
+- Destination weights favor rural→city patterns (70-80%) while allowing all combinations
 - Returns signal with generation statistics
 
 **Example Configurations**:
@@ -360,7 +371,11 @@ Actions are commands sent from the Frontend to control the simulation.
   "local_density": 80.0,
   "rural_density": 0.0,
   "gridness": 0.7,
-  "ring_road_prob": 1.0
+  "ring_road_prob": 1.0,
+  "urban_sites_per_km2": 10.0,
+  "rural_sites_per_km2": 0.0,
+  "urban_activity_rate_range": [10.0, 30.0],
+  "rural_activity_rate_range": [0.0, 0.0]
 }
 ```
 
@@ -371,7 +386,11 @@ Actions are commands sent from the Frontend to control the simulation.
   "local_density": 20.0,
   "rural_density": 10.0,
   "gridness": 0.0,
-  "rural_settlement_prob": 0.3
+  "rural_settlement_prob": 0.3,
+  "urban_sites_per_km2": 3.0,
+  "rural_sites_per_km2": 2.0,
+  "urban_activity_rate_range": [5.0, 15.0],
+  "rural_activity_rate_range": [0.5, 5.0]
 }
 ```
 
@@ -706,9 +725,14 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "ring_road_prob": 0.5,
     "highway_curviness": 0.2,
     "rural_settlement_prob": 0.15,
+    "urban_sites_per_km2": 5.0,
+    "rural_sites_per_km2": 1.0,
+    "urban_activity_rate_range": [5.0, 20.0],
+    "rural_activity_rate_range": [1.0, 8.0],
     "seed": 42,
     "generated_nodes": 850,
-    "generated_edges": 2400
+    "generated_edges": 2400,
+    "generated_sites": 45
   }
 }
 ```
@@ -729,9 +753,14 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.ring_road_prob`: Probability of ring roads (0-1)
 - `data.highway_curviness`: Highway curvature (0=straight, 1=curved)
 - `data.rural_settlement_prob`: Probability of rural settlements (0-1)
+- `data.urban_sites_per_km2`: Site density in urban areas (sites per km²)
+- `data.rural_sites_per_km2`: Site density in rural areas (sites per km²)
+- `data.urban_activity_rate_range`: Activity rate range for urban sites (packages/hour)
+- `data.rural_activity_rate_range`: Activity rate range for rural sites (packages/hour)
 - `data.seed`: Random seed used for generation
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created
+- `data.generated_sites`: Actual number of site buildings placed
 
 **When Received**: After successful procedural map generation with hierarchical algorithm
 

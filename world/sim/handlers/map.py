@@ -123,7 +123,9 @@ class MapActionHandler:
             params: Action parameters (required: map_width, map_height, num_major_centers,
                     minor_per_major, center_separation, urban_sprawl, local_density,
                     rural_density, intra_connectivity, inter_connectivity, arterial_ratio,
-                    gridness, ring_road_prob, highway_curviness, rural_settlement_prob, seed)
+                    gridness, ring_road_prob, highway_curviness, rural_settlement_prob,
+                    urban_sites_per_km2, rural_sites_per_km2, urban_activity_rate_range,
+                    rural_activity_rate_range, seed)
             context: Handler context
 
         Raises:
@@ -146,6 +148,10 @@ class MapActionHandler:
             "ring_road_prob",
             "highway_curviness",
             "rural_settlement_prob",
+            "urban_sites_per_km2",
+            "rural_sites_per_km2",
+            "urban_activity_rate_range",
+            "rural_activity_rate_range",
             "seed",
         ]
         for param in required_params:
@@ -168,6 +174,10 @@ class MapActionHandler:
         ring_road_prob = params["ring_road_prob"]
         highway_curviness = params["highway_curviness"]
         rural_settlement_prob = params["rural_settlement_prob"]
+        urban_sites_per_km2 = params["urban_sites_per_km2"]
+        rural_sites_per_km2 = params["rural_sites_per_km2"]
+        urban_activity_rate_range = params["urban_activity_rate_range"]
+        rural_activity_rate_range = params["rural_activity_rate_range"]
         seed = params["seed"]
 
         # Type validation
@@ -203,6 +213,30 @@ class MapActionHandler:
             0 <= rural_settlement_prob <= 1
         ):
             raise ValueError("rural_settlement_prob must be between 0 and 1")
+        if not isinstance(urban_sites_per_km2, int | float) or urban_sites_per_km2 < 0:
+            raise ValueError("urban_sites_per_km2 must be a non-negative number")
+        if not isinstance(rural_sites_per_km2, int | float) or rural_sites_per_km2 < 0:
+            raise ValueError("rural_sites_per_km2 must be a non-negative number")
+        if (
+            not isinstance(urban_activity_rate_range, list)
+            or len(urban_activity_rate_range) != 2
+            or not all(isinstance(x, int | float) for x in urban_activity_rate_range)
+        ):
+            raise ValueError("urban_activity_rate_range must be a list of 2 numbers")
+        if urban_activity_rate_range[0] < 0 or urban_activity_rate_range[1] < 0:
+            raise ValueError("urban_activity_rate_range values must be non-negative")
+        if urban_activity_rate_range[0] > urban_activity_rate_range[1]:
+            raise ValueError("urban_activity_rate_range min must be <= max")
+        if (
+            not isinstance(rural_activity_rate_range, list)
+            or len(rural_activity_rate_range) != 2
+            or not all(isinstance(x, int | float) for x in rural_activity_rate_range)
+        ):
+            raise ValueError("rural_activity_rate_range must be a list of 2 numbers")
+        if rural_activity_rate_range[0] < 0 or rural_activity_rate_range[1] < 0:
+            raise ValueError("rural_activity_rate_range values must be non-negative")
+        if rural_activity_rate_range[0] > rural_activity_rate_range[1]:
+            raise ValueError("rural_activity_rate_range min must be <= max")
         if not isinstance(seed, int):
             raise ValueError("seed must be an integer")
 
@@ -231,6 +265,16 @@ class MapActionHandler:
                 ring_road_prob=float(ring_road_prob),
                 highway_curviness=float(highway_curviness),
                 rural_settlement_prob=float(rural_settlement_prob),
+                urban_sites_per_km2=float(urban_sites_per_km2),
+                rural_sites_per_km2=float(rural_sites_per_km2),
+                urban_activity_rate_range=(
+                    float(urban_activity_rate_range[0]),
+                    float(urban_activity_rate_range[1]),
+                ),
+                rural_activity_rate_range=(
+                    float(rural_activity_rate_range[0]),
+                    float(rural_activity_rate_range[1]),
+                ),
                 seed=seed,
             )
 
@@ -240,6 +284,16 @@ class MapActionHandler:
 
             # Replace the world's graph
             context.world.graph = new_graph
+
+            # Count generated sites
+            from core.buildings.site import Site
+
+            generated_sites = sum(
+                1
+                for node in new_graph.nodes.values()
+                for building in node.buildings
+                if isinstance(building, Site)
+            )
 
             # Emit success signal with generation info
             signal_data = {
@@ -258,9 +312,14 @@ class MapActionHandler:
                 "ring_road_prob": ring_road_prob,
                 "highway_curviness": highway_curviness,
                 "rural_settlement_prob": rural_settlement_prob,
+                "urban_sites_per_km2": urban_sites_per_km2,
+                "rural_sites_per_km2": rural_sites_per_km2,
+                "urban_activity_rate_range": urban_activity_rate_range,
+                "rural_activity_rate_range": rural_activity_rate_range,
                 "seed": seed,
                 "generated_nodes": new_graph.get_node_count(),
                 "generated_edges": new_graph.get_edge_count(),
+                "generated_sites": generated_sites,
             }
             _emit_signal(context, create_map_created_signal(signal_data))
             context.logger.info(f"Map created: {signal_data}")

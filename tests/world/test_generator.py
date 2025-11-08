@@ -2,6 +2,7 @@
 
 import unittest
 
+from core.buildings.site import Site
 from world.generation import GenerationParams, MapGenerator
 from world.graph.edge import Mode, RoadClass
 
@@ -28,6 +29,10 @@ class TestGenerationParams(unittest.TestCase):
             highway_curviness=0.2,
             rural_settlement_prob=0.1,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         assert params.map_width == 10000.0
         assert params.map_height == 10000.0
@@ -54,6 +59,10 @@ class TestGenerationParams(unittest.TestCase):
                 highway_curviness=0.2,
                 rural_settlement_prob=0.1,
                 seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
             )
 
     def test_invalid_map_height(self) -> None:
@@ -76,6 +85,10 @@ class TestGenerationParams(unittest.TestCase):
                 highway_curviness=0.2,
                 rural_settlement_prob=0.1,
                 seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
             )
 
     def test_invalid_num_major_centers(self) -> None:
@@ -98,6 +111,10 @@ class TestGenerationParams(unittest.TestCase):
                 highway_curviness=0.2,
                 rural_settlement_prob=0.1,
                 seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
             )
 
     def test_invalid_intra_connectivity(self) -> None:
@@ -120,6 +137,10 @@ class TestGenerationParams(unittest.TestCase):
                 highway_curviness=0.2,
                 rural_settlement_prob=0.1,
                 seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
             )
 
     def test_invalid_gridness(self) -> None:
@@ -142,6 +163,10 @@ class TestGenerationParams(unittest.TestCase):
                 highway_curviness=0.2,
                 rural_settlement_prob=0.1,
                 seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
             )
 
 
@@ -167,6 +192,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -201,6 +230,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -232,6 +265,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.3,  # Reduced from 0.5
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -258,6 +295,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -284,6 +325,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -310,6 +355,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -348,6 +397,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=123,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -384,6 +437,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -411,6 +468,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -438,6 +499,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -464,6 +529,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -502,6 +571,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -528,6 +601,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -559,6 +636,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.2,  # Reduced from 0.3
             rural_settlement_prob=0.1,  # Reduced from 0.2
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -590,6 +671,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
 
         params2 = GenerationParams(
@@ -609,6 +694,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
 
         generator1 = MapGenerator(params1)
@@ -650,6 +739,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -681,6 +774,10 @@ class TestMapGenerator(unittest.TestCase):
             highway_curviness=0.0,
             rural_settlement_prob=0.0,
             seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=1.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -692,3 +789,224 @@ class TestMapGenerator(unittest.TestCase):
         # All highways should have no weight limits
         for edge in highway_edges:
             assert edge.weight_limit_kg is None
+
+    def test_invalid_urban_sites_density(self) -> None:
+        """Test invalid urban_sites_per_km2 parameter."""
+        with self.assertRaises(ValueError, msg="urban_sites_per_km2 must be non-negative"):
+            GenerationParams(
+                map_width=10000.0,
+                map_height=10000.0,
+                num_major_centers=2,
+                minor_per_major=1.0,
+                center_separation=2000.0,
+                urban_sprawl=400.0,
+                local_density=30.0,
+                rural_density=3.0,
+                intra_connectivity=0.3,
+                inter_connectivity=2,
+                arterial_ratio=0.2,
+                gridness=0.0,
+                ring_road_prob=0.0,
+                highway_curviness=0.0,
+                rural_settlement_prob=0.0,
+                seed=42,
+                urban_sites_per_km2=-1.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(5.0, 20.0),
+                rural_activity_rate_range=(1.0, 8.0),
+            )
+
+    def test_invalid_activity_rate_range(self) -> None:
+        """Test invalid activity rate range."""
+        with self.assertRaises(ValueError, msg="urban_activity_rate_range min must be <= max"):
+            GenerationParams(
+                map_width=10000.0,
+                map_height=10000.0,
+                num_major_centers=2,
+                minor_per_major=1.0,
+                center_separation=2000.0,
+                urban_sprawl=400.0,
+                local_density=30.0,
+                rural_density=3.0,
+                intra_connectivity=0.3,
+                inter_connectivity=2,
+                arterial_ratio=0.2,
+                gridness=0.0,
+                ring_road_prob=0.0,
+                highway_curviness=0.0,
+                rural_settlement_prob=0.0,
+                seed=42,
+                urban_sites_per_km2=5.0,
+                rural_sites_per_km2=1.0,
+                urban_activity_rate_range=(20.0, 5.0),  # Invalid: min > max
+                rural_activity_rate_range=(1.0, 8.0),
+            )
+
+    def test_buildings_are_placed(self) -> None:
+        """Test that site buildings are placed on the map."""
+        params = GenerationParams(
+            map_width=5000.0,
+            map_height=5000.0,
+            num_major_centers=2,
+            minor_per_major=1.0,
+            center_separation=1500.0,
+            urban_sprawl=400.0,
+            local_density=30.0,
+            rural_density=3.0,
+            intra_connectivity=0.3,
+            inter_connectivity=2,
+            arterial_ratio=0.2,
+            gridness=0.0,
+            ring_road_prob=0.0,
+            highway_curviness=0.0,
+            rural_settlement_prob=0.0,
+            seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=2.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
+        )
+        generator = MapGenerator(params)
+        graph = generator.generate()
+
+        # Count total buildings
+        total_buildings = 0
+        for node in graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, Site):
+                    total_buildings += 1
+
+        # Should have placed some buildings
+        assert total_buildings > 0
+
+    def test_no_sites_on_highway_only_nodes(self) -> None:
+        """Test that sites are not placed on nodes that only connect to highways."""
+        params = GenerationParams(
+            map_width=10000.0,
+            map_height=10000.0,
+            num_major_centers=3,
+            minor_per_major=0.0,
+            center_separation=3000.0,
+            urban_sprawl=500.0,
+            local_density=30.0,
+            rural_density=0.0,
+            intra_connectivity=0.2,
+            inter_connectivity=2,
+            arterial_ratio=0.1,
+            gridness=0.0,
+            ring_road_prob=0.0,
+            highway_curviness=0.0,
+            rural_settlement_prob=0.0,
+            seed=42,
+            urban_sites_per_km2=8.0,
+            rural_sites_per_km2=0.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
+        )
+        generator = MapGenerator(params)
+        graph = generator.generate()
+
+        # Find nodes with buildings
+        nodes_with_buildings = [
+            node_id
+            for node_id, node in graph.nodes.items()
+            if any(isinstance(b, Site) for b in node.buildings)
+        ]
+
+        # Check that none of these nodes connect only to highways
+        highway_classes = {RoadClass.A, RoadClass.S}
+        for node_id in nodes_with_buildings:
+            outgoing = graph.get_outgoing_edges(node_id)
+            incoming = graph.get_incoming_edges(node_id)
+            all_edges = outgoing + incoming
+
+            # At least one edge should not be a highway
+            non_highway = [e for e in all_edges if e.road_class not in highway_classes]
+            assert len(non_highway) > 0, f"Node {node_id} with building only connects to highways"
+
+    def test_destination_weights_assigned(self) -> None:
+        """Test that destination weights are assigned to sites."""
+        params = GenerationParams(
+            map_width=5000.0,
+            map_height=5000.0,
+            num_major_centers=2,
+            minor_per_major=1.0,
+            center_separation=1500.0,
+            urban_sprawl=400.0,
+            local_density=30.0,
+            rural_density=3.0,
+            intra_connectivity=0.3,
+            inter_connectivity=2,
+            arterial_ratio=0.2,
+            gridness=0.0,
+            ring_road_prob=0.0,
+            highway_curviness=0.0,
+            rural_settlement_prob=0.0,
+            seed=42,
+            urban_sites_per_km2=5.0,
+            rural_sites_per_km2=2.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
+        )
+        generator = MapGenerator(params)
+        graph = generator.generate()
+
+        # Find all sites
+        sites: list[Site] = []
+        for node in graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, Site):
+                    sites.append(building)
+
+        # If there are at least 2 sites, check destination weights
+        if len(sites) >= 2:
+            for site in sites:
+                # Each site should have destination weights
+                assert len(site.destination_weights) > 0
+
+                # Weights should sum to approximately 1.0
+                total_weight = sum(site.destination_weights.values())
+                assert 0.99 <= total_weight <= 1.01, f"Weights sum to {total_weight}, expected ~1.0"
+
+                # Sites should not have themselves as destinations
+                from core.types import SiteID
+
+                site_id = SiteID(site.id)
+                assert site_id not in site.destination_weights
+
+    def test_zero_site_density(self) -> None:
+        """Test that zero site density results in no buildings."""
+        params = GenerationParams(
+            map_width=5000.0,
+            map_height=5000.0,
+            num_major_centers=2,
+            minor_per_major=1.0,
+            center_separation=1500.0,
+            urban_sprawl=400.0,
+            local_density=30.0,
+            rural_density=3.0,
+            intra_connectivity=0.3,
+            inter_connectivity=2,
+            arterial_ratio=0.2,
+            gridness=0.0,
+            ring_road_prob=0.0,
+            highway_curviness=0.0,
+            rural_settlement_prob=0.0,
+            seed=42,
+            urban_sites_per_km2=0.0,
+            rural_sites_per_km2=0.0,
+            urban_activity_rate_range=(5.0, 20.0),
+            rural_activity_rate_range=(1.0, 8.0),
+        )
+        generator = MapGenerator(params)
+        graph = generator.generate()
+
+        # Count total buildings
+        total_buildings = 0
+        for node in graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, Site):
+                    total_buildings += 1
+
+        # Should have no buildings
+        assert total_buildings == 0

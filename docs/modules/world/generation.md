@@ -1,11 +1,11 @@
 ---
 title: "Hierarchical Procedural Map Generation"
-summary: "Advanced hierarchical generation of realistic road networks with Polish road classification system, featuring major/minor centers, intra-city roads, inter-city highways, and optional ring roads."
+summary: "Advanced hierarchical generation of realistic road networks with Polish road classification system, featuring major/minor centers, intra-city roads, inter-city highways, ring roads, and intelligent site building placement with destination weighting."
 source_paths:
   - "world/generation/generator.py"
 last_updated: "2025-11-02"
 owner: "Mateusz Polis"
-tags: ["module", "algorithm", "generation", "procedural", "network", "hierarchical"]
+tags: ["module", "algorithm", "generation", "procedural", "network", "hierarchical", "buildings"]
 links:
   parent: "../../SUMMARY.md"
   siblings: ["world", "graph/graph"]
@@ -46,7 +46,7 @@ The system uses a multi-stage hierarchical approach inspired by real urban plann
 
 - Routing algorithms (handled by router module)
 - Traffic simulation (handled by simulation module)
-- Building placement (future enhancement)
+- Advanced building types beyond sites (future enhancement)
 - Terrain elevation (future enhancement)
 - Public transport networks (future enhancement)
 
@@ -59,22 +59,26 @@ The system uses a multi-stage hierarchical approach inspired by real urban plann
 ```python
 @dataclass
 class GenerationParams:
-    map_width: float              # Map dimensions in meters
+    map_width: float                        # Map dimensions in meters
     map_height: float
-    num_major_centers: int        # Number of large cities
-    minor_per_major: float        # Avg minor towns per major city
-    center_separation: float      # Min distance between major centers (m)
-    urban_sprawl: float           # Typical city radius (m)
-    local_density: float          # Nodes per km² inside cities
-    rural_density: float          # Nodes per km² outside cities
-    intra_connectivity: float     # 0-1: edge density within cities
-    inter_connectivity: int       # k-nearest for highway network
-    arterial_ratio: float         # 0-1: share of arterial roads
-    gridness: float               # 0-1: organic vs grid-like streets
-    ring_road_prob: float         # Probability of ring roads
-    highway_curviness: float      # 0-1: straight vs curved highways
-    rural_settlement_prob: float  # Probability of rural settlements
-    seed: int                     # Random seed for reproducibility
+    num_major_centers: int                  # Number of large cities
+    minor_per_major: float                  # Avg minor towns per major city
+    center_separation: float                # Min distance between major centers (m)
+    urban_sprawl: float                     # Typical city radius (m)
+    local_density: float                    # Nodes per km² inside cities
+    rural_density: float                    # Nodes per km² outside cities
+    intra_connectivity: float               # 0-1: edge density within cities
+    inter_connectivity: int                 # k-nearest for highway network
+    arterial_ratio: float                   # 0-1: share of arterial roads
+    gridness: float                         # 0-1: organic vs grid-like streets
+    ring_road_prob: float                   # Probability of ring roads
+    highway_curviness: float                # 0-1: straight vs curved highways
+    rural_settlement_prob: float            # Probability of rural settlements
+    urban_sites_per_km2: float              # Site density in urban areas
+    rural_sites_per_km2: float              # Site density in rural areas
+    urban_activity_rate_range: tuple[float, float]  # Activity rate range for urban sites (packages/hour)
+    rural_activity_rate_range: tuple[float, float]  # Activity rate range for rural sites (packages/hour)
+    seed: int                               # Random seed for reproducibility
 ```
 
 #### MapGenerator
@@ -83,7 +87,7 @@ The main generator class that orchestrates the hierarchical generation process.
 
 ### Generation Pipeline
 
-The generation follows a seven-step hierarchical approach:
+The generation follows an eight-step hierarchical approach:
 
 #### Step 0: Generate Centers
 
@@ -168,6 +172,35 @@ With probability `ring_road_prob` for each major center:
 
 Ensure sequential edge IDs (0, 1, 2, ...) after cleanup.
 
+#### Step 7: Building Placement
+
+Place Site buildings on the graph nodes based on density parameters:
+
+**Site placement logic:**
+- Calculate target counts based on `urban_sites_per_km2` and `rural_sites_per_km2`
+- Filter out nodes that only connect to motorways (A) or expressways (S)
+- Randomly select valid nodes for site placement
+- Avoid highway-only nodes to ensure sites are accessible
+
+**Activity rate assignment:**
+- Urban sites: Higher baseline + random variation within `urban_activity_rate_range`
+- Rural sites: Lower baseline, with 10% chance of high activity
+- Reflects real-world patterns where cities have more package activity
+
+**Destination weight calculation:**
+- **Rural → City**: 70-80% of total weight (heavily favored)
+- **Rural → Rural**: 10-20% of total weight (occasional)
+- **City → City**: Balanced based on city importance (major cities weighted higher)
+- **City → Rural**: Small weight (5-10%)
+- Normalized to sum to 1.0 per site
+
+**City importance factors:**
+- Major city sites: 2.0-2.5× weight multiplier
+- Minor city sites: 1.5× weight multiplier
+- Rural sites: 1.0× base weight
+
+This ensures realistic package flow patterns with most shipments originating from rural areas going to urban centers, while allowing for all other combinations.
+
 ## Algorithms & Complexity
 
 ### Poisson Disk Sampling
@@ -218,6 +251,10 @@ params = GenerationParams(
     ring_road_prob=0.5,
     highway_curviness=0.2,
     rural_settlement_prob=0.15,
+    urban_sites_per_km2=5.0,
+    rural_sites_per_km2=1.0,
+    urban_activity_rate_range=(5.0, 20.0),
+    rural_activity_rate_range=(1.0, 8.0),
     seed=42,
 )
 
@@ -234,18 +271,24 @@ print(f"Generated {graph.get_edge_count()} edges")
 
 **Dense urban map:**
 ```python
-local_density=80.0,      # High urban density
-rural_density=0.0,       # No rural areas
-num_major_centers=5,     # Many cities
-gridness=0.7,            # Grid-like streets
+local_density=80.0,                      # High urban density
+rural_density=0.0,                       # No rural areas
+num_major_centers=5,                     # Many cities
+gridness=0.7,                            # Grid-like streets
+urban_sites_per_km2=10.0,                # Many urban sites
+rural_sites_per_km2=0.0,                 # No rural sites
+urban_activity_rate_range=(10.0, 30.0),  # High activity
 ```
 
 **Sparse rural map:**
 ```python
-local_density=20.0,      # Sparse cities
-rural_density=10.0,      # More rural nodes
-num_major_centers=2,     # Few cities
-gridness=0.0,            # Organic roads
+local_density=20.0,                      # Sparse cities
+rural_density=10.0,                      # More rural nodes
+num_major_centers=2,                     # Few cities
+gridness=0.0,                            # Organic roads
+urban_sites_per_km2=3.0,                 # Fewer urban sites
+rural_sites_per_km2=2.0,                 # More rural sites
+rural_activity_rate_range=(0.5, 5.0),    # Lower rural activity
 ```
 
 **Highway-focused:**
@@ -253,6 +296,14 @@ gridness=0.0,            # Organic roads
 inter_connectivity=4,    # Many highway alternatives
 arterial_ratio=0.4,      # More major roads
 ring_road_prob=1.0,      # Always create rings
+```
+
+**High-activity logistics:**
+```python
+urban_sites_per_km2=8.0,                 # Many sites
+rural_sites_per_km2=3.0,                 # Good rural coverage
+urban_activity_rate_range=(15.0, 40.0),  # Very high urban activity
+rural_activity_rate_range=(5.0, 15.0),   # Moderate rural activity
 ```
 
 ## Implementation Notes
@@ -263,6 +314,8 @@ ring_road_prob=1.0,      # Always create rings
 2. **Gabriel graph**: More expensive (O(n²)) but produces more realistic networks than pure Delaunay
 3. **Direct highway paths**: Simple implementation; could be enhanced with waypoint routing through rural nodes
 4. **Weight limits**: Probabilistic assignment simulates real-world variation
+5. **Site placement**: Random selection from valid nodes ensures variety but may not optimize for even distribution
+6. **Destination weights**: Not distance-based to create more interesting routing challenges and avoid trivial shortest-path solutions
 
 ### Dependencies
 
@@ -287,13 +340,16 @@ Based on Polish technical regulations for public roads:
 
 ### Test Coverage
 
-- Parameter validation (all 16 parameters)
+- Parameter validation (all 20 parameters)
 - Hierarchical structure verification
 - Road classification distribution
 - Lane counts, speed limits, weight limits
 - Connectivity and reachability
 - Ring roads and gridness
 - Rural settlements
+- Building placement and site density
+- Destination weight calculation
+- Highway-only node filtering
 - Reproducibility (with tolerance)
 - Bounds checking
 
@@ -353,6 +409,7 @@ Based on Polish technical regulations for public roads:
 - [`world/graph/graph`](graph/graph.md): Graph data structure
 - [`world/graph/edge`](graph/edge.md): Edge and RoadClass definitions
 - [`world/graph/node`](graph/node.md): Node structure
+- [`core/buildings/site`](../../core/buildings/site.md): Site building definition
 
 ### External References
 
