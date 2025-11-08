@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0](https://github.com/Route-Sim/SPINE/compare/v0.11.0...v0.12.0) (2025-11-08)
+
+
+### 🚀 Features
+
+* **map-generation:** enhance site placement in map generation ([c7af4da](https://github.com/Route-Sim/SPINE/commit/c7af4da642d301e6fa0fd5a4c41c1ace5283da3a))
+
 ## [0.11.0](https://github.com/Route-Sim/SPINE/compare/v0.10.1...v0.11.0) (2025-11-02)
 
 
