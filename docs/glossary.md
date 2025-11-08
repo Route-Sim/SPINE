@@ -16,6 +16,8 @@ links:
 
 **A (Autostrada)**: Polish road classification for motorways. Highest class roads with 4-6 lanes, speeds of 120-140 km/h, and no weight limits. Used for major inter-city connections.
 
+**A* Pathfinding**: Heuristic search algorithm for computing optimal routes through a graph. Uses both actual cost from start (g-score) and estimated cost to goal (h-score) to efficiently find shortest paths. Used by the Navigator service for truck routing.
+
 **Action**: A canonical command envelope sent from the frontend to the simulation in the form `{"action": "<domain>.<action>", "params": {...}}`. Actions express user commands such as starting the simulation, managing agents, or modifying map assets.
 
 **ActionQueue**: Thread-safe queue that transports validated `ActionRequest` envelopes from the WebSocket server to the simulation controller.
@@ -68,6 +70,8 @@ links:
 
 **EdgeID**: Unique identifier for edges, implemented as an integer type.
 
+**Edge Progress**: Distance traveled along the current edge in meters. Used by transport agents to track their position as they traverse edges between nodes.
+
 **Element**: An interactive object represented on the Map that can be selected by the user to inspect its details. Elements include all simulation relevant components such as Buildings, Vehicles, and other Agents that influence or participate in the Logistics Network. Each Element contains information describing its current state, parameters and recent Events.
 
 **Event**: An occurrence within the simulation that represent a change of state in the Logistics Network. Events may take place at Nodes, within Buildings, along Edges, or for specific Agents. They capture dynamic phenomena such as vehicle arrivals, loading and unloading operations, traffic delays, equipment failures or decision triggers.
@@ -108,11 +112,15 @@ links:
 
 **Map**: A data structure representing the complete logistics network modeled as a directed multigraph. The Map serves as the structural foundation of the Logistics Network, defining the spatial relationships and connectivity between all simulation components.
 
+**Max Speed**: A truck's maximum speed capability in kilometers per hour. This is an inherent property of the transport agent that may be limited by road conditions (edge max_speed_kph) during actual movement.
+
 ## N
 
 **Node**: A vertex in the Map's graph. Nodes mark where Edges meet. A node can correspond to one or more physical locations – Buildings – such as warehouses, depots etc. Each node carries geographic coordinates.
 
 **NodeID**: Unique identifier for nodes, implemented as an integer type.
+
+**Navigator**: Service providing A* pathfinding for agent navigation through the graph network. Computes optimal time-based routes respecting both edge speed limits and agent capabilities.
 
 ## P
 
@@ -142,6 +150,10 @@ links:
 
 **Priority**: Classification of package importance levels (LOW, MEDIUM, HIGH, URGENT) that affect pricing, handling priority, and delivery requirements.
 
+## R
+
+**Route**: Ordered list of NodeIDs representing a planned path through the graph network. Transport agents follow routes computed by the Navigator service to reach their destinations.
+
 ## S
 
 **S (Droga ekspresowa)**: Polish road classification for expressways. High-speed roads with 3-5 lanes, speeds of 100-120 km/h, no weight limits. Used for major inter-city connections.
@@ -169,6 +181,8 @@ links:
 **Tick**: A single simulation step, representing a unit of time in the simulation.
 
 **Tick Rate**: Number of simulation ticks per second, configurable from 0.1 to 100 Hz.
+
+**Truck**: Autonomous transport agent that navigates through the graph network following A* computed routes. Trucks maintain position state (current node or edge), speed constraints, and continuously move to randomly selected destinations.
 
 ## W
 

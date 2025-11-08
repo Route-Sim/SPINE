@@ -1,10 +1,12 @@
 """Handler for agent management actions (create, delete, update)."""
 
+import random
 from typing import Any
 
-from core.types import AgentID
+from core.types import AgentID, NodeID
+from world.graph.graph import Graph
 
-from ..queues import create_error_signal
+from ..queues import Signal, SignalType, create_error_signal
 from .base import HandlerContext
 
 
@@ -16,6 +18,23 @@ def _emit_error(context: HandlerContext, error_message: str) -> None:
         )
     except Exception as e:
         context.logger.error(f"Failed to emit error signal: {e}")
+
+
+def _get_random_spawn_node(graph: Graph) -> NodeID:
+    """Select a random node from the graph for agent spawning.
+
+    Args:
+        graph: Graph to select node from
+
+    Returns:
+        Random NodeID from the graph
+
+    Raises:
+        ValueError: If graph has no nodes
+    """
+    if not graph.nodes:
+        raise ValueError("Cannot spawn agent: graph has no nodes")
+    return random.choice(list(graph.nodes.keys()))
 
 
 class AgentActionHandler:
@@ -70,16 +89,45 @@ class AgentActionHandler:
                     kind=agent_kind,
                     **agent_data,
                 )
-            elif agent_kind == "transport":
-                from agents.transports.base import Transport
+            elif agent_kind == "truck":
+                from agents.transports.truck import Truck
 
-                agent_instance = Transport(id=agent_id, kind=agent_kind, **agent_data)
+                # Extract max_speed_kph with validation
+                max_speed_kph = agent_data.get("max_speed_kph", 100.0)
+                if not isinstance(max_speed_kph, int | float) or max_speed_kph <= 0:
+                    raise ValueError("max_speed_kph must be a positive number")
+
+                # Always spawn on random node
+                spawn_node = _get_random_spawn_node(context.world.graph)
+
+                agent_instance = Truck(  # type: ignore[assignment]
+                    id=agent_id,
+                    kind=agent_kind,
+                    max_speed_kph=float(max_speed_kph),
+                    current_speed_kph=0.0,
+                    current_node=spawn_node,
+                    current_edge=None,
+                    edge_progress_m=0.0,
+                    route=[],
+                    destination=None,
+                )
             else:
                 # Fallback to base agent
-                agent_instance = AgentBase(id=agent_id, kind=agent_kind, **agent_data)
+                # AgentBase doesn't accept arbitrary kwargs, so store agent_data in tags
+                agent_instance = AgentBase(id=agent_id, kind=agent_kind, tags=agent_data.copy())
 
             context.world.add_agent(agent_id, agent_instance)
             context.logger.info(f"Added agent: {agent_id_str} of kind {agent_kind}")
+
+            # Emit agent.created signal with full agent state
+            agent_created_signal = Signal(
+                signal=SignalType.AGENT_CREATED.value,
+                data=agent_instance.serialize_full(),
+            )
+            try:
+                context.signal_queue.put(agent_created_signal, timeout=1.0)
+            except Exception as e:
+                context.logger.error(f"Failed to emit agent.created signal: {e}")
 
         except ImportError as e:
             context.logger.error(f"Failed to import agent class for kind {agent_kind}: {e}")

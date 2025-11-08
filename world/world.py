@@ -7,12 +7,14 @@ from core.buildings.site import Site
 from core.packages.package import Package
 from core.types import AgentID, PackageID, SiteID
 from world.io import map_manager
+from world.routing.navigator import Navigator
 
 
 class World:
     def __init__(self, graph: Any, router: Any, traffic: Any, dt_s: float = 0.05) -> None:
         self.graph = graph
-        self.router = router
+        # Ensure router is Navigator instance
+        self.router = router if router is not None else Navigator()
         self.traffic = traffic
         self.dt_s = dt_s
         self.tick = 0

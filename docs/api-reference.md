@@ -171,6 +171,97 @@ Actions are commands sent from the Frontend to control the simulation.
 1. Send the JSON above
 2. Expect acknowledgment and agent_update signal
 
+**Note**: This is the legacy format. For new implementations, use the canonical action format below.
+
+---
+
+### 6a. agent.create - Create Agent (Canonical Format)
+
+**Purpose**: Create a new agent using the canonical action format.
+
+**Action Type**: `agent.create`
+
+**JSON Example - Truck Agent (Default Speed)**:
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "truck-1",
+    "agent_kind": "truck"
+  }
+}
+```
+
+**JSON Example - Truck Agent (Custom Speed)**:
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "truck-fast",
+    "agent_kind": "truck",
+    "agent_data": {
+      "max_speed_kph": 120.0
+    }
+  }
+}
+```
+
+**JSON Example - Building Agent**:
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "building-1",
+    "agent_kind": "building",
+    "agent_data": {}
+  }
+}
+```
+
+**Parameters**:
+- `agent_id` (required, string): Unique identifier for the agent
+- `agent_kind` (required, string): Type of agent
+  - `"truck"`: Autonomous transport agent with A* navigation
+  - `"building"`: Stationary building agent
+- `agent_data` (optional, object): Agent-specific configuration
+
+**Agent-Specific Parameters**:
+
+**Truck (`agent_kind: "truck"`)**:
+- `max_speed_kph` (optional, number): Maximum speed capability in km/h (default: 100.0)
+  - Must be positive number
+  - Truck will spawn at random node
+  - Actual speed limited by road max_speed during movement
+
+**Building (`agent_kind: "building"`)**:
+- No specific parameters currently
+
+**Response Signals**:
+- `agent.created` signal with full agent state immediately after creation
+- Agent state updates in subsequent tick signals (only when state changes)
+
+**Postman Test - Truck Creation**:
+1. Connect to `ws://localhost:8000/ws`
+2. Start simulation: `{"action": "simulation.start", "params": {}}`
+3. Create truck: `{"action": "agent.create", "params": {"agent_id": "truck-1", "agent_kind": "truck"}}`
+4. Observe truck movement in tick signals
+5. Create fast truck: `{"action": "agent.create", "params": {"agent_id": "truck-2", "agent_kind": "truck", "agent_data": {"max_speed_kph": 150.0}}}`
+
+**Expected Behavior**:
+- Truck spawns at random node in the graph
+- `agent.created` signal emitted with full initial state
+- Truck automatically picks random destinations
+- Truck follows A* computed routes
+- State updates only sent when node, edge, speed, or route changes (NOT every tick)
+- Truck respects both its max_speed and edge speed limits
+- Frontend receives route information for visualization
+
+**Notes**:
+- Trucks require a graph with at least 2 nodes to move
+- Single-node graphs will result in stationary trucks
+- Trucks continuously move to random destinations (future: package-driven routes)
+- Position state is either `current_node` (at node) or `current_edge` (on edge), never both
+
 ---
 
 ### 7. DELETE_AGENT - Remove Agent
@@ -478,38 +569,123 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 3. AGENT_UPDATE - Agent State Changed
+### 3. AGENT_CREATED - Agent Created
 
-**Purpose**: Notifies about changes in agent state.
+**Purpose**: Notifies that a new agent has been created in the simulation.
 
-**Signal**: `agent.updated`
+**Signal**: `agent.created`
 
-**JSON Example**:
+**JSON Example - Truck Agent**:
 ```json
 {
-  "signal": "agent.updated",
+  "signal": "agent.created",
   "data": {
-    "agent_id": "truck1",
-    "tick": 123,
-    "id": "truck1",
-    "kind": "transport",
-    "tags": {
-      "position": {"x": 100, "y": 200},
-      "status": "moving",
-      "cargo": "electronics"
-    },
+    "id": "truck-1",
+    "kind": "truck",
+    "max_speed_kph": 100.0,
+    "current_speed_kph": 0.0,
+    "current_node": 5,
+    "current_edge": null,
+    "edge_progress_m": 0.0,
+    "route": [],
+    "destination": null,
     "inbox_count": 0,
-    "outbox_count": 1
+    "outbox_count": 0,
+    "tags": {}
+  }
+}
+```
+
+**JSON Example - Building Agent**:
+```json
+{
+  "signal": "agent.created",
+  "data": {
+    "id": "building-1",
+    "kind": "building",
+    "tags": {},
+    "inbox_count": 0,
+    "outbox_count": 0,
+    "building": {
+      "id": "building-1"
+    }
   }
 }
 ```
 
 **Fields**:
-- `data.agent_id`: ID of the changed agent
-- `data.tick`: Simulation tick when change occurred
-- `data.*`: New agent state fields
+- `data.id`: Agent ID
+- `data.kind`: Agent type ("truck", "building", etc.)
+- `data.*`: Full agent state (varies by agent type)
 
-**When Received**: When an agent's state changes
+**Truck-Specific Fields**:
+- `data.max_speed_kph`: Maximum speed capability
+- `data.current_speed_kph`: Current speed (0 when spawned)
+- `data.current_node`: Spawn node ID
+- `data.current_edge`: null (spawns at node)
+- `data.route`: Empty initially
+- `data.destination`: null initially
+
+**When Received**: Immediately after `agent.create` action is processed
+
+---
+
+### 4. AGENT_UPDATE - Agent State Changed
+
+**Purpose**: Notifies about changes in agent state (differential updates).
+
+**Signal**: `agent.updated`
+
+**JSON Example - Truck Entering Edge**:
+```json
+{
+  "signal": "agent.updated",
+  "data": {
+    "id": "truck-1",
+    "kind": "truck",
+    "max_speed_kph": 100.0,
+    "current_speed_kph": 80.0,
+    "current_node": null,
+    "current_edge": 42,
+    "route": [7, 10, 15]
+  }
+}
+```
+
+**JSON Example - Truck Arriving at Node**:
+```json
+{
+  "signal": "agent.updated",
+  "data": {
+    "id": "truck-1",
+    "kind": "truck",
+    "max_speed_kph": 100.0,
+    "current_speed_kph": 0.0,
+    "current_node": 7,
+    "current_edge": null,
+    "route": [10, 15]
+  }
+}
+```
+
+**Fields**:
+- `data.id`: Agent ID
+- `data.kind`: Agent type
+- `data.*`: Changed state fields (varies by agent type)
+
+**Truck-Specific Fields**:
+- `data.current_node`: Node ID if at node, null if on edge
+- `data.current_edge`: Edge ID if on edge, null if at node
+- `data.current_speed_kph`: Current speed (0 at node, limited by edge when moving)
+- `data.route`: Remaining nodes to visit (for frontend visualization)
+
+**Important Notes**:
+- Trucks only emit updates when node, edge, speed, or route changes
+- `edge_progress_m` is NOT included (frontend doesn't need it)
+- Updates are NOT sent every tick, only on meaningful state changes
+- This reduces network traffic significantly
+
+**When Received**: When an agent's state changes (not every tick)
 
 ---
 

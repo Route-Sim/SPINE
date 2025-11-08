@@ -29,6 +29,7 @@
 * [Graph](modules/world/graph/graph.md)
 * [Node](modules/world/graph/node.md)
 * [Edge](modules/world/graph/edge.md)
+* [Navigator - A* Pathfinding](modules/world/routing/navigator.md)
 * [Map Generation](modules/world/generation.md)
 * [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
@@ -45,7 +46,7 @@
 ### Agents
 * [Base Agent](modules/agents/base.md)
 * [Building Agent](modules/agents/buildings/building-agent.md)
-* [Transport Agent](modules/agents/transports/base.md)
+* [Truck Transport Agent](modules/agents/transports/truck.md)
 
 ### Tests
 * [Core/test_fsm](modules/tests/core/test-fsm.md)

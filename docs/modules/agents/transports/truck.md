@@ -1,0 +1,420 @@
+---
+title: "Truck - Transport Agent"
+summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state and speed constraints for logistics operations."
+source_paths:
+  - "agents/transports/truck.py"
+last_updated: "2025-11-08"
+owner: "Mateusz Polis"
+tags: ["agent", "transport", "simulation", "movement"]
+links:
+  parent: "../../../SUMMARY.md"
+  siblings: ["../base.md", "../buildings/building_agent.md"]
+---
+
+# Truck - Transport Agent
+
+> **Purpose:** Autonomous transport agent that moves through the graph network by following A* computed routes to randomly selected destinations, managing position transitions between nodes and edges while respecting speed constraints.
+
+## Context & Motivation
+
+In a logistics simulation, trucks are the primary transport agents responsible for moving packages between sites. The Truck agent implements autonomous navigation behavior, continuously moving through the road network to simulate realistic transport operations.
+
+### Problem Solved
+- Autonomous agent movement through graph network
+- Route planning and following using A* pathfinding
+- Position state management (node vs edge transitions)
+- Speed constraint handling (agent and road limits)
+- Efficient state change detection for UI updates
+
+### Requirements and Constraints
+- Must follow AgentBase interface for consistency
+- Must integrate with Navigator service for pathfinding
+- Must update position each simulation tick
+- Must only emit state changes (not every tick)
+- Must respect both agent max speed and edge speed limits
+- Must handle edge cases: single node graph, invalid routes
+
+### Dependencies and Assumptions
+- Depends on `world.routing.navigator.Navigator` for pathfinding
+- Depends on `world.graph.graph.Graph` for network structure
+- Assumes `world.router` is a Navigator instance
+- Assumes `world.dt_s` is simulation time step in seconds
+- Assumes edges have valid length and speed attributes
+- Assumes graph is connected (or handles disconnected gracefully)
+
+## Responsibilities & Boundaries
+
+### In-scope
+- Position state management (current node/edge)
+- Route planning via Navigator service
+- Movement simulation (distance calculation)
+- State transition logic (node ↔ edge)
+- Speed management (max vs current)
+- Random destination selection
+- Differential state serialization
+- Edge resolution from node-based routes
+
+### Out-of-scope
+- Package pickup and delivery (future feature)
+- Collision detection or avoidance
+- Traffic simulation or congestion
+- Fuel consumption or maintenance
+- Path optimization beyond A* routing
+- Multi-agent coordination
+- Dynamic rerouting based on conditions
+
+## Architecture & Design
+
+### Key Data Structure
+
+```python
+@dataclass
+class Truck:
+    # AgentBase interface
+    id: AgentID
+    kind: str  # "truck"
+    inbox: list[Msg]
+    outbox: list[Msg]
+    tags: dict[str, Any]
+    _last_serialized_state: dict[str, Any]
+
+    # Truck-specific state
+    max_speed_kph: float  # Agent's maximum speed capability
+    current_speed_kph: float  # Actual speed (limited by edge)
+    current_node: NodeID | None  # Position if at a node
+    current_edge: EdgeID | None  # Position if on an edge
+    edge_progress_m: float  # Distance traveled on current edge
+    route: list[NodeID]  # Remaining nodes to visit
+    destination: NodeID | None  # Current target node
+```
+
+### State Representation
+
+**Position state (mutually exclusive):**
+- **At node:** `current_node` is set, `current_edge` is None
+- **On edge:** `current_edge` is set, `current_node` is None
+
+**Speed state:**
+- **max_speed_kph:** Agent's inherent capability (constant)
+- **current_speed_kph:** Actual speed when on edge = `min(max_speed_kph, edge.max_speed_kph)`
+
+**Route state:**
+- **route:** List of NodeIDs to visit (excludes current position)
+- **destination:** Final target node (for completion detection)
+
+### Data Flow and Interactions
+
+**Each simulation tick (`decide` method):**
+
+1. **Route planning phase:**
+   - If route is empty: pick random destination, compute route via Navigator
+   - Remove current node from route (already at start)
+
+2. **Movement phase:**
+   - **If at node:** Enter next edge in route
+     - Query graph for outgoing edges
+     - Find edge where `edge.to_node == route[0]`
+     - Set `current_edge`, clear `current_node`
+     - Set `current_speed_kph = min(max_speed_kph, edge.max_speed_kph)`
+
+   - **If on edge:** Move along edge
+     - Calculate distance: `current_speed_kph * (1000/3600) * world.dt_s`
+     - Increment `edge_progress_m`
+     - If edge complete: transition to next node
+       - Set `current_node = edge.to_node`
+       - Clear `current_edge`, reset `edge_progress_m`
+       - Pop completed node from route
+
+3. **Serialization phase:**
+   - Compare current state with last serialized state
+   - Return diff if changed, None otherwise
+
+### State Transitions
+
+```
+[At Node] --enter_next_edge--> [On Edge] --move_along_edge--> [At Node]
+    ^                                                              |
+    |                                                              |
+    +------------------route complete or empty--------------------+
+                              |
+                              v
+                        [Plan New Route]
+```
+
+### Edge Resolution from Route
+
+Given route `[A, B, C]` and `current_node = A`:
+
+1. Get next node: `next_node = route[0]` (B)
+2. Query edges: `edges = world.graph.get_outgoing_edges(A)`
+3. Find match: `edge where edge.to_node == B`
+4. Enter edge: Set `current_edge = edge.id`
+
+This approach allows node-based routes while supporting graphs with multiple edges between nodes.
+
+## Algorithms & Complexity
+
+### Movement Calculation
+
+**Distance per tick:**
+```python
+distance_m = current_speed_kph * (1000 / 3600) * world.dt_s
+```
+
+Conversion: kph → m/s → m per tick
+- `1 kph = 1000 m / 3600 s = 0.277... m/s`
+- Multiply by `dt_s` to get meters per tick
+
+**Example:**
+- Speed: 100 kph
+- dt_s: 0.05 seconds (20 ticks/second)
+- Distance per tick: 100 * (1000/3600) * 0.05 = 1.39 meters
+
+### Random Destination Selection
+
+```python
+available_nodes = [n for n in world.graph.nodes.keys() if n != current_node]
+destination = random.choice(available_nodes)
+```
+
+**Complexity:** O(V) where V is number of nodes
+- List comprehension: O(V)
+- random.choice: O(1)
+
+**Optimization opportunity:** Cache available nodes, update on graph changes
+
+### Edge Resolution
+
+```python
+for edge in world.graph.get_outgoing_edges(current_node):
+    if edge.to_node == next_node:
+        return edge
+```
+
+**Complexity:** O(degree) where degree is node's out-degree
+- Typically small (< 10 for most nodes)
+- Could optimize with adjacency map: node_pair → edge
+
+### Differential Serialization
+
+```python
+if current_state == _last_serialized_state:
+    return None
+```
+
+**Complexity:** O(k) where k is number of state fields (constant)
+- Dictionary comparison: O(k)
+- Reduces network traffic by 90%+ (only changes sent)
+
+## Public API / Usage
+
+### Creation via WebSocket
+
+**Basic creation (default 100 kph):**
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "truck-1",
+    "agent_kind": "truck"
+  }
+}
+```
+
+**Custom speed:**
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "truck-fast",
+    "agent_kind": "truck",
+    "agent_data": {
+      "max_speed_kph": 120.0
+    }
+  }
+}
+```
+
+### State Updates
+
+**Differential update (position changed):**
+```json
+{
+  "id": "truck-1",
+  "kind": "truck",
+  "max_speed_kph": 100.0,
+  "current_speed_kph": 80.0,
+  "current_node": null,
+  "current_edge": 42,
+  "edge_progress_m": 15.3
+}
+```
+
+**No update (position unchanged):**
+- `serialize_diff()` returns `None`
+- No data sent to client
+
+### Integration Example
+
+```python
+# In simulation loop (world.step())
+for agent in world.agents.values():
+    agent.perceive(world)  # No-op for Truck
+    agent.decide(world)    # Movement logic
+
+# Collect diffs
+diffs = [a.serialize_diff() for a in world.agents.values()]
+diffs = [d for d in diffs if d is not None]  # Filter None
+```
+
+## Implementation Notes
+
+### Key Design Trade-offs
+
+1. **Node-based routes vs Edge-based routes:**
+   - **Choice:** Node-based (list of NodeIDs)
+   - **Rationale:** Simpler Navigator interface, works with any graph structure
+   - **Trade-off:** Must resolve edges at runtime (small overhead)
+
+2. **Differential vs Full serialization:**
+   - **Choice:** Differential by default, full on demand
+   - **Rationale:** Reduces network traffic, improves scalability
+   - **Trade-off:** Must track last state (small memory overhead)
+
+3. **Random destinations vs Assigned routes:**
+   - **Choice:** Random for now
+   - **Rationale:** Simpler initial implementation, tests pathfinding
+   - **Trade-off:** Not realistic for logistics (future: package-driven routes)
+
+4. **Speed management (two fields):**
+   - **Choice:** Store both max_speed_kph and current_speed_kph
+   - **Rationale:** Separates agent capability from situational speed
+   - **Trade-off:** Slight redundancy, but clearer semantics
+
+5. **Position representation (mutually exclusive):**
+   - **Choice:** current_node OR current_edge (never both)
+   - **Rationale:** Clear state machine, prevents invalid states
+   - **Trade-off:** Must handle transitions carefully
+
+### Third-party Libraries
+
+- **random:** Python standard library for destination selection
+- **dataclasses:** Python standard library for clean data structure
+
+### Testing Hooks
+
+- Stateful design requires careful test setup
+- Mock World and Graph for unit tests
+- Test state transitions independently
+
+## Tests
+
+### Test Scope and Strategy
+
+**Unit tests** (future):
+- State transitions: node → edge → node
+- Route planning: random destination, Navigator integration
+- Movement calculation: distance per tick, edge completion
+- Edge resolution: find correct edge from route
+- Serialization: diff detection, no-change returns None
+
+**Integration tests** (future):
+- Full simulation loop with multiple trucks
+- Complex routes through large graphs
+- Edge cases: single node, disconnected graph
+
+### Critical Test Cases
+
+1. **Simple movement:** Truck at node A, route to B, verify edge entry
+2. **Edge traversal:** Truck on edge, verify progress and node arrival
+3. **Route completion:** Truck reaches destination, verify new route planned
+4. **Speed limiting:** Edge max_speed < truck max_speed, verify current_speed
+5. **No route:** Disconnected graph, verify graceful handling
+6. **Single node:** Graph with one node, verify truck stays put
+7. **Diff serialization:** No movement, verify None returned
+
+## Performance
+
+### Benchmarks
+
+**Expected performance** (not yet measured):
+- Movement calculation: < 0.01ms per tick
+- Route planning: 1-10ms (depends on graph size)
+- Edge resolution: < 0.1ms (small out-degree)
+- Serialization: < 0.01ms
+
+### Known Bottlenecks
+
+1. **Route planning:** A* pathfinding dominates tick time
+   - Only occurs when route is empty
+   - Amortized over many ticks
+
+2. **Edge resolution:** Linear search through outgoing edges
+   - Typically small (< 10 edges)
+   - Could optimize with adjacency map
+
+3. **Random destination:** List comprehension over all nodes
+   - O(V) every route planning
+   - Could cache available nodes
+
+### Optimization Opportunities
+
+1. **Route caching:** Cache routes between common node pairs
+2. **Adjacency map:** Precompute node_pair → edge mapping
+3. **Destination pool:** Maintain list of available destinations
+4. **Batch pathfinding:** Compute routes for multiple trucks in parallel
+
+## Security & Reliability
+
+### Validation
+
+- max_speed_kph validated in handler (must be positive number)
+- Spawn node always valid (random selection from existing nodes)
+- Route validation: clears route if edge not found
+
+### Error Handling
+
+- **Invalid route:** Clears route, plans new one next tick
+- **Missing edge:** Logs warning (future), clears route
+- **Empty graph:** No movement, no errors
+- **Disconnected nodes:** Navigator returns empty route, handled gracefully
+
+### Fault Tolerance
+
+- State machine prevents invalid states (node and edge both set)
+- Graceful degradation: if routing fails, truck stops until next planning
+- No crashes on invalid input
+
+### Logging and Observability
+
+**Current:** No logging implemented
+
+**Future:**
+- Log route planning events
+- Log state transitions (node → edge → node)
+- Log speed changes
+- Metrics: distance traveled, routes completed, average speed
+
+## References
+
+### Related Modules
+
+- `agents.base.AgentBase`: Base agent interface
+- `world.routing.navigator.Navigator`: Pathfinding service
+- `world.graph.graph.Graph`: Network structure
+- `world.graph.node.Node`: Node representation
+- `world.graph.edge.Edge`: Edge representation with speed limits
+- `world.world.World`: Simulation world container
+- `world.sim.handlers.agent.AgentActionHandler`: Agent creation handler
+
+### ADRs
+
+- None yet (consider ADR for position state representation)
+
+### Papers and Specifications
+
+- None specific to Truck agent
+
+### Issues and PRs
+
+- None yet

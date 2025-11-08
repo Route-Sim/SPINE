@@ -36,6 +36,7 @@ class SignalType(str, Enum):
 
     TICK_START = "tick.start"
     TICK_END = "tick.end"
+    AGENT_CREATED = "agent.created"
     AGENT_UPDATE = "agent.updated"
     WORLD_EVENT = "event.created"
     ERROR = "error"
