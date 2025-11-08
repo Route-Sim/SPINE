@@ -3,6 +3,7 @@
 from typing import Any
 
 from world.generation import GenerationParams, MapGenerator
+from world.graph.graph import Graph
 
 from ..queues import (
     create_error_signal,
@@ -29,6 +30,33 @@ def _emit_signal(context: HandlerContext, signal: Any) -> None:
         context.signal_queue.put(signal, timeout=1.0)
     except Exception as e:
         context.logger.error(f"Failed to emit signal: {e}")
+
+
+def _serialize_graph_structure(graph: Graph) -> dict[str, Any]:
+    """Serialize graph structure without buildings or agent data."""
+    nodes = [
+        {
+            "id": str(node.id),
+            "x": node.x,
+            "y": node.y,
+        }
+        for node in graph.nodes.values()
+    ]
+    edges = [
+        {
+            "id": str(edge.id),
+            "from_node": str(edge.from_node),
+            "to_node": str(edge.to_node),
+            "length_m": edge.length_m,
+            "mode": edge.mode.value,
+            "road_class": edge.road_class.value,
+            "lanes": edge.lanes,
+            "max_speed_kph": edge.max_speed_kph,
+            "weight_limit_kg": edge.weight_limit_kg,
+        }
+        for edge in graph.edges.values()
+    ]
+    return {"nodes": nodes, "edges": edges}
 
 
 class MapActionHandler:
@@ -320,6 +348,7 @@ class MapActionHandler:
                 "generated_nodes": new_graph.get_node_count(),
                 "generated_edges": new_graph.get_edge_count(),
                 "generated_sites": generated_sites,
+                "graph": _serialize_graph_structure(new_graph),
             }
             _emit_signal(context, create_map_created_signal(signal_data))
             context.logger.info(f"Map created: {signal_data}")

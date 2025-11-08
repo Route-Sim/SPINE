@@ -32,6 +32,7 @@
 * [Map Generation](modules/world/generation.md)
 * [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
+* [Map Action Handler](modules/world/sim/handlers/map.md)
 * [Queue Infrastructure](modules/world/sim/queues.md) - Canonical action/signal queues
 * Actions
   * [Action Parser](modules/world/sim/actions/action-parser.md)

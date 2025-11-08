@@ -9,7 +9,7 @@ owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
   parent: "../../SUMMARY.md"
-  siblings: ["controller.md", "../../io/websocket_server.md"]
+  siblings: ["controller.md", "handlers/map.md", "../../io/websocket_server.md"]
 ---
 
 # Simulation Queue Infrastructure
@@ -198,6 +198,42 @@ All signals follow the standardized format matching the API reference:
 ```
 
 All contextual information (tick, agent_id, error messages, etc.) is consolidated into the `data` dict. The `signal` field uses domain.signal format (e.g., `"simulation.started"`, `"agent.updated"`, `"error"`).
+
+### `map.created` Payload
+
+The `map.created` helper now embeds a lightweight graph snapshot alongside generation metadata. The snapshot omits building payloads and agent data to keep the signal concise.
+
+```json
+{
+  "signal": "map.created",
+  "data": {
+    "map_width": 10000,
+    "...": "...",
+    "generated_sites": 45,
+    "graph": {
+      "nodes": [
+        {"id": "1", "x": 0.0, "y": 0.0},
+        {"id": "2", "x": 120.0, "y": 45.0}
+      ],
+      "edges": [
+        {
+          "id": "10",
+          "from_node": "1",
+          "to_node": "2",
+          "length_m": 115.0,
+          "mode": 1,
+          "road_class": "L",
+          "lanes": 2,
+          "max_speed_kph": 50.0,
+          "weight_limit_kg": null
+        }
+      ]
+    }
+  }
+}
+```
+
+Use `state.full_map_data` when a complete dump (including building inventories) is required.
 
 ### Signal Types
 - `tick.start`/`tick.end`: Tick boundary markers (data includes `tick`)

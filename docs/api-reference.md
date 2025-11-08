@@ -398,6 +398,7 @@ Actions are commands sent from the Frontend to control the simulation.
 1. Ensure simulation is stopped
 2. Send the JSON above
 3. Expect acknowledgment and map.created signal with generation statistics
+4. Inspect `data.graph` to confirm nodes/edges arrays are present (buildings intentionally omitted)
 
 ---
 
@@ -732,7 +733,26 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "seed": 42,
     "generated_nodes": 850,
     "generated_edges": 2400,
-    "generated_sites": 45
+    "generated_sites": 45,
+    "graph": {
+      "nodes": [
+        {"id": "1", "x": 0.0, "y": 0.0},
+        {"id": "2", "x": 120.0, "y": 45.0}
+      ],
+      "edges": [
+        {
+          "id": "10",
+          "from_node": "1",
+          "to_node": "2",
+          "length_m": 115.0,
+          "mode": 1,
+          "road_class": "L",
+          "lanes": 2,
+          "max_speed_kph": 50.0,
+          "weight_limit_kg": null
+        }
+      ]
+    }
   }
 }
 ```
@@ -761,8 +781,10 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created
 - `data.generated_sites`: Actual number of site buildings placed
+- `data.graph.nodes`: Simplified node list (id/x/y) for immediate rendering
+- `data.graph.edges`: Simplified edge list with topology and road attributes (no buildings/agents)
 
-**When Received**: After successful procedural map generation with hierarchical algorithm
+**When Received**: After successful procedural map generation with hierarchical algorithm. Use `state.full_map_data` if the frontend needs full node building inventories.
 
 ---
 

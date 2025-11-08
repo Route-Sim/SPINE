@@ -296,7 +296,7 @@ def create_map_imported_signal(map_name: str) -> Signal:
 
 
 def create_map_created_signal(data: dict[str, Any]) -> Signal:
-    """Create a map created signal."""
+    """Create a map created signal with generation metadata and graph structure."""
     return Signal(signal=signal_type_to_string(SignalType.MAP_CREATED), data=data)
 
 
