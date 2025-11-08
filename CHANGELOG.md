@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0](https://github.com/Route-Sim/SPINE/compare/v0.12.1...v0.13.0) (2025-11-08)
+
+
+### 🚀 Features
+
+* **map:** introduce map creation signal with lightweight graph structure and update documentation ([f864a12](https://github.com/Route-Sim/SPINE/commit/f864a12f653952b65b41153b70c75a22130bb25d))
+
 ## [0.12.1](https://github.com/Route-Sim/SPINE/compare/v0.12.0...v0.12.1) (2025-11-08)
 
 
