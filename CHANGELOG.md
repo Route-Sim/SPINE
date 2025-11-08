@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1](https://github.com/Route-Sim/SPINE/compare/v0.12.0...v0.12.1) (2025-11-08)
+
+
+### ♻️ Code Refactoring
+
+* **actions:** reorganize action handling with new structure and terminology ([28f2295](https://github.com/Route-Sim/SPINE/commit/28f2295d7dcc47824a9130a4d06664a8d429123b))
+
 ## [0.12.0](https://github.com/Route-Sim/SPINE/compare/v0.11.0...v0.12.0) (2025-11-08)
 
 
