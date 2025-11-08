@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0](https://github.com/Route-Sim/SPINE/compare/v0.13.0...v0.14.0) (2025-11-08)
+
+
+### 🚀 Features
+
+* **agents:** introduce Truck transport agent with A* navigation and update routing services ([9e34957](https://github.com/Route-Sim/SPINE/commit/9e34957cadeb1bd49a0859957f1db470ebf5eeba))
+
 ## [0.13.0](https://github.com/Route-Sim/SPINE/compare/v0.12.1...v0.13.0) (2025-11-08)
 
 
