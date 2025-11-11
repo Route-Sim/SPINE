@@ -134,6 +134,69 @@ class MapGenerator:
         """Validate generation parameters."""
         self.params.__post_init__()
 
+    def _get_speed_for_road_class(self, road_class: RoadClass, lanes: int, is_urban: bool) -> float:
+        """Get the appropriate speed limit for a road class.
+
+        Based on Polish road regulations:
+        - Autostrada (A): 140 km/h
+        - Droga ekspresowa dwujezdniowa (S, dual): 120 km/h
+        - Droga ekspresowa jednojezdniowa (S, single): 100 km/h
+        - Droga dwujezdniowa (dual carriageway, 2+ lanes each): 100 km/h
+        - Pozostałe drogi poza terenem zabudowanym: 90 km/h
+        - Teren zabudowany: 50 km/h
+        - Strefa zamieszkania: 20 km/h
+
+        Args:
+            road_class: The road classification
+            lanes: Number of lanes (helps determine dual vs single carriageway)
+            is_urban: Whether the road is in a built-up/urban area
+
+        Returns:
+            Speed limit in km/h
+        """
+        if road_class == RoadClass.A:
+            # Autostrada (Motorway)
+            return 140.0
+
+        elif road_class == RoadClass.S:
+            # Droga ekspresowa (Expressway)
+            # Dual carriageway (2+ lanes per direction) vs single carriageway
+            if lanes >= 2:
+                return 120.0  # Dual carriageway
+            else:
+                return 100.0  # Single carriageway
+
+        elif road_class == RoadClass.GP:
+            # Droga główna ruchu przyspieszonego (Main accelerated traffic road)
+            # Outside built-up areas
+            return 90.0
+
+        elif road_class == RoadClass.G:
+            # Droga główna (Main road)
+            if is_urban:
+                return 50.0  # Built-up area
+            else:
+                # Outside built-up, dual carriageway with 2+ lanes
+                if lanes >= 2:
+                    return 100.0
+                else:
+                    return 90.0
+
+        elif road_class == RoadClass.Z:
+            # Droga zbiorcza (Collector road)
+            if is_urban:
+                return 50.0  # Built-up area
+            else:
+                return 90.0  # Outside built-up area
+
+        elif road_class == RoadClass.L:
+            # Droga lokalna (Local road)
+            return 50.0  # Typically in built-up areas
+
+        elif road_class == RoadClass.D:
+            # Droga dojazdowa (Access road / Residential zone)
+            return 20.0
+
     def generate(self) -> Graph:
         """Generate a complete hierarchical graph.
 
@@ -479,9 +542,10 @@ class MapGenerator:
                 to_pos = (graph.nodes[to_node].x, graph.nodes[to_node].y)
                 distance = math.hypot(to_pos[0] - from_pos[0], to_pos[1] - from_pos[1])
 
-                # Ring roads are collectors (class Z)
+                # Ring roads are collectors (class Z) outside built-up area
+                road_class = RoadClass.Z
                 lanes = random.randint(2, 4)
-                speed = random.uniform(60, 80)
+                speed = self._get_speed_for_road_class(road_class, lanes, is_urban=False)
 
                 # Bidirectional
                 edge1 = Edge(
@@ -490,7 +554,7 @@ class MapGenerator:
                     to_node=to_node,
                     length_m=distance,
                     mode=Mode.ROAD,
-                    road_class=RoadClass.Z,
+                    road_class=road_class,
                     lanes=lanes,
                     max_speed_kph=speed,
                     weight_limit_kg=None,
@@ -504,7 +568,7 @@ class MapGenerator:
                     to_node=from_node,
                     length_m=distance,
                     mode=Mode.ROAD,
-                    road_class=RoadClass.Z,
+                    road_class=road_class,
                     lanes=lanes,
                     max_speed_kph=speed,
                     weight_limit_kg=None,
@@ -587,15 +651,19 @@ class MapGenerator:
             distance = math.hypot(pos_j[0] - pos_i[0], pos_j[1] - pos_i[1])
 
             # Add bidirectional connection (main road)
+            road_class = RoadClass.G
+            lanes = 2
+            speed = self._get_speed_for_road_class(road_class, lanes, is_urban=False)
+
             edge1 = Edge(
                 id=EdgeID(self.edge_count),
                 from_node=node_i,
                 to_node=node_j,
                 length_m=distance,
                 mode=Mode.ROAD,
-                road_class=RoadClass.G,
-                lanes=2,
-                max_speed_kph=70.0,
+                road_class=road_class,
+                lanes=lanes,
+                max_speed_kph=speed,
                 weight_limit_kg=None,
             )
             graph.add_edge(edge1)
@@ -607,9 +675,9 @@ class MapGenerator:
                 to_node=node_i,
                 length_m=distance,
                 mode=Mode.ROAD,
-                road_class=RoadClass.G,
-                lanes=2,
-                max_speed_kph=70.0,
+                road_class=road_class,
+                lanes=lanes,
+                max_speed_kph=speed,
                 weight_limit_kg=None,
             )
             graph.add_edge(edge2)
@@ -920,25 +988,24 @@ class MapGenerator:
             if center_idx < len(self.centers) and self.centers[center_idx].is_major:
                 road_class = RoadClass.G  # Main road in major city
                 lanes = random.randint(2, 4)
-                speed = random.uniform(50, 70)
             else:
                 road_class = RoadClass.Z  # Collector in minor city
                 lanes = random.randint(2, 3)
-                speed = random.uniform(40, 60)
             weight_limit = None
         else:
             # Local or access road
             if random.random() < 0.5:
                 road_class = RoadClass.L
                 lanes = random.randint(1, 2)
-                speed = random.uniform(30, 50)
             else:
                 road_class = RoadClass.D
                 lanes = 1
-                speed = random.uniform(20, 40)
 
             # Probabilistic weight limit for small roads
             weight_limit = random.uniform(3500, 7500) if random.random() < 0.3 else None
+
+        # Get appropriate speed for road class (all city roads are in urban areas)
+        speed = self._get_speed_for_road_class(road_class, lanes, is_urban=True)
 
         # 95% bidirectional, 5% one-way in cities
         is_bidirectional = random.random() < 0.95
@@ -983,15 +1050,15 @@ class MapGenerator:
         if c1.is_major and c2.is_major and distance > 5000:
             road_class = RoadClass.A  # Motorway
             lanes = random.randint(4, 6)
-            speed = random.uniform(120, 140)
         elif (c1.is_major or c2.is_major) and distance > 3000:
             road_class = RoadClass.S  # Expressway
             lanes = random.randint(3, 5)
-            speed = random.uniform(100, 120)
         else:
             road_class = RoadClass.GP  # Main accelerated road
             lanes = random.randint(2, 4)
-            speed = random.uniform(90, 110)
+
+        # Get appropriate speed for road class (highways are outside urban areas)
+        speed = self._get_speed_for_road_class(road_class, lanes, is_urban=False)
 
         # Find nodes near centers to connect
         city_nodes_i = [n for n in self.city_nodes if n.center_idx == center_i]

@@ -3,7 +3,7 @@ title: "World Generator"
 summary: "Explains the stochastic generator that assembles roads, sites, and routing weights for SPINE simulation scenarios."
 source_paths:
   - "world/generation/generator.py"
-last_updated: "2025-11-08"
+last_updated: "2025-11-11"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
@@ -47,6 +47,7 @@ links:
 - Site identifiers now embed the origin node (e.g., `node42_site_3`), preserving a traceable link between buildings and their host nodes.
 - Site names mirror the hosting node index to aid debugging when inspecting generated worlds.
 - Random draws balance urban saturation with occasional high-activity rural hubs to encourage diverse routing.
+- Speed limits interpret lane counts per directed edge; dual carriageways are detected when a unidirectional edge advertises at least two lanes.
 
 ## Tests (If Applicable)
 - Generation behaviours are indirectly validated by simulation tests in `tests/world`, which assert graph connectivity and queue processing.
