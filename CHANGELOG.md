@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.1](https://github.com/Route-Sim/SPINE/compare/v0.14.0...v0.14.1) (2025-11-11)
+
+
+### ♻️ Code Refactoring
+
+* **generation:** implement speed limit logic for various road classes ([383fc0d](https://github.com/Route-Sim/SPINE/commit/383fc0d3bc1cd0a1553185d720611cd9d45880d1))
+
 ## [0.14.0](https://github.com/Route-Sim/SPINE/compare/v0.13.0...v0.14.0) (2025-11-08)
 
 
