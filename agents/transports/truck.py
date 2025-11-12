@@ -4,8 +4,9 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.buildings.parking import Parking
 from core.messages import Msg
-from core.types import AgentID, EdgeID, NodeID
+from core.types import AgentID, BuildingID, EdgeID, NodeID
 from world.world import World
 
 
@@ -35,6 +36,8 @@ class Truck:
     destination: NodeID | None = None  # Current target node
     route_start_node: NodeID | None = None  # Origin node for current route
     route_end_node: NodeID | None = None  # Destination node for current route
+    current_building_id: BuildingID | None = None  # Parking building the truck occupies
+    _parking_node_id: NodeID | None = field(default=None, init=False, repr=False)
 
     def perceive(self, world: World) -> None:
         """Optional: pull local info into cached fields.
@@ -126,6 +129,10 @@ class Truck:
             self.route_end_node = None
             return
 
+        # Leave parking before departing the node
+        if self.current_building_id is not None:
+            self.leave_parking(world)
+
         # Enter the edge
         self.current_edge = connecting_edge.id
         self.current_node = None
@@ -172,6 +179,58 @@ class Truck:
                 self.route_start_node = None
                 self.route_end_node = None
 
+    def park_in_building(self, world: World, building_id: BuildingID) -> None:
+        """Park the truck in the specified parking building on its current node."""
+        if self.current_node is None:
+            raise ValueError("Truck must be located at a node to park")
+        if self.current_building_id is not None:
+            raise ValueError(f"Truck is already parked in building {self.current_building_id}")
+
+        parking = self._resolve_parking(world, building_id, self.current_node)
+        parking.park(self.id)
+        self.current_building_id = building_id
+        self._parking_node_id = self.current_node
+
+    def leave_parking(self, world: World) -> None:
+        """Release the truck from its currently assigned parking building."""
+        if self.current_building_id is None:
+            return
+
+        try:
+            parking = self._resolve_parking(
+                world, self.current_building_id, self.current_node or self._parking_node_id
+            )
+        except ValueError:
+            # Building no longer exists; clear parked state for consistency.
+            self.current_building_id = None
+            self._parking_node_id = None
+            return
+
+        if self.id in parking.current_agents:
+            parking.release(self.id)
+        self.current_building_id = None
+        self._parking_node_id = None
+
+    def _resolve_parking(
+        self, world: World, building_id: BuildingID, node_id: NodeID | None
+    ) -> Parking:
+        """Return the parking instance for the building id scoped to a specific node."""
+        target_node_id = node_id or self._parking_node_id
+        if target_node_id is None:
+            raise ValueError("Unable to resolve parking without node context")
+
+        node = world.graph.get_node(target_node_id)
+        if node is None:
+            raise ValueError(f"Node {target_node_id} not found in the world graph")
+
+        for building in node.get_buildings():
+            if building.id == building_id:
+                if isinstance(building, Parking):
+                    return building
+                raise ValueError(f"Building {building_id} is not a parking facility")
+
+        raise ValueError(f"Parking {building_id} not found on node {target_node_id}")
+
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
@@ -188,6 +247,9 @@ class Truck:
             "route": self.route.copy(),  # Include route for frontend
             "route_start_node": self.route_start_node,
             "route_end_node": self.route_end_node,
+            "current_building_id": str(self.current_building_id)
+            if self.current_building_id
+            else None,
         }
 
         # Compare with last serialized state
@@ -212,6 +274,9 @@ class Truck:
             "destination": self.destination,
             "route_start_node": self.route_start_node,
             "route_end_node": self.route_end_node,
+            "current_building_id": str(self.current_building_id)
+            if self.current_building_id
+            else None,
             "inbox_count": len(self.inbox),
             "outbox_count": len(self.outbox),
             "tags": self.tags.copy(),

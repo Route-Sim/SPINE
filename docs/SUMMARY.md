@@ -54,6 +54,7 @@
 ### Tests
 * [Core/test_fsm](modules/tests/core/test-fsm.md)
 * [Core/test_ids](modules/tests/core/test-ids.md)
+* [Agents/test_truck](modules/tests/agents/test-truck.md)
 * [World/test_sim_runner](modules/tests/world/test-sim-runner.md)
 * [World/test_websocket_server](modules/tests/world/test-websocket-server.md)
 * [World/test_graph_graphml](modules/tests/world/test-graph-graphml.md)

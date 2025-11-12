@@ -3,12 +3,13 @@ title: "Truck - Transport Agent"
 summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state, speed constraints, and explicit route boundary metadata for logistics operations."
 source_paths:
   - "agents/transports/truck.py"
+  - "tests/agents/test_truck.py"
 last_updated: "2025-11-12"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
   parent: "../../../SUMMARY.md"
-  siblings: ["../base.md", "../buildings/building_agent.md"]
+  siblings: ["../base.md", "../buildings/building_agent.md", "../../tests/agents/test-truck.md"]
 ---
 
 # Truck - Transport Agent
@@ -24,6 +25,7 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Route planning and following using A* pathfinding
 - Position state management (node vs edge transitions)
 - Speed constraint handling (agent and road limits)
+- Explicit integration with capacity-limited parking facilities
 - Efficient state change detection for UI updates
 
 ### Requirements and Constraints
@@ -37,6 +39,7 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 ### Dependencies and Assumptions
 - Depends on `world.routing.navigator.Navigator` for pathfinding
 - Depends on `world.graph.graph.Graph` for network structure
+- Depends on `core.buildings.parking.Parking` for parking lifecycle enforcement
 - Assumes `world.router` is a Navigator instance
 - Assumes `world.dt_s` is simulation time step in seconds
 - Assumes edges have valid length and speed attributes
@@ -50,6 +53,7 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Movement simulation (distance calculation)
 - State transition logic (node ↔ edge)
 - Speed management (max vs current)
+- Parking assignment lifecycle (occupancy registration and release)
 - Random destination selection
 - Differential state serialization
 - Edge resolution from node-based routes
@@ -88,6 +92,7 @@ class Truck:
     destination: NodeID | None  # Current target node
     route_start_node: NodeID | None  # Route origin
     route_end_node: NodeID | None  # Route destination
+    current_building_id: BuildingID | None  # Parking facility association
 ```
 
 ### State Representation
@@ -95,6 +100,7 @@ class Truck:
 **Position state (mutually exclusive):**
 - **At node:** `current_node` is set, `current_edge` is None
 - **On edge:** `current_edge` is set, `current_node` is None
+- **Parked:** `current_building_id` references a `Parking` building collocated with the node
 
 **Speed state:**
 - **max_speed_kph:** Agent's inherent capability (constant)
@@ -131,7 +137,13 @@ class Truck:
 
 3. **Serialization phase:**
    - Compare current state with last serialized state
-   - Return diff if changed, None otherwise
+   - Return diff if changed, None otherwise (diff payload now includes `current_building_id`)
+
+### Parking Lifecycle Helpers
+
+- `park_in_building(world, building_id)` validates node alignment, delegates capacity checks to `Parking.park`, and assigns `current_building_id`.
+- `leave_parking(world)` resolves the parking facility, releases the agent if still registered, and clears `current_building_id`.
+- `_enter_next_edge` defensively calls `leave_parking` before the truck departs a node, ensuring building occupancy remains consistent whenever movement resumes.
 
 ### State Transitions
 
@@ -261,6 +273,18 @@ if current_state == _last_serialized_state:
 - `serialize_diff()` returns `None`
 - No data sent to client
 
+### Parking Workflow Helpers
+
+```python
+# Register the truck with a parking facility located on its current node
+truck.park_in_building(world, BuildingID("parking-node-42"))
+
+# Later, release the parking slot before resuming movement
+truck.leave_parking(world)
+```
+
+- Resulting state diffs emit both `current_node` and `current_building_id`, enabling clients to display the precise location context.
+
 ### Integration Example
 
 ```python
@@ -286,7 +310,7 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 2. **Differential vs Full serialization:**
    - **Choice:** Differential by default, full on demand
    - **Rationale:** Reduces network traffic, improves scalability, enriches diffs with route boundary metadata for UI overlays
-   - **Trade-off:** Must track last state (small memory overhead)
+   - **Trade-off:** Must track last state (small memory overhead) and ensure new fields such as `current_building_id` are included in diff comparisons
 
 3. **Random destinations vs Assigned routes:**
    - **Choice:** Random for now
@@ -301,7 +325,12 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 5. **Position representation (mutually exclusive):**
    - **Choice:** current_node OR current_edge (never both)
    - **Rationale:** Clear state machine, prevents invalid states
-   - **Trade-off:** Must handle transitions carefully
+   - **Trade-off:** Must handle transitions carefully; parking adds an additional association that must remain consistent with node occupancy
+
+7. **Explicit parking helpers vs implicit behaviour:**
+   - **Choice:** Provide explicit `park_in_building` / `leave_parking` helpers without auto-invocation
+   - **Rationale:** Keeps future actions in control of parking semantics while ensuring infrastructure is ready
+   - **Trade-off:** Callers must explicitly manage parking lifecycle when orchestrating truck staging
 
 6. **Route boundary tracking:**
    - **Choice:** Persist `route_start_node` and `route_end_node` alongside the mutable route list
@@ -344,6 +373,7 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 5. **No route:** Disconnected graph, verify graceful handling
 6. **Single node:** Graph with one node, verify truck stays put
 7. **Diff serialization:** No movement, verify None returned
+8. **Parking lifecycle:** Park/unpark helpers update building occupancy and serialized diffs (`tests/agents/test_truck.py`)
 
 ## Performance
 
@@ -418,6 +448,8 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 - `world.graph.edge.Edge`: Edge representation with speed limits
 - `world.world.World`: Simulation world container
 - `world.sim.handlers.agent.AgentActionHandler`: Agent creation handler
+- `core.buildings.parking.Parking`: Capacity-tracked parking facility data model
+- `tests/agents/test_truck.py`: Regression tests for explicit parking lifecycle
 
 ### ADRs
 
