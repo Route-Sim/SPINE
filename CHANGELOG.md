@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0](https://github.com/Route-Sim/SPINE/compare/v0.18.0...v0.19.0) (2025-11-12)
+
+
+### 🚀 Features
+
+* **agent:** implement parking lifecycle for Truck transport agent ([0f1c87a](https://github.com/Route-Sim/SPINE/commit/0f1c87aa568ebdf74c0ff7cad1fde7879a17205b))
+
 ## [0.18.0](https://github.com/Route-Sim/SPINE/compare/v0.17.0...v0.18.0) (2025-11-12)
 
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "SPINE"
-version = "0.18.0"
+version = "0.19.0"
 description = "Simulation Processing & INteraction Engine"
 authors = ["Mateusz Polis <polismateusz@gmail.com>"]
 readme = "README.md"
