@@ -25,6 +25,7 @@ SPINE is a sophisticated simulation engine that models logistics networks using 
 - **Multi-Threaded Architecture**: Separate threads for simulation and communication
 - **Interactive Control**: Start/stop/pause simulation, add/remove agents in real-time
 - **Event Streaming**: Delta-based updates with tick markers for frontend synchronization
+- **Parking Facilities**: Dedicated building data model with occupancy tracking for heavy vehicles
 
 ## High-Level Architecture
 
@@ -112,11 +113,14 @@ ws.onmessage = (event) => {
 - [core/types.md](modules/core/types.md) - Type definitions and IDs
 - [core/messages.md](modules/core/messages.md) - Inter-agent messaging
 - [core/fsm.md](modules/core/fsm.md) - Finite state machines
+- [core/buildings/base.md](modules/core/buildings/base.md) - Base building serializer
+- [core/buildings/parking.md](modules/core/buildings/parking.md) - Parking building data model
 
 ### World Modules
 - [world/world.md](modules/world/world.md) - Main simulation world
 - [world/graph/graph.md](modules/world/graph/graph.md) - Network topology
 - [world/sim/controller.md](modules/world/sim/controller.md) - Simulation control
+- [world/sim/handlers/building.md](modules/world/sim/handlers/building.md) - Building action handler
 - [world/io/websocket_server.md](modules/world/io/websocket_server.md) - WebSocket communication
 
 ### Agent Modules

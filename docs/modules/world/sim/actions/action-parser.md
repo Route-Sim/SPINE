@@ -26,6 +26,7 @@ links:
 - Dependencies and assumptions
   - Built on Pydantic models (v2) for structural guarantees.
   - Consumed by `ActionQueue` and the Action Processor.
+  - Domains such as `building.create` and `building.*` map directly onto handler registrations with no parser changes.
 
 ## Responsibilities & Boundaries
 - In-scope

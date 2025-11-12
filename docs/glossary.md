@@ -132,6 +132,8 @@ links:
 
 ## P
 
+**Parking**: Capacity-limited building type attached to graph nodes. Parkings expose truck slots, track `current_agents`, and are instantiated empty by generation or `building.create` actions until trucks explicitly park there.
+
 **Pydantic**: Python library for data validation and serialization, used for message validation.
 
 ## Q

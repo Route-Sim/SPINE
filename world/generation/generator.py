@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import Delaunay, cKDTree
 
+from core.buildings.parking import Parking
 from core.buildings.site import Site
 from core.types import BuildingID, EdgeID, NodeID, SiteID
 from world.graph.edge import Edge, Mode, RoadClass
@@ -129,6 +130,8 @@ class MapGenerator:
         self.edge_count = 0
         self.site_count = 0
         self.sites: list[tuple[NodeID, bool]] = []  # (node_id, is_urban)
+        self.parking_count = 0
+        self.parkings: list[NodeID] = []
 
     def _validate_params(self) -> None:
         """Validate generation parameters."""
@@ -1289,6 +1292,9 @@ class MapGenerator:
                 graph.nodes[node_id].add_building(site)
                 self.sites.append((node_id, False))
 
+        # Place parking facilities
+        self._place_parking(graph)
+
         # Assign destination weights
         self._assign_destination_weights(graph)
 
@@ -1377,3 +1383,47 @@ class MapGenerator:
                 site.destination_weights = {
                     dest_id: weight / total_weight for dest_id, weight in weights.items()
                 }
+
+    def _place_parking(self, graph: Graph) -> None:
+        """Create parking buildings based on connected road classes at each node."""
+        for node_id, node in graph.nodes.items():
+            road_classes = self._get_node_road_classes(graph, node_id)
+            capacity = self._determine_parking_capacity(road_classes, graph, node_id)
+            if capacity is None:
+                continue
+
+            parking_id = BuildingID(f"parking_{int(node_id)}_{self.parking_count}")
+            parking = Parking(id=parking_id, capacity=capacity)
+            node.add_building(parking)
+            self.parking_count += 1
+            self.parkings.append(node_id)
+
+    def _get_node_road_classes(self, graph: Graph, node_id: NodeID) -> set[RoadClass]:
+        """Collect all road classes connected to a node."""
+        connected_edges = graph.get_outgoing_edges(node_id) + graph.get_incoming_edges(node_id)
+        return {edge.road_class for edge in connected_edges}
+
+    def _determine_parking_capacity(
+        self, road_classes: set[RoadClass], graph: Graph, node_id: NodeID
+    ) -> int | None:
+        """Derive parking capacity based on the road classes connected to a node."""
+        connected_edges = graph.get_outgoing_edges(node_id) + graph.get_incoming_edges(node_id)
+        if len(connected_edges) < 2:
+            # Skip dead-ends and isolated nodes
+            return None
+
+        priority_capacity: list[tuple[RoadClass, int]] = [
+            (RoadClass.A, 80),
+            (RoadClass.S, 60),
+            (RoadClass.GP, 40),
+            (RoadClass.G, 25),
+            (RoadClass.Z, 15),
+            (RoadClass.L, 10),
+            (RoadClass.D, 6),
+        ]
+
+        for road_class, capacity in priority_capacity:
+            if road_class in road_classes:
+                return capacity
+
+        return None

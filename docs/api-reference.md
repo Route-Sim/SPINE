@@ -596,6 +596,42 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
+### 13. BUILDING_CREATE - Provision Parking Building
+
+**Purpose**: Provision a capacity-limited parking facility on an existing node.
+
+**Action Type**: `building.create`
+
+**JSON Example**:
+```json
+{
+  "action": "building.create",
+  "params": {
+    "building_id": "parking-node42",
+    "node_id": 42,
+    "capacity": 40
+  }
+}
+```
+
+**Parameters**:
+- `building_id` (required, string): Unique identifier for the parking building.
+- `node_id` (required, integer): Graph node (host) that already exists in the generated map.
+- `capacity` (required, integer): Maximum number of trucks the parking can host; must be positive.
+- `building_type` (optional, string): Defaults to `"parking"`. Non-parking types are rejected until future extensions land.
+
+**Notes**:
+- Validation fails if the node is missing or the ID collides with an existing building.
+- Successful execution mutates the world graph in-place and emits a `building.created` signal with canonical payload (`current_agents` starts empty until future routing logic assigns trucks).
+
+**Postman Test**:
+1. Start or resume the simulation (`simulation.start`).
+2. Send the JSON above to create the parking building.
+3. Expect immediate `building.created` signal acknowledging the new facility.
+4. Optionally send a follow-up `state.request` to verify the parking was attached to the node.
+
+---
+
 ## Signals (Backend → Frontend)
 
 Signals are updates sent from the Backend to inform the Frontend about simulation state changes.
@@ -1405,6 +1441,38 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
+### 22. BUILDING_CREATED - Parking Building Provisioned
+
+**Purpose**: Confirms that a parking building has been provisioned on a node in response to `building.create`.
+
+**Signal**: `building.created`
+
+**JSON Example**:
+```json
+{
+  "signal": "building.created",
+  "data": {
+    "node_id": 42,
+    "building": {
+      "id": "parking-node42",
+      "type": "parking",
+      "capacity": 40,
+      "current_agents": []
+    },
+    "tick": 512
+  }
+}
+```
+
+**Fields**:
+- `data.node_id`: Host node identifier.
+- `data.building`: Canonical building payload (matches `Parking.to_dict()` output).
+- `data.tick`: Simulation tick when the parking was created.
+
+**When Received**: Immediately after the handler validates and installs the parking building.
+
+---
+
 ## Postman Testing Workflow
 
 ### 1. Basic Connection Test
@@ -1555,6 +1623,25 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    }
    ```
    - Expect: Error signal with "Map file not found"
+
+### 8. Parking Provisioning Test
+
+1. **Create Parking**:
+   ```json
+   {
+     "action": "building.create",
+     "params": {
+       "building_id": "parking-node42",
+       "node_id": 42,
+       "capacity": 40
+     }
+   }
+   ```
+   - Expect: `{"signal": "building.created", "data": {"node_id": 42, "building": {...}, "tick": <current>}}`
+
+2. **Validate Occupants**:
+   - Send another `building.create` with a duplicate `building_id` to confirm the handler rejects duplicates.
+   - Optionally run `{"action": "state.request", "params": {}}` and verify the parking entry in `state.full_map_data` (the `current_agents` array should remain empty until trucks park).
 
 ---
 

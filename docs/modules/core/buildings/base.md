@@ -1,134 +1,67 @@
 ---
-title: "Building"
-summary: "Base data structure representing physical facilities in the logistics network, stored as data separate from agent functionality."
+title: "Building Base Class"
+summary: "Defines the lightweight Building dataclass that anchors identification and serialization for facilities stored on graph nodes."
 source_paths:
   - "core/buildings/base.py"
-last_updated: "2025-10-26"
+last_updated: "2025-11-12"
 owner: "Mateusz Polis"
-tags: ["module", "data-structure", "building", "facility"]
+tags: ["module", "data-structure", "building", "facility", "sim"]
 links:
   parent: "../../SUMMARY.md"
-  siblings: []
+  siblings: ["parking.md", "site.md"]
 ---
 
-# Building
+# Building Base Class
 
-> **Purpose:** Building represents a physical facility in the logistics network as a pure data structure. It contains building-specific information but does not inherit agent capabilities. Buildings can be stored in nodes and serialized to GraphML format.
+> **Purpose:** Supplies the canonical, minimal representation for physical facilities embedded in the world graph. Subclasses add behaviour or metadata while reusing the base serialization contract.
 
 ## Context & Motivation
-
-Building serves as the base data structure for physical facilities:
-- **Pure data structure** without agent behavior
-- **Graph storage** as part of node data in the logistics network
-- **Serialization** for GraphML export/import
-- **Extension point** for specialized building types (warehouses, depots, etc.)
-
-Unlike the old Building class that inherited from AgentBase, the new Building is focused solely on data representation. This separation allows buildings to exist in the graph without necessarily being active agents in the simulation.
+- Problem solved: represent facilities on graph nodes without forcing agent behaviour.
+- Requirements and constraints:
+  - Buildings must round-trip through `Graph.to_dict()` / GraphML export.
+- Type hints must remain stable for downstream subclassing (e.g., Sites, Parking).
+- Dependencies and assumptions: building IDs map to `BuildingID`; subclasses declare their own metadata while reusing the base serializer.
 
 ## Responsibilities & Boundaries
-
-### In-scope
-- Building identification (unique ID)
-- Data serialization (to_dict/from_dict)
-- Future building-specific attributes (capacity, type, etc.)
-
-### Out-of-scope
-- Agent behavior (handled by BuildingAgent wrapper)
-- Message handling (handled by agent system)
-- Simulation logic (handled by agents and world)
+- In-scope:
+  - Base building identification and type tagging.
+  - Serialization helpers that annotate payloads with building type hints.
+- Out-of-scope:
+  - Behavioural logic (delegated to agent wrappers).
 
 ## Architecture & Design
+- Core type:
+  - `Building`: dataclass with `id: BuildingID` and `TYPE="building"`. Adds `to_dict`/`from_dict` helpers emitting `{"id": "...", "type": "building"}` payloads.
+- Type dispatch:
+  - `Building.from_dict` inspects the `"type"` field and lazily imports known subclasses (e.g., Parking) to rebuild specialised instances.
+- Resource handling: purely in-memory; no external handles.
 
-### Core Data Structure
-```python
-@dataclass
-class Building:
-    id: BuildingID  # Unique identifier
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize building to dictionary."""
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Building":
-        """Deserialize building from dictionary."""
-```
-
-### Agent Wrapper Pattern
-When a Building needs to act as an agent in the simulation, it can be wrapped by BuildingAgent:
-
-```python
-from agents.buildings.building_agent import BuildingAgent
-from core.buildings.base import Building
-from core.types import BuildingID, AgentID
-
-# Create building data
-building = Building(id=BuildingID("warehouse1"))
-
-# Wrap as agent when needed (BuildingID is converted to AgentID automatically)
-agent = BuildingAgent(building=building, id=AgentID("warehouse1"), kind="building")
-```
-
-## Public API / Usage
-
-### Building Creation
 ```python
 from core.buildings.base import Building
 from core.types import BuildingID
 
-# Create building
-warehouse = Building(id=BuildingID("warehouse1"))
-
-# Serialize to dictionary
-data = warehouse.to_dict()
-
-# Deserialize from dictionary
-restored = Building.from_dict(data)
+warehouse = Building(id=BuildingID("warehouse-1"))
+payload = warehouse.to_dict()
+# {'id': 'warehouse-1', 'type': 'building'}
 ```
 
-### Storing in Graph Nodes
-```python
-from world.graph.node import Node
-from core.types import BuildingID, NodeID
+## Algorithms & Complexity
+- Serialization is `O(1)` for basic buildings.
+- Type dispatch costs `O(1)` assuming finite subclass catalogue.
 
-# Add building to node
-node = Node(id=NodeID(1), x=10.0, y=20.0)
-building = Building(id=BuildingID("b1"))
-node.add_building(building)
-
-# Buildings are automatically serialized when exporting to GraphML
-graph.to_graphml("graph.graphml")
-```
+## Public API / Usage
+- `Building.to_dict()` / `Building.from_dict()` round-trip basic facilities; the dispatcher in `from_dict` instantiates `Parking` when `type == "parking"`.
 
 ## Implementation Notes
-
-### Serialization
-- Uses Python's `dataclasses.asdict()` for serialization
-- JSON-safe for GraphML storage
-- Extensible for future attributes
-
-### GraphML Integration
-- Buildings are stored as JSON strings in node attributes
-- Automatically serialized/deserialized during export/import
-- Preserves all building data without agent-specific fields
-
-### Future Extensions
-Subclasses can be created for specific building types:
-- `Warehouse` in `core/buildings/warehouse.py`
-- `Depot` in `core/buildings/depot.py`
-- etc.
-
-Each can add specific attributes while maintaining serialization compatibility.
+- Type tagging: all payloads now include a `"type"` attribute so GraphML import can rehydrate specialized buildings.
+- `Building.from_dict` uses lazy imports to avoid circular dependencies with subclasses module layouts.
 
 ## Tests
-
-### Coverage
-- Building creation and serialization
-- GraphML export/import with buildings
-- Round-trip serialization (to_dict/from_dict)
+- Round-trip serialization of base buildings through dict payloads.
+- Integration coverage through `Graph.to_dict()` and generator placement tests (see `docs/modules/world/generation/generator.md`).
 
 ## References
-
-### Related Modules
-- [BuildingAgent](../agents/buildings/building-agent.md) - Agent wrapper for Building
-- [Node](../../world/graph/node.md) - Container for buildings in graph
-- [Graph GraphML](../../world/graph/graph.md#graphml-export-import) - Export/import functionality
+- Related modules:
+  - [Parking Building](parking.md) for capacity-constrained staging areas.
+  - [Site Building](site.md) for package-generating facilities.
+  - [World Generator](../../world/generation/generator.md) for automatic parking placement.

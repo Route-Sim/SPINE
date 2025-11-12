@@ -31,6 +31,7 @@ class ActionType(str, Enum):
     CANCEL_PACKAGE = "package.cancel"
     ADD_SITE = "site.create"
     MODIFY_SITE = "site.update"
+    CREATE_BUILDING = "building.create"
 
 
 class SignalType(str, Enum):
@@ -60,6 +61,7 @@ class SignalType(str, Enum):
     PACKAGE_PICKED_UP = "package.picked_up"
     PACKAGE_DELIVERED = "package.delivered"
     SITE_STATS_UPDATE = "site.stats_update"
+    BUILDING_CREATED = "building.created"
 
 
 def signal_type_to_string(signal_type: SignalType) -> str:
@@ -332,6 +334,19 @@ def create_map_created_signal(data: dict[str, Any]) -> Signal:
     return Signal(signal=signal_type_to_string(SignalType.MAP_CREATED), data=data)
 
 
+def create_building_create_action(
+    building_id: str, node_id: int, capacity: int, building_type: str = "parking"
+) -> ActionRequest:
+    """Create a building create action."""
+    params: dict[str, Any] = {
+        "building_id": building_id,
+        "node_id": node_id,
+        "capacity": capacity,
+        "building_type": building_type,
+    }
+    return _create_action(ActionType.CREATE_BUILDING, params)
+
+
 def create_state_snapshot_start_signal() -> Signal:
     """Create a state snapshot start signal."""
     return Signal(signal=signal_type_to_string(SignalType.STATE_SNAPSHOT_START), data={})
@@ -416,3 +431,16 @@ def create_site_stats_signal(site_id: str, stats: dict[str, Any], tick: int) -> 
             "tick": tick,
         },
     )
+
+
+def create_building_created_signal(
+    building_data: dict[str, Any], node_id: int, tick: int | None = None
+) -> Signal:
+    """Create a building created signal."""
+    data: dict[str, Any] = {
+        "node_id": node_id,
+        "building": building_data,
+    }
+    if tick is not None:
+        data["tick"] = tick
+    return Signal(signal=signal_type_to_string(SignalType.BUILDING_CREATED), data=data)

@@ -113,6 +113,39 @@ signal = signal_queue.get_nowait()
 }
 ```
 
+### Parking Creation Round-trip
+
+```python
+from world.sim.queues import (
+    create_building_create_action,
+    create_building_created_signal,
+)
+
+create_action = create_building_create_action(
+    building_id="parking-node42",
+    node_id=42,
+    capacity=40,
+)
+action_queue.put(create_action, timeout=1.0)
+
+# Simulation thread constructs Parking instance and broadcasts confirmation
+parking_payload = {
+    "id": "parking-node42",
+    "type": "parking",
+    "capacity": 40,
+    "current_agents": [],
+}
+signal_queue.put(
+    create_building_created_signal(
+        building_data=parking_payload,
+        node_id=42,
+        tick=state.current_tick,
+    )
+)
+```
+
+Use this helper pair to request additional parking capacity at runtime. The handler returns the canonical building data (with an empty `current_agents` list until dedicated parking logic assigns trucks).
+
 ### Agent Describe Round-trip
 
 ```python
@@ -230,6 +263,7 @@ site_stats = create_site_stats_signal(
 - `state.request`: Request complete state snapshot
 - `package.create` / `package.cancel`: Package lifecycle (future)
 - `site.create` / `site.update`: Site management (future)
+- `building.create`: Provision parking buildings on an existing node
 
 ### Signal Format
 
@@ -298,6 +332,7 @@ Use `state.full_map_data` when a complete dump (including building inventories) 
 - `state.full_agent_data`: Complete agent state
 - `package.created`/`package.expired`/`package.picked_up`/`package.delivered`: Package lifecycle events
 - `site.stats_update`: Site statistics updates
+- `building.created`: Parking building instantiated on the specified node (payload includes `building` dict and `node_id`)
 
 ## Implementation Notes
 

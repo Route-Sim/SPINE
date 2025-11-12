@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ..handlers.agent import AgentActionHandler
+from ..handlers.building import BuildingActionHandler
 from ..handlers.map import MapActionHandler
 from ..handlers.simulation import SimulationActionHandler
 from ..handlers.state import StateActionHandler
@@ -36,6 +37,9 @@ class ActionRegistry:
         self.register(ActionType.MODIFY_AGENT, AgentActionHandler.handle_update)
         self.register(ActionType.DESCRIBE_AGENT, AgentActionHandler.handle_describe)
         self.register(ActionType.LIST_AGENTS, AgentActionHandler.handle_list)
+
+        # Building actions
+        self.register(ActionType.CREATE_BUILDING, BuildingActionHandler.handle_create)
 
         # Map actions
         self.register(ActionType.EXPORT_MAP, MapActionHandler.handle_export)

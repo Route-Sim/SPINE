@@ -20,7 +20,8 @@
 * [Types](modules/core/types.md)
 * [Messages](modules/core/messages.md)
 * [FSM](modules/core/fsm.md)
-* [Building](modules/core/buildings/base.md)
+* [Building Base Class](modules/core/buildings/base.md)
+* [Parking Building](modules/core/buildings/parking.md)
 * [Site Building](modules/core/buildings/site.md)
 * [Package Data Model](modules/core/packages/package.md)
 
@@ -34,6 +35,7 @@
 * [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
 * [Agent Action Handler](modules/world/sim/handlers/agent.md)
+* [Building Action Handler](modules/world/sim/handlers/building.md)
 * [Map Action Handler](modules/world/sim/handlers/map.md)
 * [Queue Infrastructure](modules/world/sim/queues.md) - Canonical action/signal queues
 * Actions
