@@ -1,11 +1,11 @@
 ---
 title: "Truck - Transport Agent"
-summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state and speed constraints for logistics operations."
+summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state, speed constraints, and explicit route boundary metadata for logistics operations."
 source_paths:
   - "agents/transports/truck.py"
-last_updated: "2025-11-08"
+last_updated: "2025-11-12"
 owner: "Mateusz Polis"
-tags: ["agent", "transport", "simulation", "movement"]
+tags: ["module", "sim"]
 links:
   parent: "../../../SUMMARY.md"
   siblings: ["../base.md", "../buildings/building_agent.md"]
@@ -86,6 +86,8 @@ class Truck:
     edge_progress_m: float  # Distance traveled on current edge
     route: list[NodeID]  # Remaining nodes to visit
     destination: NodeID | None  # Current target node
+    route_start_node: NodeID | None  # Route origin
+    route_end_node: NodeID | None  # Route destination
 ```
 
 ### State Representation
@@ -99,8 +101,10 @@ class Truck:
 - **current_speed_kph:** Actual speed when on edge = `min(max_speed_kph, edge.max_speed_kph)`
 
 **Route state:**
-- **route:** List of NodeIDs to visit (excludes current position)
-- **destination:** Final target node (for completion detection)
+- **route_start_node:** Node where the active route originated
+- **route_end_node:** Final target node for the active route
+- **route:** Remaining NodeIDs to visit (excludes current position)
+- **destination:** Alias maintained for compatibility with existing consumers
 
 ### Data Flow and Interactions
 
@@ -108,7 +112,7 @@ class Truck:
 
 1. **Route planning phase:**
    - If route is empty: pick random destination, compute route via Navigator
-   - Remove current node from route (already at start)
+   - `_set_route` helper stores start/end metadata and trims the current node from the path
 
 2. **Movement phase:**
    - **If at node:** Enter next edge in route
@@ -205,6 +209,7 @@ if current_state == _last_serialized_state:
 **Complexity:** O(k) where k is number of state fields (constant)
 - Dictionary comparison: O(k)
 - Reduces network traffic by 90%+ (only changes sent)
+- Start/end metadata is part of the tracked state, enabling downstream consumers to label entire routes without diffing manually
 
 ## Public API / Usage
 
@@ -246,7 +251,9 @@ if current_state == _last_serialized_state:
   "current_speed_kph": 80.0,
   "current_node": null,
   "current_edge": 42,
-  "edge_progress_m": 15.3
+  "route": [17, 19],
+  "route_start_node": 5,
+  "route_end_node": 19
 }
 ```
 
@@ -278,7 +285,7 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 
 2. **Differential vs Full serialization:**
    - **Choice:** Differential by default, full on demand
-   - **Rationale:** Reduces network traffic, improves scalability
+   - **Rationale:** Reduces network traffic, improves scalability, enriches diffs with route boundary metadata for UI overlays
    - **Trade-off:** Must track last state (small memory overhead)
 
 3. **Random destinations vs Assigned routes:**
@@ -295,6 +302,11 @@ diffs = [d for d in diffs if d is not None]  # Filter None
    - **Choice:** current_node OR current_edge (never both)
    - **Rationale:** Clear state machine, prevents invalid states
    - **Trade-off:** Must handle transitions carefully
+
+6. **Route boundary tracking:**
+   - **Choice:** Persist `route_start_node` and `route_end_node` alongside the mutable route list
+   - **Rationale:** Allows consumers to display full trip context even after intermediate nodes are popped
+   - **Trade-off:** Requires careful resets when routes are discarded or completed
 
 ### Third-party Libraries
 

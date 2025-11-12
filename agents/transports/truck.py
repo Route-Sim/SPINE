@@ -33,6 +33,8 @@ class Truck:
     edge_progress_m: float = 0.0  # Distance traveled on current edge
     route: list[NodeID] = field(default_factory=list)  # Remaining nodes to visit
     destination: NodeID | None = None  # Current target node
+    route_start_node: NodeID | None = None  # Origin node for current route
+    route_end_node: NodeID | None = None  # Destination node for current route
 
     def perceive(self, world: World) -> None:
         """Optional: pull local info into cached fields.
@@ -71,20 +73,34 @@ class Truck:
 
         if not available_nodes:
             # Only one node in graph, nowhere to go
+            self.destination = None
+            self.route_start_node = None
+            self.route_end_node = None
             return
 
         # Pick random destination
         self.destination = random.choice(available_nodes)
 
-        # Compute route using navigator
-        if self.current_node is not None:
-            self.route = world.router.find_route(
-                self.current_node, self.destination, world.graph, self.max_speed_kph
-            )
+        self._set_route(world)
 
-            # Remove first node (current position) from route
-            if self.route and self.route[0] == self.current_node:
-                self.route.pop(0)
+    def _set_route(self, world: World) -> None:
+        """Compute and persist the current route along with its endpoints."""
+        start_node = self.current_node
+        destination = self.destination
+
+        self.route_start_node = start_node
+        self.route_end_node = destination
+
+        if start_node is None or destination is None:
+            self.route = []
+            return
+
+        route = world.router.find_route(start_node, destination, world.graph, self.max_speed_kph)
+
+        if route and route[0] == start_node:
+            route = route[1:]
+
+        self.route = route
 
     def _enter_next_edge(self, world: World) -> None:
         """Transition from current node to next edge in route."""
@@ -106,6 +122,8 @@ class Truck:
             # No edge found, route is invalid - clear it
             self.route = []
             self.destination = None
+            self.route_start_node = None
+            self.route_end_node = None
             return
 
         # Enter the edge
@@ -127,6 +145,8 @@ class Truck:
             self.current_edge = None
             self.route = []
             self.destination = None
+            self.route_start_node = None
+            self.route_end_node = None
             return
 
         # Calculate distance traveled this tick
@@ -149,11 +169,13 @@ class Truck:
             # Check if destination reached
             if self.current_node == self.destination:
                 self.destination = None
+                self.route_start_node = None
+                self.route_end_node = None
 
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
-        Only emits updates when node, edge, speed, or route changes.
+        Only emits updates when node, edge, speed, route, or route boundary metadata changes.
         Does NOT include edge_progress_m as frontend doesn't need it.
         """
         current_state = {
@@ -164,6 +186,8 @@ class Truck:
             "current_node": self.current_node,
             "current_edge": self.current_edge,
             "route": self.route.copy(),  # Include route for frontend
+            "route_start_node": self.route_start_node,
+            "route_end_node": self.route_end_node,
         }
 
         # Compare with last serialized state
@@ -186,6 +210,8 @@ class Truck:
             "edge_progress_m": self.edge_progress_m,
             "route": self.route,
             "destination": self.destination,
+            "route_start_node": self.route_start_node,
+            "route_end_node": self.route_end_node,
             "inbox_count": len(self.inbox),
             "outbox_count": len(self.outbox),
             "tags": self.tags.copy(),
