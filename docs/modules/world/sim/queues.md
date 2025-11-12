@@ -135,6 +135,31 @@ signal_queue.put(create_agent_described_signal(agent_state, tick=state.current_t
 
 This helper pair formalises the request/response contract for on-demand agent inspections without requiring the simulation loop to be running.
 
+### Agent List Round-trip
+
+```python
+from world.sim.queues import create_agent_listed_signal, create_list_agents_action
+
+# Optional filter by kind
+list_action = create_list_agents_action(agent_kind="truck")
+action_queue.put(list_action, timeout=1.0)
+
+# Simulation thread aggregates agent payloads
+agents_payload = [
+    world.agents[agent_id].serialize_full() | {"agent_id": str(agent_id)}
+    for agent_id in world.agents
+]
+signal_queue.put(
+    create_agent_listed_signal(
+        agents=agents_payload,
+        total=len(agents_payload),
+        tick=state.current_tick,
+    )
+)
+```
+
+Use this pattern to provide the UI with a consistent snapshot of all (or filtered) agents without requesting a full state dump.
+
 ### Package Lifecycle Signals
 ```python
 # Package created signal
@@ -200,6 +225,7 @@ site_stats = create_site_stats_signal(
 - `tick_rate.update`: Change simulation speed (`tick_rate` required)
 - `agent.create` / `agent.delete` / `agent.update`: Agent management primitives
 - `agent.describe`: Request the full serialized state for a single agent
+- `agent.list`: Request aggregated serialized state for all agents, optionally filtered by `agent_kind`
 - `map.export` / `map.import` / `map.create`: Map persistence controls
 - `state.request`: Request complete state snapshot
 - `package.create` / `package.cancel`: Package lifecycle (future)
@@ -261,6 +287,7 @@ Use `state.full_map_data` when a complete dump (including building inventories) 
 ### Signal Types
 - `tick.start`/`tick.end`: Tick boundary markers (data includes `tick`)
 - `agent.described`: Full agent snapshot emitted in direct response to `agent.describe` (data includes serialized agent state and `tick`)
+- `agent.listed`: Aggregated agent payload emitted in response to `agent.list` (data includes `total`, `agents`, and `tick`)
 - `agent.updated`: Agent state changes (data includes `agent_id`, `tick`, and agent state)
 - `event.created`: General world events (data includes `tick` and event details)
 - `error`: Error notifications (data includes `code`, `message`, optional `tick`)

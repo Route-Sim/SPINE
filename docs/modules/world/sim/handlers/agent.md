@@ -29,7 +29,9 @@ links:
 ## Responsibilities & Boundaries
 - In-scope
   - Creating, deleting, updating, and describing agents.
+  - Listing agents with optional kind-based filtering via `agent.list`.
   - Emitting `agent.created`, `agent.updated`, and `agent.described` signals with authoritative payloads.
+  - Emitting `agent.listed` snapshots that batch agent states for UI consumption.
   - Surfacing validation failures through `error` signals with contextual metadata.
 - Out-of-scope
   - Long-running simulation logic (delegated to `World` and individual agent implementations).
@@ -40,6 +42,7 @@ links:
   - `AgentActionHandler.handle_create`: Instantiates agents, storing them in the world and broadcasting `agent.created`.
   - `AgentActionHandler.handle_delete` and `.handle_update`: Perform integrity-checked mutations against the world.
   - `AgentActionHandler.handle_describe`: Retrieves a full agent snapshot and emits a dedicated `agent.described` signal including the current tick.
+  - `AgentActionHandler.handle_list`: Aggregates serialized agent states (optionally filtered by `agent_kind`) and emits `agent.listed`.
 - Data flow and interactions
   - Handlers read parameters from the canonical action envelope, interact with the `World`, and write signals into `SignalQueue`.
   - Errors are translated into `error` signals before exceptions bubble upstream, allowing the UI to react immediately.
@@ -69,6 +72,7 @@ links:
 
 ## Implementation Notes
 - `agent.describe` can be invoked regardless of simulation run state, allowing inspectors to fetch data while paused or before the loop starts.
+- `agent.list` reuses `serialize_full()` results, adding a stable `agent_id` field so clients can key lists without relying on tags.
 - The handler reuses `AgentBase.serialize_full()` to guarantee parity with state snapshots and `state.full_agent_data`.
 - Logging differentiates between validation warnings and unexpected errors for easier observability.
 

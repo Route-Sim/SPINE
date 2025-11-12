@@ -35,6 +35,7 @@ class ActionRegistry:
         self.register(ActionType.DELETE_AGENT, AgentActionHandler.handle_delete)
         self.register(ActionType.MODIFY_AGENT, AgentActionHandler.handle_update)
         self.register(ActionType.DESCRIBE_AGENT, AgentActionHandler.handle_describe)
+        self.register(ActionType.LIST_AGENTS, AgentActionHandler.handle_list)
 
         # Map actions
         self.register(ActionType.EXPORT_MAP, MapActionHandler.handle_export)

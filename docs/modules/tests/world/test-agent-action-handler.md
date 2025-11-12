@@ -1,6 +1,6 @@
 ---
 title: "World Test: Agent Action Handler"
-summary: "Explains the regression tests validating the agent action handler, including the new describe workflow and error propagation paths."
+summary: "Explains the regression tests validating the agent action handler, covering describe and list workflows plus error propagation paths."
 source_paths:
   - "tests/world/test_agent_action_handler.py"
 last_updated: "2025-11-12"
@@ -13,11 +13,11 @@ links:
 
 # World Test: Agent Action Handler
 
-> **Purpose:** Documents the pytest coverage for `AgentActionHandler`, ensuring agent lifecycle and describe actions emit the correct signals and enforce state preconditions.
+> **Purpose:** Documents the pytest coverage for `AgentActionHandler`, ensuring agent lifecycle, describe, and list actions emit the correct signals and enforce state preconditions/filter semantics.
 
 ## Context & Motivation
 - Problem solved
-  - Prevent regressions in the newly added `agent.describe` workflow.
+  - Prevent regressions in the `agent.describe` and `agent.list` workflows.
   - Ensure existing lifecycle actions continue to surface errors via the signal queue.
 - Requirements and constraints
   - Tests construct a lightweight `World` with a dummy graph to avoid heavy fixtures.
@@ -29,7 +29,8 @@ links:
 ## Responsibilities & Boundaries
 - In-scope
   - Happy-path describe action confirming `agent.described` payload structure.
-  - Error emission when simulation is not running.
+  - `agent.list` aggregation behaviour, including filters and empty results.
+  - Validation of required parameter types (e.g., non-string filters).
   - Error emission when the target agent is absent.
 - Out-of-scope
   - Full integration tests of the WebSocket boundary (covered elsewhere).
@@ -40,8 +41,8 @@ links:
   - `_DummyGraph`: minimal stub exposing an empty `nodes` mapping for world initialisation.
   - `_build_context`: helper constructing `HandlerContext` with configurable running state.
 - Test flow
-  - Tests enqueue describe actions and immediately inspect the `SignalQueue` for responses or error signals.
-  - Assertions verify both signal type and payload semantics (IDs, tick propagation, error codes).
+  - Tests enqueue describe and list actions and immediately inspect the `SignalQueue` for responses or error signals.
+  - Assertions verify both signal type and payload semantics (IDs, agent counts, tick propagation, error codes).
 - State and concurrency
   - Each test uses isolated `SimulationState` and `SignalQueue` instances to avoid cross-test interference.
 - Resource handling

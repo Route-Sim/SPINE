@@ -31,6 +31,7 @@ links:
   - Registering built-in handlers (simulation, tick-rate, agents, maps, state).
   - Providing helper methods to check and fetch handlers.
   - Coordinating read-only agent introspection via the `agent.describe` action.
+  - Exposing agent aggregation workflows (`agent.list`) alongside mutation handlers.
 - Out-of-scope
   - Executing handlers (delegated to `ActionProcessor`).
   - Parameter validation (handled by handlers themselves).
@@ -39,7 +40,7 @@ links:
 - Key functions, classes, or modules
 - `ActionRegistry`: Holds the mapping and exposes `register`, `get_handler`, `has_handler`.
   - `create_default_registry()`: Populates the default registry used by the controller.
-  - Explicit mapping from `ActionType.DESCRIBE_AGENT` to `AgentActionHandler.handle_describe`, ensuring read-only queries reuse the same context plumbing.
+  - Explicit mappings from `ActionType.DESCRIBE_AGENT` to `AgentActionHandler.handle_describe` and `ActionType.LIST_AGENTS` to `AgentActionHandler.handle_list`, ensuring read-only queries reuse the same context plumbing.
 - Data flow and interactions
   - The controller builds a registry and passes it into the processor.
   - Handlers live under `world.sim.handlers.*`.

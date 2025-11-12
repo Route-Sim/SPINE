@@ -300,6 +300,47 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
+### 6c. agent.list - List Agents (Canonical Format)
+
+**Purpose**: Retrieve serialized states for all agents, optionally filtered by kind.
+
+**Action Type**: `agent.list`
+
+**JSON Example - All Agents**:
+```json
+{
+  "action": "agent.list",
+  "params": {}
+}
+```
+
+**JSON Example - Filter by Kind**:
+```json
+{
+  "action": "agent.list",
+  "params": {
+    "agent_kind": "truck"
+  }
+}
+```
+
+**Parameters**:
+- `agent_kind` (optional, string): Filter results to agents whose `kind` matches.
+
+**Response Signals**:
+- `agent.listed` signal containing `total`, `agents` (list of serialized payloads), and `tick`.
+
+**Error Signals**:
+- `error` with code `GENERIC_ERROR` and descriptive message when validation fails (e.g., non-string `agent_kind`).
+
+**Postman Test**:
+1. Create several agents (e.g., `agent.create` for trucks/buildings).
+2. Send `{ "action": "agent.list", "params": {} }` to fetch all agents.
+3. Optionally filter: `{ "action": "agent.list", "params": { "agent_kind": "truck" } }`.
+4. Observe the `agent.listed` response; each agent entry includes `agent_id`, `kind`, and associated state fields.
+
+---
+
 ### 7. DELETE_AGENT - Remove Agent
 
 **Purpose**: Remove an existing agent from the simulation.
@@ -698,6 +739,50 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.tick`: Simulation tick number when the snapshot was taken.
 
 **When Received**: Immediately after a successful `agent.describe` action.
+
+---
+
+### 3b. AGENT_LISTED - Agent Collection Snapshot
+
+**Purpose**: Returns aggregated serialized state for agents, typically after `agent.list`.
+
+**Signal**: `agent.listed`
+
+**JSON Example**:
+```json
+{
+  "signal": "agent.listed",
+  "data": {
+    "total": 2,
+    "agents": [
+      {
+        "agent_id": "truck-1",
+        "id": "truck-1",
+        "kind": "truck",
+        "inbox_count": 0,
+        "outbox_count": 0,
+        "tags": {}
+      },
+      {
+        "agent_id": "building-1",
+        "id": "building-1",
+        "kind": "building",
+        "inbox_count": 0,
+        "outbox_count": 0,
+        "tags": {}
+      }
+    ],
+    "tick": 120
+  }
+}
+```
+
+**Fields**:
+- `data.total`: Count of agents included after any filtering.
+- `data.agents`: Array of serialized agent payloads (matches `serialize_full()` output plus `agent_id`).
+- `data.tick`: Simulation tick when the snapshot was generated.
+
+**When Received**: After a successful `agent.list` action.
 
 ---
 

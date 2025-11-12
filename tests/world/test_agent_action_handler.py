@@ -77,3 +77,62 @@ def test_handle_describe_agent_not_found() -> None:
     assert error_signal is not None
     assert error_signal.signal == SignalType.ERROR.value
     assert "agent-unknown" in error_signal.data["message"]
+
+
+def test_handle_list_returns_all_agents() -> None:
+    """Ensure list action returns all agents with full state."""
+    context = _build_context()
+    truck_id = AgentID("truck-1")
+    building_id = AgentID("building-1")
+    context.world.add_agent(truck_id, AgentBase(id=truck_id, kind="truck"))
+    context.world.add_agent(building_id, AgentBase(id=building_id, kind="building"))
+
+    AgentActionHandler.handle_list({}, context)
+
+    signal = context.signal_queue.get_nowait()
+    assert signal is not None
+    assert signal.signal == SignalType.AGENT_LISTED.value
+    assert signal.data["total"] == 2
+    agent_ids = {agent["agent_id"] for agent in signal.data["agents"]}
+    assert agent_ids == {truck_id, building_id}
+
+
+def test_handle_list_filters_by_kind() -> None:
+    """Ensure list action filters by agent kind when provided."""
+    context = _build_context()
+    truck_id = AgentID("truck-1")
+    building_id = AgentID("building-1")
+    context.world.add_agent(truck_id, AgentBase(id=truck_id, kind="truck"))
+    context.world.add_agent(building_id, AgentBase(id=building_id, kind="building"))
+
+    AgentActionHandler.handle_list({"agent_kind": "truck"}, context)
+
+    signal = context.signal_queue.get_nowait()
+    assert signal is not None
+    assert signal.signal == SignalType.AGENT_LISTED.value
+    assert signal.data["total"] == 1
+    returned_agents = signal.data["agents"]
+    assert len(returned_agents) == 1
+    assert returned_agents[0]["agent_id"] == truck_id
+    assert returned_agents[0]["kind"] == "truck"
+
+
+def test_handle_list_invalid_filter_type() -> None:
+    """Ensure invalid filter types raise a ValueError."""
+    context = _build_context()
+
+    with pytest.raises(ValueError, match="agent_kind must be a string"):
+        AgentActionHandler.handle_list({"agent_kind": 123}, context)
+
+
+def test_handle_list_handles_empty_world() -> None:
+    """Ensure list action succeeds when no agents are present."""
+    context = _build_context()
+
+    AgentActionHandler.handle_list({}, context)
+
+    signal = context.signal_queue.get_nowait()
+    assert signal is not None
+    assert signal.signal == SignalType.AGENT_LISTED.value
+    assert signal.data["total"] == 0
+    assert signal.data["agents"] == []

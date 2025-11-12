@@ -36,6 +36,10 @@ links:
 
 **agent.described**: Canonical signal emitted in response to `agent.describe`, carrying the agent's full serialized state together with the current simulation tick.
 
+**agent.list**: Canonical action requesting aggregated serialized snapshots for every agent, optionally filtered by `agent_kind`. Returns an `agent.listed` signal containing `total`, `agents`, and `tick`.
+
+**agent.listed**: Canonical signal emitted after `agent.list`, bundling all matching agent payloads alongside the current tick for synchronized UI updates.
+
 **Agent**: An autonomous entity within the simulation that perceives its environment and acts according to defined behavioral rules. Agents may represent mobile entities (moving along the Edges), stationary entities (Buildings located at Nodes), or external entities not directly represented on the Map (e.g. a Broker agent coordinating routes). Each agent type possesses its own set of attributes and decision-making logic, allowing for dynamic interactions and emergent behaviors within the simulated Logistics Network.
 
 **Agentic System**: A multi-agent environment operating within the Logistics Network, composed of autonomous Agents that perceive their surroundings, make decisions and act according to predefined or adaptive behavioral rules. The Agentic System governs the interactions between Agents such as Vehicles, Buildings or Brokers and their responses to Events occurring across the Map.

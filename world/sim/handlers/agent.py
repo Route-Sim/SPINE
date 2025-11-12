@@ -10,6 +10,7 @@ from ..queues import (
     Signal,
     SignalType,
     create_agent_described_signal,
+    create_agent_listed_signal,
     create_error_signal,
 )
 from .base import HandlerContext
@@ -251,4 +252,52 @@ class AgentActionHandler:
                 exc_info=True,
             )
             _emit_error(context, f"Failed to describe agent: {exc}")
+            raise
+
+    @staticmethod
+    def handle_list(params: dict[str, Any], context: HandlerContext) -> None:
+        """Handle list agent action by returning all matching agent states.
+
+        Args:
+            params: Action parameters (optional 'agent_kind')
+            context: Handler context
+
+        Raises:
+            ValueError: If provided filters are invalid
+        """
+        agent_kind_filter: str | None = None
+        if "agent_kind" in params:
+            agent_kind_value = params["agent_kind"]
+            if not isinstance(agent_kind_value, str):
+                raise ValueError("agent_kind must be a string")
+            agent_kind_filter = agent_kind_value
+
+        agents_data: list[dict[str, Any]] = []
+        for agent in context.world.agents.values():
+            if agent_kind_filter is not None and agent.kind != agent_kind_filter:
+                continue
+            agent_state = agent.serialize_full()
+            agent_state["agent_id"] = str(agent_state.get("id", agent.id))
+            agents_data.append(agent_state)
+
+        try:
+            context.signal_queue.put(
+                create_agent_listed_signal(
+                    agents=agents_data,
+                    total=len(agents_data),
+                    tick=context.state.current_tick,
+                ),
+                timeout=1.0,
+            )
+            context.logger.info(
+                "Listed %s agents%s",
+                len(agents_data),
+                f" of kind {agent_kind_filter}" if agent_kind_filter else "",
+            )
+        except Exception as exc:
+            context.logger.error(
+                f"Failed to emit agent.listed signal (filter={agent_kind_filter}): {exc}",
+                exc_info=True,
+            )
+            _emit_error(context, f"Failed to list agents: {exc}")
             raise
