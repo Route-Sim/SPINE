@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0](https://github.com/Route-Sim/SPINE/compare/v0.15.0...v0.16.0) (2025-11-12)
+
+
+### 🚀 Features
+
+* **agent:** add agent.list action and agent.listed signal for retrieving agent states ([2738f56](https://github.com/Route-Sim/SPINE/commit/2738f565c5ac926af49039bf9e202b589ac052c2))
+
 ## [0.15.0](https://github.com/Route-Sim/SPINE/compare/v0.14.1...v0.15.0) (2025-11-12)
 
 
