@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0](https://github.com/Route-Sim/SPINE/compare/v0.17.0...v0.18.0) (2025-11-12)
+
+
+### 🚀 Features
+
+* **building:** introduce Parking building type with capacity management and serialization ([43a2652](https://github.com/Route-Sim/SPINE/commit/43a2652f76af9d0fd4327a6c04c309dce0753d39))
+
 ## [0.17.0](https://github.com/Route-Sim/SPINE/compare/v0.16.0...v0.17.0) (2025-11-12)
 
 
