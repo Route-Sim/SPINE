@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0](https://github.com/Route-Sim/SPINE/compare/v0.16.0...v0.17.0) (2025-11-12)
+
+
+### 🚀 Features
+
+* **agent:** add route boundary metadata to Truck transport agent ([77a129e](https://github.com/Route-Sim/SPINE/commit/77a129ec15c6366f337df522e7e4eb5bdd828e39))
+
 ## [0.16.0](https://github.com/Route-Sim/SPINE/compare/v0.15.0...v0.16.0) (2025-11-12)
 
 
