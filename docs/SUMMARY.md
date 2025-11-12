@@ -33,6 +33,7 @@
 * [Map Generation](modules/world/generation.md)
 * [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
+* [Agent Action Handler](modules/world/sim/handlers/agent.md)
 * [Map Action Handler](modules/world/sim/handlers/map.md)
 * [Queue Infrastructure](modules/world/sim/queues.md) - Canonical action/signal queues
 * Actions
@@ -54,6 +55,7 @@
 * [World/test_sim_runner](modules/tests/world/test-sim-runner.md)
 * [World/test_websocket_server](modules/tests/world/test-websocket-server.md)
 * [World/test_graph_graphml](modules/tests/world/test-graph-graphml.md)
+* [World/test_agent_action_handler](modules/tests/world/test-agent-action-handler.md)
 
 ### Scripts
 * [Validate Commit](modules/scripts/validate-commit.md)

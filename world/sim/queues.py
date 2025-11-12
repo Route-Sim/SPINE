@@ -21,6 +21,7 @@ class ActionType(str, Enum):
     ADD_AGENT = "agent.create"
     DELETE_AGENT = "agent.delete"
     MODIFY_AGENT = "agent.update"
+    DESCRIBE_AGENT = "agent.describe"
     EXPORT_MAP = "map.export"
     IMPORT_MAP = "map.import"
     CREATE_MAP = "map.create"
@@ -38,6 +39,7 @@ class SignalType(str, Enum):
     TICK_END = "tick.end"
     AGENT_CREATED = "agent.created"
     AGENT_UPDATE = "agent.updated"
+    AGENT_DESCRIBED = "agent.described"
     WORLD_EVENT = "event.created"
     ERROR = "error"
     SIMULATION_STARTED = "simulation.started"
@@ -205,6 +207,11 @@ def create_add_agent_action(
     )
 
 
+def create_describe_agent_action(agent_id: str) -> ActionRequest:
+    """Create a describe agent action."""
+    return _create_action(ActionType.DESCRIBE_AGENT, {"agent_id": agent_id})
+
+
 def create_export_map_action(map_name: str) -> ActionRequest:
     """Create an export map action."""
     return _create_action(ActionType.EXPORT_MAP, {"map_name": map_name})
@@ -230,6 +237,12 @@ def create_agent_update_signal(agent_id: str, data: dict[str, Any], tick: int) -
     """Create an agent update signal."""
     signal_data = {**data, "agent_id": agent_id, "tick": tick}
     return Signal(signal=signal_type_to_string(SignalType.AGENT_UPDATE), data=signal_data)
+
+
+def create_agent_described_signal(agent_state: dict[str, Any], tick: int) -> Signal:
+    """Create an agent described signal with the complete agent state."""
+    signal_data = {**agent_state, "tick": tick}
+    return Signal(signal=signal_type_to_string(SignalType.AGENT_DESCRIBED), data=signal_data)
 
 
 def create_world_event_signal(data: dict[str, Any], tick: int) -> Signal:

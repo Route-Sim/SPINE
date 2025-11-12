@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-11-08"
+last_updated: "2025-11-12"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -31,6 +31,10 @@ links:
 **ActionRegistry**: Central mapping in `world.sim.actions` that binds canonical action identifiers to their handler functions.
 
 **ActionProcessor**: Execution orchestrator in `world.sim.actions` that resolves handlers from the registry, invokes them with context, and emits error signals when necessary.
+
+**agent.describe**: Canonical action requesting a full serialized snapshot of a specific agent. Emits an `agent.described` signal on success, or an `error` signal if validation fails.
+
+**agent.described**: Canonical signal emitted in response to `agent.describe`, carrying the agent's full serialized state together with the current simulation tick.
 
 **Agent**: An autonomous entity within the simulation that perceives its environment and acts according to defined behavioral rules. Agents may represent mobile entities (moving along the Edges), stationary entities (Buildings located at Nodes), or external entities not directly represented on the Map (e.g. a Broker agent coordinating routes). Each agent type possesses its own set of attributes and decision-making logic, allowing for dynamic interactions and emergent behaviors within the simulated Logistics Network.
 

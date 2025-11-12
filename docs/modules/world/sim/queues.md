@@ -4,12 +4,12 @@ summary: "Thread-safe queues exposing canonical <domain>.<action>/<signal> envel
 source_paths:
   - "world/sim/queues.py"
   - "tests/world/test_sim_queues.py"
-last_updated: "2025-11-08"
+last_updated: "2025-11-12"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
   parent: "../../SUMMARY.md"
-  siblings: ["controller.md", "handlers/map.md", "../../io/websocket_server.md"]
+  siblings: ["controller.md", "handlers/agent.md", "handlers/map.md", "../../io/websocket_server.md"]
 ---
 
 # Simulation Queue Infrastructure
@@ -113,6 +113,28 @@ signal = signal_queue.get_nowait()
 }
 ```
 
+### Agent Describe Round-trip
+
+```python
+from core.types import AgentID
+from world.sim.queues import (
+    create_agent_described_signal,
+    create_describe_agent_action,
+)
+
+# Build a describe request from the frontend thread
+describe_action = create_describe_agent_action(agent_id="truck-1")
+action_queue.put(describe_action, timeout=1.0)
+
+# Later, emit the corresponding response signal from the simulation thread
+# `world` references the HandlerContext.world instance in the simulation loop
+agent_state = world.agents[AgentID("truck-1")].serialize_full()
+# `state` references the current `SimulationState` on the simulation thread
+signal_queue.put(create_agent_described_signal(agent_state, tick=state.current_tick))
+```
+
+This helper pair formalises the request/response contract for on-demand agent inspections without requiring the simulation loop to be running.
+
 ### Package Lifecycle Signals
 ```python
 # Package created signal
@@ -177,6 +199,7 @@ site_stats = create_site_stats_signal(
 - `simulation.pause` / `simulation.resume`: Pause or resume the loop
 - `tick_rate.update`: Change simulation speed (`tick_rate` required)
 - `agent.create` / `agent.delete` / `agent.update`: Agent management primitives
+- `agent.describe`: Request the full serialized state for a single agent
 - `map.export` / `map.import` / `map.create`: Map persistence controls
 - `state.request`: Request complete state snapshot
 - `package.create` / `package.cancel`: Package lifecycle (future)
@@ -237,6 +260,7 @@ Use `state.full_map_data` when a complete dump (including building inventories) 
 
 ### Signal Types
 - `tick.start`/`tick.end`: Tick boundary markers (data includes `tick`)
+- `agent.described`: Full agent snapshot emitted in direct response to `agent.describe` (data includes serialized agent state and `tick`)
 - `agent.updated`: Agent state changes (data includes `agent_id`, `tick`, and agent state)
 - `event.created`: General world events (data includes `tick` and event details)
 - `error`: Error notifications (data includes `code`, `message`, optional `tick`)

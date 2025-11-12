@@ -6,7 +6,12 @@ from typing import Any
 from core.types import AgentID, NodeID
 from world.graph.graph import Graph
 
-from ..queues import Signal, SignalType, create_error_signal
+from ..queues import (
+    Signal,
+    SignalType,
+    create_agent_described_signal,
+    create_error_signal,
+)
 from .base import HandlerContext
 
 
@@ -204,4 +209,46 @@ class AgentActionHandler:
         except Exception as e:
             context.logger.error(f"Failed to modify agent {agent_id_str}: {e}", exc_info=True)
             _emit_error(context, f"Failed to update agent: {e}")
+            raise
+
+    @staticmethod
+    def handle_describe(params: dict[str, Any], context: HandlerContext) -> None:
+        """Handle describe agent action by returning the full agent state.
+
+        Args:
+            params: Action parameters (required 'agent_id')
+            context: Handler context
+
+        Raises:
+            ValueError: If simulation is not running or agent_id is missing/unknown
+        """
+        if "agent_id" not in params:
+            raise ValueError("agent_id is required for agent.describe action")
+
+        agent_id_str = params["agent_id"]
+        if not isinstance(agent_id_str, str):
+            raise ValueError("agent_id must be a string")
+
+        agent_id = AgentID(agent_id_str)
+        agent = context.world.agents.get(agent_id)
+        if agent is None:
+            message = f"Agent not found: {agent_id_str}"
+            context.logger.warning(message)
+            _emit_error(context, message)
+            raise ValueError(message)
+
+        agent_state = agent.serialize_full()
+
+        try:
+            context.signal_queue.put(
+                create_agent_described_signal(agent_state, context.state.current_tick),
+                timeout=1.0,
+            )
+            context.logger.info(f"Described agent: {agent_id_str}")
+        except Exception as exc:
+            context.logger.error(
+                f"Failed to emit agent.described signal for {agent_id_str}: {exc}",
+                exc_info=True,
+            )
+            _emit_error(context, f"Failed to describe agent: {exc}")
             raise

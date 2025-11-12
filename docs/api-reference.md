@@ -264,6 +264,42 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
+### 6b. agent.describe - Describe Agent (Canonical Format)
+
+**Purpose**: Retrieve the full serialized state for a single agent on demand.
+
+**Action Type**: `agent.describe`
+
+**JSON Example**:
+```json
+{
+  "action": "agent.describe",
+  "params": {
+    "agent_id": "truck-1"
+  }
+}
+```
+
+**Parameters**:
+- `agent_id` (required, string): Identifier of the agent to inspect.
+
+**Prerequisites**:
+- The requested agent must already exist in the world.
+
+**Response Signals**:
+- `agent.described` signal containing the full agent payload plus the current simulation tick.
+
+**Error Signals**:
+- `error` with code `GENERIC_ERROR` and descriptive message when the agent cannot be found.
+
+**Postman Test**:
+1. Start the simulation: `{"action": "simulation.start", "params": {}}`
+2. Create an agent (e.g., `agent.create` as shown above).
+3. Send the describe request JSON shown here.
+4. Observe the `agent.described` signal containing the same serialized structure emitted during state snapshots.
+
+---
+
 ### 7. DELETE_AGENT - Remove Agent
 
 **Purpose**: Remove an existing agent from the simulation.
@@ -627,6 +663,41 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.destination`: null initially
 
 **When Received**: Immediately after `agent.create` action is processed
+
+---
+
+### 3a. AGENT_DESCRIBED - Agent Snapshot Response
+
+**Purpose**: Returns the full serialized state for a specific agent requested through `agent.describe`.
+
+**Signal**: `agent.described`
+
+**JSON Example**:
+```json
+{
+  "signal": "agent.described",
+  "data": {
+    "id": "truck-1",
+    "kind": "truck",
+    "max_speed_kph": 100.0,
+    "current_speed_kph": 0.0,
+    "current_node": 5,
+    "current_edge": null,
+    "route": [],
+    "destination": null,
+    "inbox_count": 0,
+    "outbox_count": 0,
+    "tags": {},
+    "tick": 120
+  }
+}
+```
+
+**Fields**:
+- Identical to `agent.created`, reflecting the current full state of the agent.
+- `data.tick`: Simulation tick number when the snapshot was taken.
+
+**When Received**: Immediately after a successful `agent.describe` action.
 
 ---
 
