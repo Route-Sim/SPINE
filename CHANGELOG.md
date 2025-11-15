@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.0](https://github.com/Route-Sim/SPINE/compare/v0.20.0...v0.21.0) (2025-11-15)
+
+
+### 🚀 Features
+
+* **map:** enhance map creation to include complete graph snapshots with buildings ([2768194](https://github.com/Route-Sim/SPINE/commit/2768194bf0cdcc45a66e8a6516ac8dbb6f8e283c))
+
 ## [0.20.0](https://github.com/Route-Sim/SPINE/compare/v0.19.0...v0.20.0) (2025-11-15)
 
 
