@@ -13,7 +13,7 @@ links:
 
 # Map Action Handler
 
-> **Purpose:** Provides the simulation-facing implementation of map lifecycle commands. It validates procedural generation parameters, mediates GraphML import/export, coordinates world state swaps, and now emits enriched `map.created` signals containing a lightweight graph snapshot.
+> **Purpose:** Provides the simulation-facing implementation of map lifecycle commands. It validates procedural generation parameters, mediates GraphML import/export, coordinates world state swaps, and now emits enriched `map.created` signals containing a complete graph snapshot with buildings.
 
 ## Context & Motivation
 - Supports frontend-driven orchestration of map generation, export, and import.
@@ -26,7 +26,7 @@ links:
   - Validate `map.create`, `map.export`, and `map.import` parameters.
   - Invoke the procedural `MapGenerator` and replace the active `world.graph`.
   - Emit canonical signals (`map.created`, `map.exported`, `map.imported`) and structured error messages.
-  - Serialize a node/edge snapshot for the freshly generated graph without leaking building payloads.
+  - Serialize a complete graph snapshot for the freshly generated graph including all nodes, edges, and buildings.
 - **Out-of-scope**
   - Low-level map generation algorithms (`world/generation`).
   - Graph persistence mechanics (`world/io/map_manager.py`).
@@ -35,7 +35,7 @@ links:
 ## Architecture & Design
 - **Validation Layer:** Sequential checks ensure required parameters exist and conform to expected ranges/types before generation.
 - **Generation Pipeline:** Builds a `GenerationParams` dataclass, runs `MapGenerator.generate()`, and installs the resulting `Graph` into `context.world`.
-- **Graph Snapshot:** `_serialize_graph_structure` converts the in-memory `Graph` into `{nodes, edges}` lists with numeric attributes ready for JSON encoding and free of building/agent payloads.
+- **Graph Snapshot:** Uses `Graph.to_dict()` to serialize the in-memory `Graph` into `{nodes, edges}` lists with all node attributes including buildings, ready for JSON encoding.
 - **Signal Emission:** Uses queue helpers (`create_map_created_signal`, etc.) to publish success events; `_emit_error` funnels problems into the standard `error` signal stream.
 
 ## Algorithms & Complexity
@@ -47,12 +47,12 @@ links:
 - Triggered via WebSocket action envelopes `{"action": "map.create", "params": {...}}`.
 - Upon success, emits `map.created` with:
   - Generation metrics (dimensions, densities, connectivity parameters, counts).
-  - `graph.nodes`: array of `{id, x, y}` objects.
+  - `graph.nodes`: array of `{id, x, y, buildings}` objects where `buildings` is an array of serialized building objects.
   - `graph.edges`: array of `{id, from_node, to_node, length_m, mode, road_class, lanes, max_speed_kph, weight_limit_kg}` objects.
 - Errors surface as `error` signals with descriptive messages when validation fails or I/O exceptions occur.
 
 ## Implementation Notes
-- `_serialize_graph_structure` intentionally omits building inventories; consumers should request `state.full_map_data` for full fidelity snapshots.
+- Uses `Graph.to_dict()` to serialize the complete graph structure including all buildings in nodes. The signal provides full graph fidelity without requiring a separate `state.full_map_data` request.
 - The handler logs success/error messages with structured dictionaries for observability, leveraging the same payload sent to the frontend.
 - Map mutations are guarded by `context.state.running` to maintain simulation consistency.
 

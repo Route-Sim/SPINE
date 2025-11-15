@@ -1106,8 +1106,8 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "generated_sites": 45,
     "graph": {
       "nodes": [
-        {"id": "1", "x": 0.0, "y": 0.0},
-        {"id": "2", "x": 120.0, "y": 45.0}
+        {"id": "1", "x": 0.0, "y": 0.0, "buildings": []},
+        {"id": "2", "x": 120.0, "y": 45.0, "buildings": [{"id": "site-1", "type": "site", "name": "Site 1", "activity_rate": 10.0, "destination_weights": {}, "package_config": {}, "active_packages": [], "statistics": {"packages_generated": 0, "packages_picked_up": 0, "packages_delivered": 0, "packages_expired": 0, "total_value_delivered": 0.0, "total_value_expired": 0.0}}]}
       ],
       "edges": [
         {
@@ -1151,10 +1151,10 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created
 - `data.generated_sites`: Actual number of site buildings placed
-- `data.graph.nodes`: Simplified node list (id/x/y) for immediate rendering
-- `data.graph.edges`: Simplified edge list with topology and road attributes (no buildings/agents)
+- `data.graph.nodes`: Complete node list with id, x, y coordinates, and buildings array (each building serialized with all attributes)
+- `data.graph.edges`: Complete edge list with topology and road attributes
 
-**When Received**: After successful procedural map generation with hierarchical algorithm. Use `state.full_map_data` if the frontend needs full node building inventories.
+**When Received**: After successful procedural map generation with hierarchical algorithm. The signal includes complete graph data with all buildings, providing full map fidelity.
 
 ---
 

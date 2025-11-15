@@ -284,7 +284,7 @@ All contextual information (tick, agent_id, error messages, etc.) is consolidate
 
 ### `map.created` Payload
 
-The `map.created` helper now embeds a lightweight graph snapshot alongside generation metadata. The snapshot omits building payloads and agent data to keep the signal concise.
+The `map.created` helper embeds a complete graph snapshot alongside generation metadata. The snapshot includes all nodes with their buildings, edges, and all graph structure data.
 
 ```json
 {
@@ -295,8 +295,8 @@ The `map.created` helper now embeds a lightweight graph snapshot alongside gener
     "generated_sites": 45,
     "graph": {
       "nodes": [
-        {"id": "1", "x": 0.0, "y": 0.0},
-        {"id": "2", "x": 120.0, "y": 45.0}
+        {"id": "1", "x": 0.0, "y": 0.0, "buildings": []},
+        {"id": "2", "x": 120.0, "y": 45.0, "buildings": [{"id": "site-1", "type": "site", ...}]}
       ],
       "edges": [
         {
@@ -316,7 +316,7 @@ The `map.created` helper now embeds a lightweight graph snapshot alongside gener
 }
 ```
 
-Use `state.full_map_data` when a complete dump (including building inventories) is required.
+The signal includes complete graph data with all buildings, providing full map fidelity in a single response.
 
 ### Signal Types
 - `tick.start`/`tick.end`: Tick boundary markers (data includes `tick`)
