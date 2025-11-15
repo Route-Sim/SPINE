@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0](https://github.com/Route-Sim/SPINE/compare/v0.19.0...v0.20.0) (2025-11-15)
+
+
+### 🚀 Features
+
+* **building:** enhance building.create action to support multiple building types ([5427956](https://github.com/Route-Sim/SPINE/commit/542795620f82dcb8f87f2cba4334293e83691bdd))
+
 ## [0.19.0](https://github.com/Route-Sim/SPINE/compare/v0.18.0...v0.19.0) (2025-11-12)
 
 
