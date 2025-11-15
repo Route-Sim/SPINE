@@ -598,7 +598,7 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 13. BUILDING_CREATE - Provision Parking Building
 
-**Purpose**: Provision a capacity-limited parking facility on an existing node.
+**Purpose**: Provision a building facility on an existing node. Currently supports parking buildings with capacity limits.
 
 **Action Type**: `building.create`
 
@@ -609,19 +609,21 @@ Actions are commands sent from the Frontend to control the simulation.
   "params": {
     "building_id": "parking-node42",
     "node_id": 42,
-    "capacity": 40
+    "capacity": 40,
+    "building_type": "parking"
   }
 }
 ```
 
 **Parameters**:
-- `building_id` (required, string): Unique identifier for the parking building.
+- `building_type` (required, string): Type of building to create. Currently only `"parking"` is supported.
+- `building_id` (required, string): Unique identifier for the building.
 - `node_id` (required, integer): Graph node (host) that already exists in the generated map.
-- `capacity` (required, integer): Maximum number of trucks the parking can host; must be positive.
-- `building_type` (optional, string): Defaults to `"parking"`. Non-parking types are rejected until future extensions land.
+- `capacity` (required, integer): Maximum number of trucks the parking can host; must be positive. (Required for parking buildings)
 
 **Notes**:
-- Validation fails if the node is missing or the ID collides with an existing building.
+- `building_type` must be explicitly specified. Only `"parking"` is currently supported; other types will be rejected with an error.
+- Validation fails if the node is missing, the ID collides with an existing building, or an unsupported building type is specified.
 - Successful execution mutates the world graph in-place and emits a `building.created` signal with canonical payload (`current_agents` starts empty until future routing logic assigns trucks).
 
 **Postman Test**:
@@ -1631,6 +1633,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
    {
      "action": "building.create",
      "params": {
+       "building_type": "parking",
        "building_id": "parking-node42",
        "node_id": 42,
        "capacity": 40

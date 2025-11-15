@@ -335,9 +335,19 @@ def create_map_created_signal(data: dict[str, Any]) -> Signal:
 
 
 def create_building_create_action(
-    building_id: str, node_id: int, capacity: int, building_type: str = "parking"
+    building_id: str, node_id: int, capacity: int, building_type: str
 ) -> ActionRequest:
-    """Create a building create action."""
+    """Create a building create action.
+
+    Args:
+        building_id: Unique identifier for the building
+        node_id: Graph node identifier where the building will be placed
+        capacity: Building capacity (type-specific, e.g., parking capacity)
+        building_type: Type of building to create (e.g., "parking")
+
+    Returns:
+        ActionRequest for building.create action
+    """
     params: dict[str, Any] = {
         "building_id": building_id,
         "node_id": node_id,
