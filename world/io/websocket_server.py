@@ -12,11 +12,10 @@ from ..sim.actions.action_parser import ActionParser
 from ..sim.queues import (
     ActionQueue,
     SignalQueue,
-    create_full_agent_data_signal,
-    create_full_map_data_signal,
-    create_state_snapshot_end_signal,
-    create_state_snapshot_start_signal,
+    create_agent_listed_signal,
+    create_map_created_signal,
 )
+from ..sim.utils import collect_agents_data
 
 
 class ConnectionManager:
@@ -115,16 +114,8 @@ class WebSocketServer:
             connection_id = f"conn_{id(websocket)}"
             await self.manager.connect(websocket, connection_id)
 
-            # Send state snapshot if simulation is running or paused
-            if self.controller and self.controller.state.running:
-                self.logger.info(
-                    f"Sending state snapshot to new client {connection_id} (simulation running: {self.controller.state.running}, paused: {self.controller.state.paused})"
-                )
-                await self._send_state_snapshot_to_client(websocket)
-            else:
-                self.logger.info(
-                    f"Not sending state snapshot to new client {connection_id} (controller: {self.controller is not None}, running: {self.controller.state.running if self.controller else 'N/A'})"
-                )
+            # Send map and agents to new client if map exists
+            await self._send_map_and_agents_to_client(websocket, connection_id)
 
             try:
                 while True:
@@ -277,30 +268,31 @@ class WebSocketServer:
         """Get the FastAPI application."""
         return self.app
 
-    async def _send_state_snapshot_to_client(self, websocket: WebSocket) -> None:
-        """Send complete state snapshot to a specific client."""
+    async def _send_map_and_agents_to_client(
+        self, websocket: WebSocket, connection_id: str
+    ) -> None:
+        """Send map.created and agent.listed signals to a new client if map exists."""
         try:
-            self.logger.info("Starting state snapshot transmission to client")
+            # Check if controller and world are available
+            if not self.controller or not self.controller.world:
+                self.logger.debug(
+                    f"Controller or world not available for client {connection_id}, skipping map/agent transmission"
+                )
+                return
 
-            # Get full state from controller's world
-            full_state = self.controller.world.get_full_state()
+            # Check if map exists (has nodes)
+            if self.controller.world.graph.get_node_count() == 0:
+                self.logger.debug(
+                    f"Map not yet created for client {connection_id}, skipping transmission (will receive map.created when map is created)"
+                )
+                return
+
             self.logger.info(
-                f"Retrieved full state: {len(full_state['agents'])} agents, {len(full_state['graph']['nodes'])} nodes, {len(full_state['graph']['edges'])} edges"
+                f"Sending map and agents to new client {connection_id} (map has {self.controller.world.graph.get_node_count()} nodes)"
             )
 
-            # Send start signal
-            start_signal = create_state_snapshot_start_signal()
-            await self.manager.send_personal_message(
-                orjson.dumps(
-                    _ensure_str_keys(start_signal.model_dump()),
-                    option=orjson.OPT_NON_STR_KEYS,
-                ).decode(),
-                websocket,
-            )
-            self.logger.info("Sent state_snapshot_start signal")
-
-            # Send map data
-            map_signal = create_full_map_data_signal(full_state["graph"])
+            # Send map.created signal with graph data
+            map_signal = create_map_created_signal({"graph": self.controller.world.graph.to_dict()})
             await self.manager.send_personal_message(
                 orjson.dumps(
                     _ensure_str_keys(map_signal.model_dump()),
@@ -308,35 +300,30 @@ class WebSocketServer:
                 ).decode(),
                 websocket,
             )
-            self.logger.info("Sent full_map_data signal")
+            self.logger.info("Sent map.created signal")
 
-            # Send agent data for each agent
-            for agent_data in full_state["agents"]:
-                agent_signal = create_full_agent_data_signal(agent_data)
-                await self.manager.send_personal_message(
-                    orjson.dumps(
-                        _ensure_str_keys(agent_signal.model_dump()),
-                        option=orjson.OPT_NON_STR_KEYS,
-                    ).decode(),
-                    websocket,
-                )
-            self.logger.info(f"Sent {len(full_state['agents'])} full_agent_data signals")
+            # Collect all agents using utility function
+            agents_data = collect_agents_data(self.controller.world)
 
-            # Send end signal
-            end_signal = create_state_snapshot_end_signal()
+            # Send agent.listed signal
+            agent_listed_signal = create_agent_listed_signal(
+                agents=agents_data,
+                total=len(agents_data),
+                tick=self.controller.state.current_tick,
+            )
             await self.manager.send_personal_message(
                 orjson.dumps(
-                    _ensure_str_keys(end_signal.model_dump()),
+                    _ensure_str_keys(agent_listed_signal.model_dump()),
                     option=orjson.OPT_NON_STR_KEYS,
                 ).decode(),
                 websocket,
             )
-            self.logger.info("Sent state_snapshot_end signal")
-
-            self.logger.info("State snapshot sent to new client")
+            self.logger.info(f"Sent agent.listed signal with {len(agents_data)} agents")
 
         except Exception as e:
-            self.logger.error(f"Error sending state snapshot to client: {e}", exc_info=True)
+            self.logger.error(
+                f"Error sending map and agents to client {connection_id}: {e}", exc_info=True
+            )
 
 
 # Convenience function for creating common client messages

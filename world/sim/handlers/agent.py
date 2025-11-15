@@ -13,6 +13,7 @@ from ..queues import (
     create_agent_listed_signal,
     create_error_signal,
 )
+from ..utils import collect_agents_data
 from .base import HandlerContext
 
 
@@ -272,13 +273,7 @@ class AgentActionHandler:
                 raise ValueError("agent_kind must be a string")
             agent_kind_filter = agent_kind_value
 
-        agents_data: list[dict[str, Any]] = []
-        for agent in context.world.agents.values():
-            if agent_kind_filter is not None and agent.kind != agent_kind_filter:
-                continue
-            agent_state = agent.serialize_full()
-            agent_state["agent_id"] = str(agent_state.get("id", agent.id))
-            agents_data.append(agent_state)
+        agents_data = collect_agents_data(context.world, agent_kind_filter)
 
         try:
             context.signal_queue.put(

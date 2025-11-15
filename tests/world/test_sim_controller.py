@@ -347,8 +347,8 @@ class TestSimulationController:
         # Verify simulation stopped
         assert not self.controller.state.running
 
-    def test_state_snapshot_on_start(self) -> None:
-        """Test that state snapshot is emitted when simulation starts."""
+    def test_simulation_started_signal_on_start(self) -> None:
+        """Test that simulation.started signal is emitted when simulation starts (no snapshot)."""
         # Start controller
         self.controller.start()
 
@@ -381,19 +381,20 @@ class TestSimulationController:
         # Stop controller
         self.controller.stop()
 
-        # Check for state snapshot signals
+        # Check for signals
         signals = []
         while not self.signal_queue.empty():
             signal = self.signal_queue.get_nowait()
             if signal:
                 signals.append(signal)
 
-        # Should have simulation_started, state_snapshot_start, full_map_data, state_snapshot_end
+        # Should have simulation_started, but NOT state snapshot signals
         signal_strings = [s.signal for s in signals]
         assert signal_type_to_string(SignalType.SIMULATION_STARTED) in signal_strings
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_START) in signal_strings
-        assert signal_type_to_string(SignalType.FULL_MAP_DATA) in signal_strings
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_END) in signal_strings
+        # Verify snapshot signals are NOT present
+        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_START) not in signal_strings
+        assert signal_type_to_string(SignalType.FULL_MAP_DATA) not in signal_strings
+        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_END) not in signal_strings
 
     def test_request_state_action(self) -> None:
         """Test REQUEST_STATE action handling."""
