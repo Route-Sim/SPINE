@@ -26,8 +26,6 @@ class ActionType(str, Enum):
     EXPORT_MAP = "map.export"
     IMPORT_MAP = "map.import"
     CREATE_MAP = "map.create"
-    CREATE_PACKAGE = "package.create"  # TODO: DELETE
-    CANCEL_PACKAGE = "package.cancel"  # TODO: DELETE
     ADD_SITE = "site.create"  # TODO: should be part of building.create action
     MODIFY_SITE = "site.update"  # TODO: should be part of building.update action
     CREATE_BUILDING = "building.create"
