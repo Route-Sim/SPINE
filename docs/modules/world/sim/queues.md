@@ -113,7 +113,7 @@ signal = signal_queue.get_nowait()
 }
 ```
 
-### Parking Creation Round-trip
+### Building Creation Round-trip
 
 ```python
 from world.sim.queues import (
@@ -121,10 +121,12 @@ from world.sim.queues import (
     create_building_created_signal,
 )
 
+# Parking building creation
 create_action = create_building_create_action(
     building_id="parking-node42",
     node_id=42,
     capacity=40,
+    building_type="parking",
 )
 action_queue.put(create_action, timeout=1.0)
 
@@ -144,7 +146,9 @@ signal_queue.put(
 )
 ```
 
-Use this helper pair to request additional parking capacity at runtime. The handler returns the canonical building data (with an empty `current_agents` list until dedicated parking logic assigns trucks).
+Use this helper pair to request additional building capacity at runtime. The handler supports both parking buildings (with `capacity` parameter) and site buildings (with `name` and `activity_rate` parameters). The handler returns the canonical building data (parking buildings include an empty `current_agents` list until dedicated parking logic assigns trucks; site buildings include `active_packages` and `statistics`).
+
+**Note**: The `create_building_create_action` helper currently only supports parking buildings. For site creation, construct the action manually with `building_type="site"`, `name`, and `activity_rate` parameters. A future enhancement may add a dedicated `create_site_create_action` helper.
 
 ### Agent Describe Round-trip
 
@@ -263,7 +267,7 @@ site_stats = create_site_stats_signal(
 - `state.request`: Request complete state snapshot
 - `package.create` / `package.cancel`: Package lifecycle (future)
 - `site.create` / `site.update`: Site management (future)
-- `building.create`: Provision parking buildings on an existing node
+- `building.create`: Provision buildings (parking or site) on an existing node
 
 ### Signal Format
 
@@ -332,7 +336,7 @@ The signal includes complete graph data with all buildings, providing full map f
 - `state.full_agent_data`: Complete agent state
 - `package.created`/`package.expired`/`package.picked_up`/`package.delivered`: Package lifecycle events
 - `site.stats_update`: Site statistics updates
-- `building.created`: Parking building instantiated on the specified node (payload includes `building` dict and `node_id`)
+- `building.created`: Building (parking or site) instantiated on the specified node (payload includes `building` dict and `node_id`)
 
 ## Implementation Notes
 

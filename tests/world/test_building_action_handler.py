@@ -240,3 +240,184 @@ def test_handle_create_multiple_buildings_different_nodes() -> None:
     assert len(node2.buildings) == 1
     assert node1.buildings[0].id == BuildingID("parking-1")
     assert node2.buildings[0].id == BuildingID("parking-2")
+
+
+# Site creation tests
+def test_handle_create_valid_site() -> None:
+    """Test successful creation of site building with required parameters."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": 5.0,
+    }
+
+    BuildingActionHandler.handle_create(params, context)
+
+    # Verify building was added to node
+    node = context.world.graph.nodes[NodeID(1)]
+    assert len(node.buildings) == 1
+    building = node.buildings[0]
+    assert building.id == BuildingID("site-1")
+    assert hasattr(building, "name")
+    assert building.name == "Test Warehouse"
+    assert hasattr(building, "activity_rate")
+    assert building.activity_rate == 5.0
+
+    # Verify signal was emitted
+    signal = context.signal_queue.get_nowait()
+    assert signal is not None
+    assert signal.signal == SignalType.BUILDING_CREATED.value
+    assert signal.data["node_id"] == 1
+    assert signal.data["building"]["id"] == "site-1"
+    assert signal.data["building"]["name"] == "Test Warehouse"
+    assert signal.data["building"]["activity_rate"] == 5.0
+    assert signal.data["tick"] == context.state.current_tick
+
+
+def test_handle_create_site_with_destination_weights() -> None:
+    """Test successful creation of site building with optional destination_weights."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": 5.0,
+        "destination_weights": {
+            "site-2": 0.6,
+            "site-3": 0.4,
+        },
+    }
+
+    BuildingActionHandler.handle_create(params, context)
+
+    # Verify building was added to node
+    node = context.world.graph.nodes[NodeID(1)]
+    assert len(node.buildings) == 1
+    building = node.buildings[0]
+    assert building.id == BuildingID("site-1")
+    assert hasattr(building, "destination_weights")
+    assert len(building.destination_weights) == 2
+    # Check that destination_weights were properly converted
+    from core.types import SiteID
+
+    assert SiteID("site-2") in building.destination_weights
+    assert SiteID("site-3") in building.destination_weights
+    assert building.destination_weights[SiteID("site-2")] == 0.6
+    assert building.destination_weights[SiteID("site-3")] == 0.4
+
+
+def test_handle_create_site_missing_name() -> None:
+    """Test that missing name for site raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "activity_rate": 5.0,
+    }
+
+    with pytest.raises(ValueError, match="name is required for site buildings"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_missing_activity_rate() -> None:
+    """Test that missing activity_rate for site raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+    }
+
+    with pytest.raises(ValueError, match="activity_rate is required for site buildings"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_invalid_activity_rate_type() -> None:
+    """Test that non-float activity_rate raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": "5.0",
+    }
+
+    with pytest.raises(ValueError, match="activity_rate must be a float"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_invalid_activity_rate_zero() -> None:
+    """Test that zero activity_rate raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": 0.0,
+    }
+
+    with pytest.raises(ValueError, match="activity_rate must be greater than 0"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_invalid_activity_rate_negative() -> None:
+    """Test that negative activity_rate raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": -5.0,
+    }
+
+    with pytest.raises(ValueError, match="activity_rate must be greater than 0"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_invalid_name_type() -> None:
+    """Test that non-string name raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": 123,
+        "activity_rate": 5.0,
+    }
+
+    with pytest.raises(ValueError, match="name must be a string"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_site_invalid_destination_weights_type() -> None:
+    """Test that non-dict destination_weights raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "site",
+        "building_id": "site-1",
+        "node_id": 1,
+        "name": "Test Warehouse",
+        "activity_rate": 5.0,
+        "destination_weights": "invalid",
+    }
+
+    with pytest.raises(ValueError, match="destination_weights must be a dictionary"):
+        BuildingActionHandler.handle_create(params, context)

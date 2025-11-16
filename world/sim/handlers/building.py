@@ -6,7 +6,8 @@ from typing import Any
 
 from core.buildings.base import Building
 from core.buildings.parking import Parking
-from core.types import BuildingID, NodeID
+from core.buildings.site import Site
+from core.types import BuildingID, NodeID, SiteID
 
 from ..queues import create_building_created_signal
 from .base import HandlerContext
@@ -84,7 +85,7 @@ def _create_building(
     """Factory function to create building instances based on type.
 
     Args:
-        building_type: Type of building to create (e.g., "parking")
+        building_type: Type of building to create (e.g., "parking", "site")
         building_id: Unique identifier for the building
         params: Action parameters containing type-specific fields
 
@@ -101,9 +102,47 @@ def _create_building(
         if not isinstance(capacity_raw, int):
             raise ValueError("capacity must be an integer")
         return Parking(id=building_id, capacity=capacity_raw)
+    elif building_type == "site":
+        # Validate required parameters
+        if "name" not in params:
+            raise ValueError("name is required for site buildings")
+        if "activity_rate" not in params:
+            raise ValueError("activity_rate is required for site buildings")
+
+        name_raw = params["name"]
+        activity_rate_raw = params["activity_rate"]
+
+        if not isinstance(name_raw, str):
+            raise ValueError("name must be a string")
+        if not isinstance(activity_rate_raw, int | float):
+            raise ValueError("activity_rate must be a float")
+        activity_rate = float(activity_rate_raw)
+        if activity_rate <= 0:
+            raise ValueError("activity_rate must be greater than 0")
+
+        # Handle optional destination_weights
+        destination_weights: dict[SiteID, float] = {}
+        if "destination_weights" in params:
+            weights_raw = params["destination_weights"]
+            if not isinstance(weights_raw, dict):
+                raise ValueError("destination_weights must be a dictionary")
+            # Convert string keys to SiteID and validate values
+            for key, value in weights_raw.items():
+                if not isinstance(key, str):
+                    raise ValueError("destination_weights keys must be strings")
+                if not isinstance(value, int | float):
+                    raise ValueError("destination_weights values must be floats")
+                destination_weights[SiteID(key)] = float(value)
+
+        return Site(
+            id=building_id,
+            name=name_raw,
+            activity_rate=activity_rate,
+            destination_weights=destination_weights,
+        )
     else:
         raise ValueError(
-            f"Unsupported building type: {building_type}. Only 'parking' is currently supported."
+            f"Unsupported building type: {building_type}. Supported types: 'parking', 'site'."
         )
 
 
