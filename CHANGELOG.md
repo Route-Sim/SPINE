@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.2](https://github.com/Route-Sim/SPINE/compare/v0.21.1...v0.21.2) (2025-11-16)
+
+
+### ♻️ Code Refactoring
+
+* **tests:** remove state snapshot tests and related signal creation functions ([dea7a50](https://github.com/Route-Sim/SPINE/commit/dea7a50a5209c5426ffb0d886405c3bf02271128))
+
 ## [0.21.1](https://github.com/Route-Sim/SPINE/compare/v0.21.0...v0.21.1) (2025-11-15)
 
 
