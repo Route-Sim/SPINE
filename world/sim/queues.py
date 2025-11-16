@@ -26,11 +26,10 @@ class ActionType(str, Enum):
     EXPORT_MAP = "map.export"
     IMPORT_MAP = "map.import"
     CREATE_MAP = "map.create"
-    REQUEST_STATE = "state.request"
-    CREATE_PACKAGE = "package.create"
-    CANCEL_PACKAGE = "package.cancel"
-    ADD_SITE = "site.create"
-    MODIFY_SITE = "site.update"
+    CREATE_PACKAGE = "package.create"  # TODO: DELETE
+    CANCEL_PACKAGE = "package.cancel"  # TODO: DELETE
+    ADD_SITE = "site.create"  # TODO: should be part of building.create action
+    MODIFY_SITE = "site.update"  # TODO: should be part of building.update action
     CREATE_BUILDING = "building.create"
 
 
@@ -43,7 +42,7 @@ class SignalType(str, Enum):
     AGENT_UPDATE = "agent.updated"
     AGENT_DESCRIBED = "agent.described"
     AGENT_LISTED = "agent.listed"
-    WORLD_EVENT = "event.created"
+    WORLD_EVENT = "event.created"  # TODO: REWORK
     ERROR = "error"
     SIMULATION_STARTED = "simulation.started"
     SIMULATION_STOPPED = "simulation.stopped"
@@ -52,15 +51,11 @@ class SignalType(str, Enum):
     MAP_EXPORTED = "map.exported"
     MAP_IMPORTED = "map.imported"
     MAP_CREATED = "map.created"
-    STATE_SNAPSHOT_START = "state.snapshot_start"
-    STATE_SNAPSHOT_END = "state.snapshot_end"
-    FULL_MAP_DATA = "state.full_map_data"
-    FULL_AGENT_DATA = "state.full_agent_data"
     PACKAGE_CREATED = "package.created"
     PACKAGE_EXPIRED = "package.expired"
     PACKAGE_PICKED_UP = "package.picked_up"
     PACKAGE_DELIVERED = "package.delivered"
-    SITE_STATS_UPDATE = "site.stats_update"
+    SITE_STATS_UPDATE = "site.stats_update"  # TODO: should be part of building.updated signal
     BUILDING_CREATED = "building.created"
 
 
@@ -355,31 +350,6 @@ def create_building_create_action(
         "building_type": building_type,
     }
     return _create_action(ActionType.CREATE_BUILDING, params)
-
-
-def create_state_snapshot_start_signal() -> Signal:
-    """Create a state snapshot start signal."""
-    return Signal(signal=signal_type_to_string(SignalType.STATE_SNAPSHOT_START), data={})
-
-
-def create_state_snapshot_end_signal() -> Signal:
-    """Create a state snapshot end signal."""
-    return Signal(signal=signal_type_to_string(SignalType.STATE_SNAPSHOT_END), data={})
-
-
-def create_full_map_data_signal(graph_data: dict[str, Any]) -> Signal:
-    """Create a full map data signal."""
-    return Signal(signal=signal_type_to_string(SignalType.FULL_MAP_DATA), data=graph_data)
-
-
-def create_full_agent_data_signal(agent_data: dict[str, Any]) -> Signal:
-    """Create a full agent data signal."""
-    return Signal(signal=signal_type_to_string(SignalType.FULL_AGENT_DATA), data=agent_data)
-
-
-def create_request_state_action() -> ActionRequest:
-    """Create a request state action."""
-    return _create_action(ActionType.REQUEST_STATE)
 
 
 # Package-related signal factory functions

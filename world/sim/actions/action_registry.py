@@ -7,7 +7,6 @@ from ..handlers.agent import AgentActionHandler
 from ..handlers.building import BuildingActionHandler
 from ..handlers.map import MapActionHandler
 from ..handlers.simulation import SimulationActionHandler
-from ..handlers.state import StateActionHandler
 from ..handlers.tick_rate import TickRateActionHandler
 from ..queues import ActionType
 
@@ -45,9 +44,6 @@ class ActionRegistry:
         self.register(ActionType.EXPORT_MAP, MapActionHandler.handle_export)
         self.register(ActionType.IMPORT_MAP, MapActionHandler.handle_import)
         self.register(ActionType.CREATE_MAP, MapActionHandler.handle_create)
-
-        # State actions
-        self.register(ActionType.REQUEST_STATE, StateActionHandler.handle_request)
 
     def register(
         self, action: ActionType | str, handler: Callable[[dict[str, Any], Any], None]

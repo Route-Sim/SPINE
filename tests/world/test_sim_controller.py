@@ -388,50 +388,9 @@ class TestSimulationController:
             if signal:
                 signals.append(signal)
 
-        # Should have simulation_started, but NOT state snapshot signals
+        # Should have simulation_started signal
         signal_strings = [s.signal for s in signals]
         assert signal_type_to_string(SignalType.SIMULATION_STARTED) in signal_strings
-        # Verify snapshot signals are NOT present
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_START) not in signal_strings
-        assert signal_type_to_string(SignalType.FULL_MAP_DATA) not in signal_strings
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_END) not in signal_strings
-
-    def test_request_state_action(self) -> None:
-        """Test REQUEST_STATE action handling."""
-        # Start controller
-        self.controller.start()
-
-        # Send request state action
-        from world.sim.actions.action_parser import ActionRequest
-
-        self.action_queue.put(ActionRequest(action=ActionType.REQUEST_STATE.value, params={}))
-
-        # Wait for action to be processed (queue empty)
-        max_wait = 1.0  # Maximum wait time in seconds
-        wait_interval = 0.01  # Check every 10ms
-        waited = 0.0
-        while not self.action_queue.empty() and waited < max_wait:
-            time.sleep(wait_interval)
-            waited += wait_interval
-
-        # Give a bit more time for signals to be emitted
-        time.sleep(0.05)
-
-        # Stop controller
-        self.controller.stop()
-
-        # Check for state snapshot signals
-        signals = []
-        while not self.signal_queue.empty():
-            signal = self.signal_queue.get_nowait()
-            if signal:
-                signals.append(signal)
-
-        # Should have state snapshot signals
-        signal_strings = [s.signal for s in signals]
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_START) in signal_strings
-        assert signal_type_to_string(SignalType.FULL_MAP_DATA) in signal_strings
-        assert signal_type_to_string(SignalType.STATE_SNAPSHOT_END) in signal_strings
 
     def test_agent_serialize_full(self) -> None:
         """Test agent serialize_full method."""

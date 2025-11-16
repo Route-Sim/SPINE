@@ -14,15 +14,10 @@ from world.sim.queues import (
     SignalType,
     create_add_agent_action,
     create_delete_agent_action,
-    create_full_agent_data_signal,
-    create_full_map_data_signal,
     create_pause_action,
-    create_request_state_action,
     create_resume_action,
     create_set_tick_rate_action,
     create_start_action,
-    create_state_snapshot_end_signal,
-    create_state_snapshot_start_signal,
     create_stop_action,
     create_tick_end_signal,
     create_tick_start_signal,
@@ -276,54 +271,3 @@ class TestThreadSafety:
         # Try to put more - should raise exception
         with pytest.raises(RuntimeError, match="Action queue is full"):
             queue.put(action3, timeout=0.1)
-
-
-class TestStateSnapshotSignals:
-    """Test state snapshot signal functionality."""
-
-    def test_state_snapshot_start_signal(self) -> None:
-        """Test state snapshot start signal creation."""
-        signal = create_state_snapshot_start_signal()
-
-        assert signal.signal == signal_type_to_string(SignalType.STATE_SNAPSHOT_START)
-        assert signal.data == {}
-
-    def test_state_snapshot_end_signal(self) -> None:
-        """Test state snapshot end signal creation."""
-        signal = create_state_snapshot_end_signal()
-
-        assert signal.signal == signal_type_to_string(SignalType.STATE_SNAPSHOT_END)
-        assert signal.data == {}
-
-    def test_full_map_data_signal(self) -> None:
-        """Test full map data signal creation."""
-        map_data = {
-            "nodes": [{"id": "1", "x": 0.0, "y": 0.0, "buildings": []}],
-            "edges": [{"id": "1", "from_node": "1", "to_node": "2", "length_m": 100.0, "mode": 1}],
-        }
-        signal = create_full_map_data_signal(map_data)
-
-        assert signal.signal == signal_type_to_string(SignalType.FULL_MAP_DATA)
-        assert signal.data == map_data
-
-    def test_full_agent_data_signal(self) -> None:
-        """Test full agent data signal creation."""
-        agent_data = {
-            "id": "agent1",
-            "kind": "transport",
-            "tags": {"status": "moving"},
-            "inbox_count": 0,
-            "outbox_count": 1,
-        }
-        signal = create_full_agent_data_signal(agent_data)
-
-        assert signal.signal == signal_type_to_string(SignalType.FULL_AGENT_DATA)
-        assert signal.data == agent_data
-
-    def test_request_state_action(self) -> None:
-        """Test request state action creation."""
-        action = create_request_state_action()
-
-        assert isinstance(action, ActionRequest)
-        assert action.action == ActionType.REQUEST_STATE.value
-        assert action.params == {}
