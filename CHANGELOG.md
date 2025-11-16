@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.0](https://github.com/Route-Sim/SPINE/compare/v0.22.0...v0.23.0) (2025-11-16)
+
+
+### 🚀 Features
+
+* **signal-dtos:** introduce type-safe DTOs for map creation signals ([f922886](https://github.com/Route-Sim/SPINE/commit/f9228860cff2f1622edecd91244303604b90926b))
+
 ## [0.22.0](https://github.com/Route-Sim/SPINE/compare/v0.21.3...v0.22.0) (2025-11-16)
 
 
