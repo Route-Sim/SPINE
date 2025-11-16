@@ -1186,6 +1186,10 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **When Received**: After successful procedural map generation with hierarchical algorithm. The signal includes complete graph data with all buildings, providing full map fidelity.
 
+**Type Safety**: This signal uses `MapCreatedSignalData` DTO (Data Transfer Object) for compile-time type checking and runtime validation. See [Signal DTOs documentation](modules/world/sim/signal-dtos.md) for details.
+
+**Note on Existing Maps**: When a new WebSocket client connects to a simulation with an existing map, this signal is sent with placeholder values (0 or empty) for generation parameters, as these parameters are not stored after map creation. Only `generated_nodes`, `generated_edges`, `generated_sites`, and `graph` will contain actual data in this case.
+
 ---
 
 ### 13. STATE_SNAPSHOT_START - State Snapshot Started

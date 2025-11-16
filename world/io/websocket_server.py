@@ -292,7 +292,45 @@ class WebSocketServer:
             )
 
             # Send map.created signal with graph data
-            map_signal = create_map_created_signal({"graph": self.controller.world.graph.to_dict()})
+            # Note: When sending existing map to new clients, we don't have access to the original
+            # generation parameters. These are only available when the map is first created via
+            # map.create action. We use placeholder values here to maintain signal structure consistency.
+            from world.sim.signal_dtos.map_created import MapCreatedSignalData
+
+            map_data = MapCreatedSignalData(
+                # Placeholder values for generation parameters (unknown for pre-existing maps)
+                map_width=0.0,
+                map_height=0.0,
+                num_major_centers=0,
+                minor_per_major=0.0,
+                center_separation=0.0,
+                urban_sprawl=0.0,
+                local_density=0.0,
+                rural_density=0.0,
+                intra_connectivity=0.0,
+                inter_connectivity=1,
+                arterial_ratio=0.0,
+                gridness=0.0,
+                ring_road_prob=0.0,
+                highway_curviness=0.0,
+                rural_settlement_prob=0.0,
+                urban_sites_per_km2=0.0,
+                rural_sites_per_km2=0.0,
+                urban_activity_rate_range=[0.0, 0.0],
+                rural_activity_rate_range=[0.0, 0.0],
+                seed=0,
+                # Actual graph data and counts
+                generated_nodes=self.controller.world.graph.get_node_count(),
+                generated_edges=self.controller.world.graph.get_edge_count(),
+                generated_sites=sum(
+                    1
+                    for node in self.controller.world.graph.nodes.values()
+                    for building in node.buildings
+                    if building.__class__.__name__ == "Site"
+                ),
+                graph=self.controller.world.graph.to_dict(),
+            )
+            map_signal = create_map_created_signal(map_data)
             await self.manager.send_personal_message(
                 orjson.dumps(
                     _ensure_str_keys(map_signal.model_dump()),

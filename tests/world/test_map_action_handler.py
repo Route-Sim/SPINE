@@ -67,13 +67,18 @@ def test_handle_create_includes_buildings_in_signal() -> None:
     assert signal.signal == SignalType.MAP_CREATED.value
 
     # Verify signal data structure
+    # Note: data is now a MapCreatedSignalData DTO, not a dict
     data = signal.data
-    assert "graph" in data
-    assert "nodes" in data["graph"]
-    assert "edges" in data["graph"]
+
+    # Convert to dict for easier testing
+    data_dict = data.to_dict() if hasattr(data, "to_dict") else data
+
+    assert "graph" in data_dict
+    assert "nodes" in data_dict["graph"]
+    assert "edges" in data_dict["graph"]
 
     # Verify that nodes include buildings array
-    nodes = data["graph"]["nodes"]
+    nodes = data_dict["graph"]["nodes"]
     assert isinstance(nodes, list)
     assert len(nodes) > 0
 

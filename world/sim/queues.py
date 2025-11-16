@@ -3,11 +3,14 @@
 import queue
 import threading
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from .actions.action_parser import ActionRequest
+
+if TYPE_CHECKING:
+    from .signal_dtos.map_created import MapCreatedSignalData
 
 
 class ActionType(str, Enum):
@@ -72,14 +75,36 @@ class Signal(BaseModel):
 
     Signals follow the format: {"signal": "domain.signal", "data": {...}}
     where all contextual information is consolidated into the data dict.
+
+    The data field can be either:
+    - A SignalData DTO instance (preferred for type safety)
+    - A dict[str, Any] (for backward compatibility during migration)
     """
 
+    # Use Any to avoid Pydantic runtime validation issues with TYPE_CHECKING imports
+    # Type safety is provided by TYPE_CHECKING union in function signatures
+    model_config = {"arbitrary_types_allowed": True}
+
     signal: str  # Format: "domain.signal" (e.g., "simulation.started")
-    data: dict[str, Any] = Field(default_factory=dict)  # All context consolidated here
+    data: Any = Field(default_factory=lambda: {})  # SignalData DTO or dict[str, Any]
 
     def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
-        """Override model_dump to ensure consistent format."""
-        return {"signal": self.signal, "data": self.data}
+        """Override model_dump to ensure consistent format.
+
+        Converts SignalData DTOs to dicts for serialization.
+        """
+        data_dict: dict[str, Any]
+
+        # Check if data has to_dict method (duck typing for SignalData)
+        if hasattr(self.data, "to_dict") and callable(self.data.to_dict):
+            data_dict = self.data.to_dict()
+        elif isinstance(self.data, dict):
+            data_dict = self.data
+        else:
+            # Fallback for unexpected types
+            data_dict = dict(self.data) if hasattr(self.data, "__iter__") else {}
+
+        return {"signal": self.signal, "data": data_dict}
 
 
 class ActionQueue:
@@ -320,8 +345,15 @@ def create_map_imported_signal(map_name: str) -> Signal:
     )
 
 
-def create_map_created_signal(data: dict[str, Any]) -> Signal:
-    """Create a map created signal with generation metadata and graph structure."""
+def create_map_created_signal(data: "MapCreatedSignalData") -> Signal:
+    """Create a map created signal with generation metadata and graph structure.
+
+    Args:
+        data: MapCreatedSignalData DTO with all required map generation metadata
+
+    Returns:
+        Signal instance with map.created signal type
+    """
     return Signal(signal=signal_type_to_string(SignalType.MAP_CREATED), data=data)
 
 

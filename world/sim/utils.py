@@ -23,6 +23,8 @@ def collect_agents_data(
         if agent_kind_filter is not None and agent.kind != agent_kind_filter:
             continue
         agent_state = agent.serialize_full()
-        agent_state["agent_id"] = str(agent_state.get("id", agent.id))
+        agent_state["agent_id"] = str(
+            agent_state.get("id", agent.id)
+        )  # TODO: Remove the unnecessary agent_id
         agents_data.append(agent_state)
     return agents_data

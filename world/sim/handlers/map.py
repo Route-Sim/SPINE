@@ -295,35 +295,37 @@ class MapActionHandler:
                 if isinstance(building, Site)
             )
 
-            # Emit success signal with generation info
-            signal_data = {
-                "map_width": map_width,
-                "map_height": map_height,
-                "num_major_centers": num_major_centers,
-                "minor_per_major": minor_per_major,
-                "center_separation": center_separation,
-                "urban_sprawl": urban_sprawl,
-                "local_density": local_density,
-                "rural_density": rural_density,
-                "intra_connectivity": intra_connectivity,
-                "inter_connectivity": inter_connectivity,
-                "arterial_ratio": arterial_ratio,
-                "gridness": gridness,
-                "ring_road_prob": ring_road_prob,
-                "highway_curviness": highway_curviness,
-                "rural_settlement_prob": rural_settlement_prob,
-                "urban_sites_per_km2": urban_sites_per_km2,
-                "rural_sites_per_km2": rural_sites_per_km2,
-                "urban_activity_rate_range": urban_activity_rate_range,
-                "rural_activity_rate_range": rural_activity_rate_range,
-                "seed": seed,
-                "generated_nodes": new_graph.get_node_count(),
-                "generated_edges": new_graph.get_edge_count(),
-                "generated_sites": generated_sites,
-                "graph": new_graph.to_dict(),
-            }
+            # Emit success signal with generation info using DTO for type safety
+            from world.sim.signal_dtos.map_created import MapCreatedSignalData
+
+            signal_data = MapCreatedSignalData(
+                map_width=map_width,
+                map_height=map_height,
+                num_major_centers=num_major_centers,
+                minor_per_major=minor_per_major,
+                center_separation=center_separation,
+                urban_sprawl=urban_sprawl,
+                local_density=local_density,
+                rural_density=rural_density,
+                intra_connectivity=intra_connectivity,
+                inter_connectivity=inter_connectivity,
+                arterial_ratio=arterial_ratio,
+                gridness=gridness,
+                ring_road_prob=ring_road_prob,
+                highway_curviness=highway_curviness,
+                rural_settlement_prob=rural_settlement_prob,
+                urban_sites_per_km2=urban_sites_per_km2,
+                rural_sites_per_km2=rural_sites_per_km2,
+                urban_activity_rate_range=urban_activity_rate_range,
+                rural_activity_rate_range=rural_activity_rate_range,
+                seed=seed,
+                generated_nodes=new_graph.get_node_count(),
+                generated_edges=new_graph.get_edge_count(),
+                generated_sites=generated_sites,
+                graph=new_graph.to_dict(),
+            )
             _emit_signal(context, create_map_created_signal(signal_data))
-            context.logger.info(f"Map created: {signal_data}")
+            context.logger.info(f"Map created with {signal_data.generated_nodes} nodes")
 
         except ValueError as e:
             context.logger.error(f"Failed to create map: {e}")
