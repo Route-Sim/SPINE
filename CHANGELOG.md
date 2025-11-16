@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0](https://github.com/Route-Sim/SPINE/compare/v0.21.3...v0.22.0) (2025-11-16)
+
+
+### 🚀 Features
+
+* **building:** enhance building.create action to support site buildings alongside parking buildings ([0f935bb](https://github.com/Route-Sim/SPINE/commit/0f935bb9434ea7c86b2e919e7b5a07db008cfb66))
+
 ## [0.21.3](https://github.com/Route-Sim/SPINE/compare/v0.21.2...v0.21.3) (2025-11-16)
 
 
