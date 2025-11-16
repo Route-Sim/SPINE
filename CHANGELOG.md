@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.3](https://github.com/Route-Sim/SPINE/compare/v0.21.2...v0.21.3) (2025-11-16)
+
+
+### ♻️ Code Refactoring
+
+* **queues:** remove deprecated action types for package creation and cancellation ([81b9c50](https://github.com/Route-Sim/SPINE/commit/81b9c50c93ffe9306a71207d4f9422e4ae674670))
+
 ## [0.21.2](https://github.com/Route-Sim/SPINE/compare/v0.21.1...v0.21.2) (2025-11-16)
 
 
