@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0](https://github.com/Route-Sim/SPINE/compare/v0.23.0...v0.24.0) (2025-11-19)
+
+
+### 🚀 Features
+
+* **generation:** refactor map generation parameters to use Pydantic model for validation ([82108f4](https://github.com/Route-Sim/SPINE/commit/82108f418f32e1d52a8efb783c97b05aef743bd6))
+
 ## [0.23.0](https://github.com/Route-Sim/SPINE/compare/v0.22.0...v0.23.0) (2025-11-16)
 
 
