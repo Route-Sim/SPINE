@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.0](https://github.com/Route-Sim/SPINE/compare/v0.24.0...v0.25.0) (2025-11-19)
+
+
+### 🚀 Features
+
+* **truck:** implement tachograph system for driving time and rest management ([f57df6f](https://github.com/Route-Sim/SPINE/commit/f57df6fd2f25858f24bac6a89982e605318e3eee))
+
 ## [0.24.0](https://github.com/Route-Sim/SPINE/compare/v0.23.0...v0.24.0) (2025-11-19)
 
 
