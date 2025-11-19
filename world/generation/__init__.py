@@ -1,5 +1,6 @@
 """Procedural map generation module."""
 
-from .generator import GenerationParams, MapGenerator
+from .generator import MapGenerator
+from .params import GenerationParams
 
 __all__ = ["GenerationParams", "MapGenerator"]

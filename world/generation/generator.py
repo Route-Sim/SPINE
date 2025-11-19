@@ -10,82 +10,10 @@ from scipy.spatial import Delaunay, cKDTree
 from core.buildings.parking import Parking
 from core.buildings.site import Site
 from core.types import BuildingID, EdgeID, NodeID, SiteID
+from world.generation.params import GenerationParams
 from world.graph.edge import Edge, Mode, RoadClass
 from world.graph.graph import Graph
 from world.graph.node import Node
-
-
-@dataclass
-class GenerationParams:
-    """Parameters for hierarchical procedural map generation."""
-
-    map_width: float
-    map_height: float
-    num_major_centers: int
-    minor_per_major: float
-    center_separation: float
-    urban_sprawl: float
-    local_density: float
-    rural_density: float
-    intra_connectivity: float
-    inter_connectivity: int
-    arterial_ratio: float
-    gridness: float
-    ring_road_prob: float
-    highway_curviness: float
-    rural_settlement_prob: float
-    urban_sites_per_km2: float
-    rural_sites_per_km2: float
-    urban_activity_rate_range: tuple[float, float]
-    rural_activity_rate_range: tuple[float, float]
-    seed: int
-
-    def __post_init__(self) -> None:
-        """Validate parameters after initialization."""
-        if self.map_width <= 0 or self.map_height <= 0:
-            raise ValueError("map_width and map_height must be positive")
-        if self.num_major_centers < 1:
-            raise ValueError("num_major_centers must be at least 1")
-        if self.minor_per_major < 0:
-            raise ValueError("minor_per_major must be non-negative")
-        if self.center_separation <= 0:
-            raise ValueError("center_separation must be positive")
-        if self.urban_sprawl <= 0:
-            raise ValueError("urban_sprawl must be positive")
-        if self.local_density <= 0:
-            raise ValueError("local_density must be positive")
-        if self.rural_density < 0:
-            raise ValueError("rural_density must be non-negative")
-        if not 0 <= self.intra_connectivity <= 1:
-            raise ValueError("intra_connectivity must be between 0 and 1")
-        if self.inter_connectivity < 1:
-            raise ValueError("inter_connectivity must be at least 1")
-        if not 0 <= self.arterial_ratio <= 1:
-            raise ValueError("arterial_ratio must be between 0 and 1")
-        if not 0 <= self.gridness <= 1:
-            raise ValueError("gridness must be between 0 and 1")
-        if not 0 <= self.ring_road_prob <= 1:
-            raise ValueError("ring_road_prob must be between 0 and 1")
-        if not 0 <= self.highway_curviness <= 1:
-            raise ValueError("highway_curviness must be between 0 and 1")
-        if not 0 <= self.rural_settlement_prob <= 1:
-            raise ValueError("rural_settlement_prob must be between 0 and 1")
-        if self.urban_sites_per_km2 < 0:
-            raise ValueError("urban_sites_per_km2 must be non-negative")
-        if self.rural_sites_per_km2 < 0:
-            raise ValueError("rural_sites_per_km2 must be non-negative")
-        if len(self.urban_activity_rate_range) != 2:
-            raise ValueError("urban_activity_rate_range must be a tuple of 2 floats")
-        if self.urban_activity_rate_range[0] < 0 or self.urban_activity_rate_range[1] < 0:
-            raise ValueError("urban_activity_rate_range values must be non-negative")
-        if self.urban_activity_rate_range[0] > self.urban_activity_rate_range[1]:
-            raise ValueError("urban_activity_rate_range min must be <= max")
-        if len(self.rural_activity_rate_range) != 2:
-            raise ValueError("rural_activity_rate_range must be a tuple of 2 floats")
-        if self.rural_activity_rate_range[0] < 0 or self.rural_activity_rate_range[1] < 0:
-            raise ValueError("rural_activity_rate_range values must be non-negative")
-        if self.rural_activity_rate_range[0] > self.rural_activity_rate_range[1]:
-            raise ValueError("rural_activity_rate_range min must be <= max")
 
 
 @dataclass
@@ -116,10 +44,9 @@ class MapGenerator:
         """Initialize the map generator.
 
         Args:
-            params: Generation parameters
+            params: Generation parameters (Pydantic model, validates on instantiation)
         """
         self.params = params
-        self._validate_params()
         random.seed(params.seed)
         np.random.seed(params.seed)
 
@@ -132,10 +59,6 @@ class MapGenerator:
         self.sites: list[tuple[NodeID, bool]] = []  # (node_id, is_urban)
         self.parking_count = 0
         self.parkings: list[NodeID] = []
-
-    def _validate_params(self) -> None:
-        """Validate generation parameters."""
-        self.params.__post_init__()
 
     def _get_speed_for_road_class(self, road_class: RoadClass, lanes: int, is_urban: bool) -> float:
         """Get the appropriate speed limit for a road class.

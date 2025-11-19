@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agents.base import AgentBase
+    from world.generation.params import GenerationParams
 
 from core.buildings.site import Site
 from core.packages.package import Package
@@ -11,7 +12,14 @@ from world.routing.navigator import Navigator
 
 
 class World:
-    def __init__(self, graph: Any, router: Any, traffic: Any, dt_s: float = 0.05) -> None:
+    def __init__(
+        self,
+        graph: Any,
+        router: Any,
+        traffic: Any,
+        dt_s: float = 0.05,
+        generation_params: "GenerationParams | None" = None,
+    ) -> None:
         self.graph = graph
         # Ensure router is Navigator instance
         self.router = router if router is not None else Navigator()
@@ -21,6 +29,7 @@ class World:
         self.agents: dict[AgentID, AgentBase] = {}  # AgentID -> AgentBase
         self.packages: dict[PackageID, Package] = {}  # PackageID -> Package
         self._events: list[Any] = []
+        self.generation_params = generation_params  # Store generation params if available
 
     def now_s(self) -> int:
         return int(self.tick * self.dt_s)

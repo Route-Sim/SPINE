@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from pydantic import ValidationError
+
 from world.generation import GenerationParams, MapGenerator
 
 from ..queues import (
@@ -120,126 +122,12 @@ class MapActionHandler:
         """Handle create map action.
 
         Args:
-            params: Action parameters (required: map_width, map_height, num_major_centers,
-                    minor_per_major, center_separation, urban_sprawl, local_density,
-                    rural_density, intra_connectivity, inter_connectivity, arterial_ratio,
-                    gridness, ring_road_prob, highway_curviness, rural_settlement_prob,
-                    urban_sites_per_km2, rural_sites_per_km2, urban_activity_rate_range,
-                    rural_activity_rate_range, seed)
+            params: Action parameters (all GenerationParams fields)
             context: Handler context
 
         Raises:
             ValueError: If parameters are missing, invalid, or simulation is running
         """
-        # Validate required parameters
-        required_params = [
-            "map_width",
-            "map_height",
-            "num_major_centers",
-            "minor_per_major",
-            "center_separation",
-            "urban_sprawl",
-            "local_density",
-            "rural_density",
-            "intra_connectivity",
-            "inter_connectivity",
-            "arterial_ratio",
-            "gridness",
-            "ring_road_prob",
-            "highway_curviness",
-            "rural_settlement_prob",
-            "urban_sites_per_km2",
-            "rural_sites_per_km2",
-            "urban_activity_rate_range",
-            "rural_activity_rate_range",
-            "seed",
-        ]
-        for param in required_params:
-            if param not in params:
-                raise ValueError(f"{param} is required for map.create action")
-
-        # Extract and validate parameters
-        map_width = params["map_width"]
-        map_height = params["map_height"]
-        num_major_centers = params["num_major_centers"]
-        minor_per_major = params["minor_per_major"]
-        center_separation = params["center_separation"]
-        urban_sprawl = params["urban_sprawl"]
-        local_density = params["local_density"]
-        rural_density = params["rural_density"]
-        intra_connectivity = params["intra_connectivity"]
-        inter_connectivity = params["inter_connectivity"]
-        arterial_ratio = params["arterial_ratio"]
-        gridness = params["gridness"]
-        ring_road_prob = params["ring_road_prob"]
-        highway_curviness = params["highway_curviness"]
-        rural_settlement_prob = params["rural_settlement_prob"]
-        urban_sites_per_km2 = params["urban_sites_per_km2"]
-        rural_sites_per_km2 = params["rural_sites_per_km2"]
-        urban_activity_rate_range = params["urban_activity_rate_range"]
-        rural_activity_rate_range = params["rural_activity_rate_range"]
-        seed = params["seed"]
-
-        # Type validation
-        if not isinstance(map_width, int | float) or map_width <= 0:
-            raise ValueError("map_width must be a positive number")
-        if not isinstance(map_height, int | float) or map_height <= 0:
-            raise ValueError("map_height must be a positive number")
-        if not isinstance(num_major_centers, int) or num_major_centers < 1:
-            raise ValueError("num_major_centers must be a positive integer")
-        if not isinstance(minor_per_major, int | float) or minor_per_major < 0:
-            raise ValueError("minor_per_major must be a non-negative number")
-        if not isinstance(center_separation, int | float) or center_separation <= 0:
-            raise ValueError("center_separation must be a positive number")
-        if not isinstance(urban_sprawl, int | float) or urban_sprawl <= 0:
-            raise ValueError("urban_sprawl must be a positive number")
-        if not isinstance(local_density, int | float) or local_density <= 0:
-            raise ValueError("local_density must be a positive number")
-        if not isinstance(rural_density, int | float) or rural_density < 0:
-            raise ValueError("rural_density must be a non-negative number")
-        if not isinstance(intra_connectivity, int | float) or not (0 <= intra_connectivity <= 1):
-            raise ValueError("intra_connectivity must be between 0 and 1")
-        if not isinstance(inter_connectivity, int) or inter_connectivity < 1:
-            raise ValueError("inter_connectivity must be a positive integer")
-        if not isinstance(arterial_ratio, int | float) or not (0 <= arterial_ratio <= 1):
-            raise ValueError("arterial_ratio must be between 0 and 1")
-        if not isinstance(gridness, int | float) or not (0 <= gridness <= 1):
-            raise ValueError("gridness must be between 0 and 1")
-        if not isinstance(ring_road_prob, int | float) or not (0 <= ring_road_prob <= 1):
-            raise ValueError("ring_road_prob must be between 0 and 1")
-        if not isinstance(highway_curviness, int | float) or not (0 <= highway_curviness <= 1):
-            raise ValueError("highway_curviness must be between 0 and 1")
-        if not isinstance(rural_settlement_prob, int | float) or not (
-            0 <= rural_settlement_prob <= 1
-        ):
-            raise ValueError("rural_settlement_prob must be between 0 and 1")
-        if not isinstance(urban_sites_per_km2, int | float) or urban_sites_per_km2 < 0:
-            raise ValueError("urban_sites_per_km2 must be a non-negative number")
-        if not isinstance(rural_sites_per_km2, int | float) or rural_sites_per_km2 < 0:
-            raise ValueError("rural_sites_per_km2 must be a non-negative number")
-        if (
-            not isinstance(urban_activity_rate_range, list)
-            or len(urban_activity_rate_range) != 2
-            or not all(isinstance(x, int | float) for x in urban_activity_rate_range)
-        ):
-            raise ValueError("urban_activity_rate_range must be a list of 2 numbers")
-        if urban_activity_rate_range[0] < 0 or urban_activity_rate_range[1] < 0:
-            raise ValueError("urban_activity_rate_range values must be non-negative")
-        if urban_activity_rate_range[0] > urban_activity_rate_range[1]:
-            raise ValueError("urban_activity_rate_range min must be <= max")
-        if (
-            not isinstance(rural_activity_rate_range, list)
-            or len(rural_activity_rate_range) != 2
-            or not all(isinstance(x, int | float) for x in rural_activity_rate_range)
-        ):
-            raise ValueError("rural_activity_rate_range must be a list of 2 numbers")
-        if rural_activity_rate_range[0] < 0 or rural_activity_rate_range[1] < 0:
-            raise ValueError("rural_activity_rate_range values must be non-negative")
-        if rural_activity_rate_range[0] > rural_activity_rate_range[1]:
-            raise ValueError("rural_activity_rate_range min must be <= max")
-        if not isinstance(seed, int):
-            raise ValueError("seed must be an integer")
-
         # Reject if simulation is running
         if context.state.running:
             error_msg = "Cannot create map while simulation is running"
@@ -248,42 +136,32 @@ class MapActionHandler:
             raise ValueError(error_msg)
 
         try:
-            # Create generation parameters
-            gen_params = GenerationParams(
-                map_width=float(map_width),
-                map_height=float(map_height),
-                num_major_centers=num_major_centers,
-                minor_per_major=float(minor_per_major),
-                center_separation=float(center_separation),
-                urban_sprawl=float(urban_sprawl),
-                local_density=float(local_density),
-                rural_density=float(rural_density),
-                intra_connectivity=float(intra_connectivity),
-                inter_connectivity=inter_connectivity,
-                arterial_ratio=float(arterial_ratio),
-                gridness=float(gridness),
-                ring_road_prob=float(ring_road_prob),
-                highway_curviness=float(highway_curviness),
-                rural_settlement_prob=float(rural_settlement_prob),
-                urban_sites_per_km2=float(urban_sites_per_km2),
-                rural_sites_per_km2=float(rural_sites_per_km2),
-                urban_activity_rate_range=(
-                    float(urban_activity_rate_range[0]),
-                    float(urban_activity_rate_range[1]),
-                ),
-                rural_activity_rate_range=(
-                    float(rural_activity_rate_range[0]),
-                    float(rural_activity_rate_range[1]),
-                ),
-                seed=seed,
-            )
+            # Convert activity rate ranges from list to tuple for Pydantic validation
+            params_copy = params.copy()
+            if "urban_activity_rate_range" in params_copy and isinstance(
+                params_copy["urban_activity_rate_range"], list
+            ):
+                params_copy["urban_activity_rate_range"] = tuple(
+                    params_copy["urban_activity_rate_range"]
+                )
+            if "rural_activity_rate_range" in params_copy and isinstance(
+                params_copy["rural_activity_rate_range"], list
+            ):
+                params_copy["rural_activity_rate_range"] = tuple(
+                    params_copy["rural_activity_rate_range"]
+                )
+
+            # Create and validate generation parameters using Pydantic
+            # This automatically handles all validation
+            gen_params = GenerationParams(**params_copy)
 
             # Generate the map
             generator = MapGenerator(gen_params)
             new_graph = generator.generate()
 
-            # Replace the world's graph
+            # Replace the world's graph and store generation parameters
             context.world.graph = new_graph
+            context.world.generation_params = gen_params
 
             # Count generated sites
             from core.buildings.site import Site
@@ -298,27 +176,9 @@ class MapActionHandler:
             # Emit success signal with generation info using DTO for type safety
             from world.sim.signal_dtos.map_created import MapCreatedSignalData
 
+            # Use model_dump to get all generation params as dict, then add additional fields
             signal_data = MapCreatedSignalData(
-                map_width=map_width,
-                map_height=map_height,
-                num_major_centers=num_major_centers,
-                minor_per_major=minor_per_major,
-                center_separation=center_separation,
-                urban_sprawl=urban_sprawl,
-                local_density=local_density,
-                rural_density=rural_density,
-                intra_connectivity=intra_connectivity,
-                inter_connectivity=inter_connectivity,
-                arterial_ratio=arterial_ratio,
-                gridness=gridness,
-                ring_road_prob=ring_road_prob,
-                highway_curviness=highway_curviness,
-                rural_settlement_prob=rural_settlement_prob,
-                urban_sites_per_km2=urban_sites_per_km2,
-                rural_sites_per_km2=rural_sites_per_km2,
-                urban_activity_rate_range=urban_activity_rate_range,
-                rural_activity_rate_range=rural_activity_rate_range,
-                seed=seed,
+                **gen_params.model_dump(),
                 generated_nodes=new_graph.get_node_count(),
                 generated_edges=new_graph.get_edge_count(),
                 generated_sites=generated_sites,
@@ -327,6 +187,17 @@ class MapActionHandler:
             _emit_signal(context, create_map_created_signal(signal_data))
             context.logger.info(f"Map created with {signal_data.generated_nodes} nodes")
 
+        except ValidationError as e:
+            # Convert Pydantic validation errors to user-friendly messages
+            error_messages = []
+            for error in e.errors():
+                field = ".".join(str(x) for x in error["loc"])
+                msg = error["msg"]
+                error_messages.append(f"{field}: {msg}")
+            error_msg = f"Invalid parameters: {'; '.join(error_messages)}"
+            context.logger.error(f"Validation error creating map: {error_msg}")
+            _emit_error(context, error_msg)
+            raise ValueError(error_msg) from e
         except ValueError as e:
             context.logger.error(f"Failed to create map: {e}")
             _emit_error(context, f"Failed to create map: {e}")

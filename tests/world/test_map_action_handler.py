@@ -67,11 +67,11 @@ def test_handle_create_includes_buildings_in_signal() -> None:
     assert signal.signal == SignalType.MAP_CREATED.value
 
     # Verify signal data structure
-    # Note: data is now a MapCreatedSignalData DTO, not a dict
+    # Note: data is now a MapCreatedSignalData DTO (Pydantic model), not a dict
     data = signal.data
 
-    # Convert to dict for easier testing
-    data_dict = data.to_dict() if hasattr(data, "to_dict") else data
+    # Convert to dict for easier testing (Pydantic uses model_dump)
+    data_dict = data.model_dump() if hasattr(data, "model_dump") else data
 
     assert "graph" in data_dict
     assert "nodes" in data_dict["graph"]
