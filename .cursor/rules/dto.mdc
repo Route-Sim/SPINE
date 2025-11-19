@@ -1,0 +1,64 @@
+---
+alwaysApply: true
+---
+
+Here’s a rule you can paste into your Cursor agent config:
+
+⸻
+
+Rule: Always use Pydantic DTOs for cross-boundary data
+
+When working on this project, you must explicitly model data with Pydantic DTO classes (BaseModel subclasses) instead of passing around raw dicts, loose primitives, or ORM models across layers.
+	1.	When to introduce a DTO
+
+For every change you make, you must scan the code you’re touching and ask:
+	•	Is this data:
+	•	coming from an HTTP request body/query/path,
+	•	being sent as an HTTP response,
+	•	sent/received via WebSocket (Actions/Signals),
+	•	returned by or passed into the service/domain layer,
+	•	coming from or going to an external API,
+	•	or being serialized/deserialized (JSON, files, etc.)?
+
+If yes, then:
+	•	✅ Create or reuse a Pydantic DTO class for that shape.
+	•	✅ Do not use plain dict, Any, inline typed dict[str, Any], or raw ORM models as public interfaces between layers.
+
+	2.	How to design DTOs
+
+	•	Each DTO must be a pydantic.BaseModel with clear, explicit fields and types.
+	•	Use separate DTOs for:
+	•	request vs response (e.g. TruckCreateDTO, TruckUpdateDTO, TruckDetailsDTO),
+	•	internal domain/service DTOs if they differ from API’s JSON shape.
+	•	If you see repeated dict structures (same keys used in several places), factor them out into a DTO.
+
+	3.	Placement / file structure
+
+	•	Place DTOs in a dedicated DTO/schemas layer, not mixed with business logic or ORM models:
+	•	Example structure (adapt to the repo, but keep it consistent):
+	•	backend/app/dto/ or backend/app/schemas/
+	•	network_dto.py (e.g. NodeDTO, EdgeDTO, BuildingDTO)
+	•	fleet_dto.py (e.g. TruckDTO, FleetDTO)
+	•	simulation_dto.py (e.g. SimulationStateDTO, PlaybackControlDTO)
+	•	ws_messages_dto.py (e.g. ActionDTO, SignalDTO)
+	•	When adding a new endpoint/feature:
+	•	Create/extend the right DTO module in dto/ instead of defining models inline in views/routers.
+	•	Keep import direction clean:
+	•	routers/controllers → import DTOs
+	•	services/domain → import DTOs
+	•	DTO modules must not import from routers or services.
+
+	4.	Refactoring requirement
+
+	•	Whenever you touch code that:
+	•	accepts dict/Any parameters,
+	•	returns dict/Any,
+	•	or passes ORM models directly between layers,
+you must refactor it to use DTOs first, then continue with the requested change.
+
+	5.	Validation responsibility
+
+	•	Use DTOs as the single source of validation:
+	•	Endpoint signatures should type request bodies as DTOs.
+	•	Services should accept DTOs instead of raw payloads when appropriate.
+	•	If a field has constraints (enums, ranges, regex, etc.), encode them in the DTO (validators, Field(...) constraints) instead of ad-hoc checks scattered in the code.

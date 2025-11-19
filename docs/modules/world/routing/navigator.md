@@ -1,19 +1,19 @@
 ---
-title: "Navigator - A* Pathfinding Service"
-summary: "A* pathfinding service for computing optimal time-based routes through the graph network, respecting both edge and agent speed constraints."
+title: "Navigator - Pathfinding and Node Search Service"
+summary: "A* pathfinding and generalized node search service for computing optimal time-based routes and finding nodes matching arbitrary criteria."
 source_paths:
   - "world/routing/navigator.py"
-last_updated: "2025-11-08"
+last_updated: "2025-11-19"
 owner: "Mateusz Polis"
 tags: ["module", "algorithm", "routing", "pathfinding"]
 links:
   parent: "../../../SUMMARY.md"
-  siblings: []
+  siblings: ["criteria.md"]
 ---
 
-# Navigator - A* Pathfinding Service
+# Navigator - Pathfinding and Node Search Service
 
-> **Purpose:** Provides efficient A* pathfinding for agents navigating the graph network, computing optimal routes based on travel time while respecting both road speed limits and agent capabilities.
+> **Purpose:** Provides efficient pathfinding (A*) and generalized node search (Dijkstra) for agents navigating the graph network. Computes optimal routes based on travel time, finds nodes matching arbitrary criteria, and supports waypoint-aware search for detour minimization.
 
 ## Context & Motivation
 
@@ -21,9 +21,11 @@ In a logistics simulation, transport agents need to navigate efficiently through
 
 ### Problem Solved
 - Compute optimal routes between any two nodes in the graph
+- Find closest nodes matching arbitrary criteria (building types, edge counts, etc.)
 - Account for varying road speeds and agent capabilities
 - Provide time-based routing (fastest path, not shortest distance)
 - Handle dynamic agent speed constraints
+- Minimize detours when finding waypoints on planned routes
 
 ### Requirements and Constraints
 - Must work with the existing `Graph` data structure
@@ -42,16 +44,19 @@ In a logistics simulation, transport agents need to navigate efficiently through
 
 ### In-scope
 - A* pathfinding algorithm implementation
+- Dijkstra-based closest node search with criteria matching
+- Waypoint-aware search for detour minimization (S→B→T optimization)
 - Time-based cost calculation
-- Euclidean distance heuristic
+- Euclidean distance heuristic (A*)
 - Speed constraint handling (min of edge and agent speed)
-- Path reconstruction from goal to start
+- Path reconstruction
+- Building route finding with caching (via criteria)
+- Criteria-based node search results caching
 
 ### Out-of-scope
 - Graph modification or validation
 - Traffic simulation or dynamic edge costs
 - Multi-agent coordination or collision avoidance
-- Route caching or optimization
 - Edge-based route representation (returns nodes only)
 
 ## Architecture & Design
@@ -59,10 +64,16 @@ In a logistics simulation, transport agents need to navigate efficiently through
 ### Key Classes and Functions
 
 **`Navigator` class:**
-- Stateless service (no instance variables)
-- Single public method: `find_route`
+- Caching service with minimal state (criteria-based cache + legacy building cache)
+- Five public methods:
+  - `find_route` - A* point-to-point pathfinding
+  - `find_closest_node` - Single Dijkstra closest node search
+  - `find_closest_node_on_route` - Waypoint-aware search (minimizes S→B→T)
+  - `find_route_to_building` - Legacy building search (now uses criteria internally)
+  - `_calculate_edge_cost` - Shared edge cost helper
+  - `_reverse_dijkstra` - Reverse graph Dijkstra for waypoint search
 
-**`find_route` method signature:**
+**Method signatures:**
 ```python
 def find_route(
     self,
@@ -71,6 +82,23 @@ def find_route(
     graph: Graph,
     max_speed_kph: float
 ) -> list[NodeID]
+
+def find_closest_node(
+    self,
+    start: NodeID,
+    graph: Graph,
+    max_speed_kph: float,
+    criteria: NodeCriteria,
+) -> tuple[NodeID | None, Any | None, list[NodeID] | None]
+
+def find_closest_node_on_route(
+    self,
+    start: NodeID,
+    destination: NodeID,
+    graph: Graph,
+    max_speed_kph: float,
+    criteria: NodeCriteria,
+) -> tuple[NodeID | None, Any | None, list[NodeID] | None]
 ```
 
 ### Data Flow
@@ -87,16 +115,132 @@ def find_route(
 6. **Path reconstruction:** Follow came_from pointers from goal to start, reverse
 7. **Return:** List of NodeIDs or empty list if no path
 
+### Generalized Node Search (Criteria-Based)
+
+The Navigator provides criteria-based node search using single Dijkstra traversal, replacing the old inefficient N×A* approach.
+
+**Simple Closest Node Search:**
+
+Finds the closest node matching given criteria using single Dijkstra from start.
+
+```python
+def find_closest_node(
+    start: NodeID,
+    graph: Graph,
+    max_speed_kph: float,
+    criteria: NodeCriteria,
+) -> tuple[NodeID | None, Any | None, list[NodeID] | None]
+```
+
+**Features:**
+- Single shortest-path tree expansion (not N separate A* runs)
+- Stops at first matching node (early termination)
+- Returns matched item (e.g., Building instance, not just node)
+- Caches results by criteria cache key
+- **Complexity:** O(E log V) worst case, typically O(k log k) where k << V
+
+**Waypoint-Aware Search (Detour Minimization):**
+
+Finds nodes "on the way" from start to destination, minimizing total trip cost S→B→T.
+
+```python
+def find_closest_node_on_route(
+    start: NodeID,
+    destination: NodeID,
+    graph: Graph,
+    max_speed_kph: float,
+    criteria: NodeCriteria,
+) -> tuple[NodeID | None, Any | None, list[NodeID] | None]
+```
+
+**Algorithm (Two-Phase Dijkstra):**
+
+**Phase A - Reverse Dijkstra:**
+1. Run Dijkstra from destination on reverse graph (incoming edges)
+2. Compute `dist_to_dest[v]` for all reachable nodes
+3. This creates a "distance-to-destination potential" field
+
+**Phase B - Forward Dijkstra with S→B→T Evaluation:**
+1. Run forward Dijkstra from start
+2. For each node `u` popped from queue:
+   - Check if `u` matches criteria
+   - If match: compute `total_cost = g[u] + dist_to_dest[u]`
+   - Track best match by minimum total cost
+3. **Early stopping:** When `g[u] >= best_total_cost`, stop
+   - Remaining nodes have `g[·] ≥ g[u]`, cannot improve solution
+
+**Why This Works:**
+- A node "behind" start has large `dist_to_dest` (must go backwards then forwards)
+- A node "on the way" has small `dist_to_dest` (already pointing toward destination)
+- Algorithm systematically prefers low-detour nodes
+
+**Example:**
+```
+Start (S) ──→ Parking A ──→ Destination (D)
+       \\
+        ↘ Parking B (behind start)
+
+Cost(S→A→D) = 2000m (A is on the way)
+Cost(S→B→D) = 5000m (B requires backtracking)
+
+Algorithm finds A, not B (even if B is closer to S)
+```
+
+**Benefits:**
+- Finds parking/gas stations "on the way" automatically
+- Minimizes total trip time (no unnecessary detours)
+- Used by trucks seeking parking while traveling to destination
+- **Complexity:** O(E log V) for two Dijkstra runs
+
+**Legacy Building Search:**
+
+```python
+def find_route_to_building(
+    start: NodeID,
+    graph: Graph,
+    max_speed_kph: float,
+    building_type: type[Building],
+    exclude_buildings: set[BuildingID],
+) -> tuple[BuildingID | None, list[NodeID] | None]
+```
+
+Now implemented using `find_closest_node` internally with `BuildingTypeCriteria`.
+
+**Cache Structure:**
+```python
+# Criteria-based cache (new)
+_node_cache: dict[
+    tuple[str, NodeID],  # (criteria_key, start)
+    list[tuple[NodeID, Any, list[NodeID], float]]  # (node, item, route, cost)
+]
+
+# Legacy building cache (kept for compatibility)
+_building_cache: dict[
+    tuple[type[Building], NodeID],
+    list[tuple[BuildingID, NodeID, list[NodeID]]]
+]
+```
+
 ### State Management
-- No persistent state (stateless service)
-- All state is local to `find_route` call
-- Thread-safe (no shared mutable state)
+- Maintains parking route cache: `_parking_cache`
+- All other state is local to method calls
+- Thread-safe for read-only graph operations
 
 ### Resource Handling
 - Memory: O(V) for g_scores and came_from dictionaries
 - No file I/O, network, or external resources
 
 ## Algorithms & Complexity
+
+### Algorithm Summary
+
+| Method | Algorithm | Complexity | Use Case |
+|--------|-----------|------------|----------|
+| `find_route` | A* | O(E log V) | Point-to-point routing |
+| `find_closest_node` | Dijkstra | O(E log V)* | Find nearest matching node |
+| `find_closest_node_on_route` | 2× Dijkstra | O(E log V) | Minimize detour on trip |
+
+\* Typically O(k log k) where k = nodes explored before match (k << V)
 
 ### A* Algorithm
 
@@ -113,6 +257,111 @@ f(n) = g(n) + h(n)
 - **Optimal:** Finds shortest path if heuristic is admissible (never overestimates)
 - **Complete:** Always finds a path if one exists
 - **Efficient:** Explores fewer nodes than Dijkstra's algorithm
+
+### Dijkstra's Algorithm (Closest Node Search)
+
+Single-source shortest path with early termination at first match.
+
+**Pseudocode:**
+```
+closest_node(start, graph, criteria):
+    pq = [(0, start)]
+    cost[start] = 0
+    prev[start] = None
+
+    while pq not empty:
+        (cost, u) = pq.pop()
+
+        if criteria.matches(u):
+            return (u, reconstruct_path(prev, u))
+
+        for each edge (u → v):
+            new_cost = cost[u] + edge_cost(u, v)
+            if new_cost < cost[v]:
+                cost[v] = new_cost
+                prev[v] = u
+                pq.push((new_cost, v))
+
+    return (None, None)
+```
+
+**Key Optimization:** Stops at first match, does not explore entire graph.
+
+**Old vs New Comparison:**
+
+*Old approach (find_route_to_building):*
+- Find all N buildings in graph: O(V)
+- Run A* to each: N × O(E log V)
+- Total: O(N × E log V)
+
+*New approach (find_closest_node):*
+- Single Dijkstra with early termination: O(E log V)
+- Typically stops after exploring k nodes: O(k log k) where k << V
+- **Speedup:** 10-100× faster for typical graphs
+
+### Two-Phase Dijkstra (Waypoint Search)
+
+Minimizes total trip cost S→B→T by computing distances to destination.
+
+**Phase A - Reverse Dijkstra:**
+```
+reverse_dijkstra(destination, graph):
+    pq = [(0, destination)]
+    dist_to_dest[destination] = 0
+
+    while pq not empty:
+        (cost, u) = pq.pop()
+        for each INCOMING edge (v → u):
+            new_cost = cost[u] + edge_cost(v, u)
+            if new_cost < dist_to_dest[v]:
+                dist_to_dest[v] = new_cost
+                pq.push((new_cost, v))
+
+    return dist_to_dest
+```
+
+**Phase B - Forward Dijkstra with S→B→T Evaluation:**
+```
+find_on_route(start, dest, graph, criteria):
+    dist_to_dest = reverse_dijkstra(dest, graph)
+
+    pq = [(0, start)]
+    g[start] = 0
+    best_node = None
+    best_cost = ∞
+
+    while pq not empty:
+        (current_g, u) = pq.pop()
+
+        # Early stopping
+        if current_g >= best_cost:
+            break
+
+        # Check if u matches and has path to dest
+        if u in dist_to_dest and criteria.matches(u):
+            total_cost = g[u] + dist_to_dest[u]
+            if total_cost < best_cost:
+                best_node = u
+                best_cost = total_cost
+
+        # Continue search
+        for each edge (u → v):
+            new_g = g[u] + edge_cost(u, v)
+            if new_g < g[v]:
+                g[v] = new_g
+                prev[v] = u
+                pq.push((new_g, v))
+
+    return (best_node, reconstruct_path(prev, best_node))
+```
+
+**Correctness Proof:**
+- `dist_to_dest[v]` is optimal cost from v to destination (Dijkstra guarantees)
+- `g[v]` is optimal cost from start to v (Dijkstra guarantees)
+- `total_cost = g[v] + dist_to_dest[v]` is optimal cost for S→v→T
+- Early stopping valid: if `g[u] >= best_cost`, then any unexplored v has `g[v] ≥ g[u]`, so `g[v] + dist_to_dest[v] ≥ best_cost`
+
+**Complexity:** O(E log V) for two Dijkstra runs (reverse + forward)
 
 ### Cost Function Details
 
@@ -306,16 +555,18 @@ if not self.route and self.current_node:
    - Could cache if nodes don't move
    - Negligible compared to priority queue overhead
 
-3. **No route caching:**
-   - Repeated queries recompute from scratch
-   - Future: add LRU cache for common routes
+3. **Limited route caching:**
+   - General routes not cached (recompute from scratch)
+   - Parking routes cached per start node
+   - Cache invalidation not implemented (assumes static graph)
 
 ### Optimization Opportunities
 
 1. **Bidirectional A*:** Search from both start and goal
 2. **Hierarchical pathfinding:** Precompute shortcuts for long routes
-3. **Route caching:** Cache recent routes with invalidation on graph changes
-4. **Parallel search:** For multi-agent scenarios
+3. **General route caching:** Extend caching beyond parking routes with LRU policy
+4. **Cache invalidation:** Invalidate caches when graph structure changes
+5. **Parallel search:** For multi-agent scenarios
 
 ## Security & Reliability
 

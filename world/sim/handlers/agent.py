@@ -3,9 +3,12 @@
 import random
 from typing import Any
 
+from pydantic import ValidationError
+
 from core.types import AgentID, NodeID
 from world.graph.graph import Graph
 
+from ..dto.agent_dto import BuildingCreateDTO, TruckCreateDTO
 from ..queues import (
     Signal,
     SignalType,
@@ -87,6 +90,9 @@ class AgentActionHandler:
                 from core.buildings.base import Building
                 from core.types import BuildingID
 
+                # Validate using DTO
+                _ = BuildingCreateDTO(**agent_data)
+
                 # Create building data structure (convert AgentID to BuildingID)
                 building = Building(id=BuildingID(str(agent_id)))
                 # Create agent wrapper (BuildingAgent has same interface as AgentBase)
@@ -94,29 +100,19 @@ class AgentActionHandler:
                     building=building,
                     id=agent_id,
                     kind=agent_kind,
-                    **agent_data,
                 )
             elif agent_kind == "truck":
-                from agents.transports.truck import Truck
-
-                # Extract max_speed_kph with validation
-                max_speed_kph = agent_data.get("max_speed_kph", 100.0)
-                if not isinstance(max_speed_kph, int | float) or max_speed_kph <= 0:
-                    raise ValueError("max_speed_kph must be a positive number")
+                # Validate and parse using DTO
+                truck_dto = TruckCreateDTO(**agent_data)
 
                 # Always spawn on random node
                 spawn_node = _get_random_spawn_node(context.world.graph)
 
-                agent_instance = Truck(  # type: ignore[assignment]
-                    id=agent_id,
+                # Create truck instance from DTO
+                agent_instance = truck_dto.to_truck(  # type: ignore[assignment]
+                    agent_id=agent_id,
                     kind=agent_kind,
-                    max_speed_kph=float(max_speed_kph),
-                    current_speed_kph=0.0,
-                    current_node=spawn_node,
-                    current_edge=None,
-                    edge_progress_m=0.0,
-                    route=[],
-                    destination=None,
+                    spawn_node=spawn_node,
                 )
             else:
                 # Fallback to base agent
@@ -136,6 +132,12 @@ class AgentActionHandler:
             except Exception as e:
                 context.logger.error(f"Failed to emit agent.created signal: {e}")
 
+        except ValidationError as e:
+            # Pydantic validation error - provide clear error message
+            error_details = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
+            context.logger.error(f"Validation error for agent {agent_id_str}: {error_details}")
+            _emit_error(context, f"Invalid agent parameters: {error_details}")
+            raise ValueError(f"Validation error: {error_details}") from e
         except ImportError as e:
             context.logger.error(f"Failed to import agent class for kind {agent_kind}: {e}")
             _emit_error(context, f"Unknown agent kind: {agent_kind}")

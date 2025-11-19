@@ -8,7 +8,7 @@ EdgeID = NewType("EdgeID", int)
 LegID = NewType("LegID", str)
 NodeID = NewType("NodeID", int)
 PackageID = NewType("PackageID", str)
-SiteID = NewType("SiteID", str)  # Alias for BuildingID but more semantic
+SiteID = BuildingID  # Alias for BuildingID but more semantic
 
 # Time
 Minutes = NewType("Minutes", int)

@@ -56,6 +56,7 @@ class SignalType(str, Enum):
     PACKAGE_DELIVERED = "package.delivered"
     SITE_STATS_UPDATE = "site.stats_update"  # TODO: should be part of building.updated signal
     BUILDING_CREATED = "building.created"
+    AGENT_EVENT = "agent.event"
 
 
 def signal_type_to_string(signal_type: SignalType) -> str:
@@ -452,3 +453,24 @@ def create_building_created_signal(
     if tick is not None:
         data["tick"] = tick
     return Signal(signal=signal_type_to_string(SignalType.BUILDING_CREATED), data=data)
+
+
+def create_agent_event_signal(
+    event_type: str,
+    agent_id: str,
+    agent_type: str,
+    event_data: dict[str, float | int | str],
+    tick: int,
+) -> Signal:
+    """Create a generic agent event signal."""
+    data = {
+        "event_type": event_type,
+        "agent_id": agent_id,
+        "agent_type": agent_type,
+        "tick": tick,
+    }
+    data.update(event_data)
+    return Signal(
+        signal=signal_type_to_string(SignalType.AGENT_EVENT),
+        data=data,
+    )

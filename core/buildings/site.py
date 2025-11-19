@@ -3,7 +3,7 @@
 import math
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from core.buildings.base import Building
 from core.types import BuildingID, DeliveryUrgency, PackageID, Priority, SiteID
@@ -33,6 +33,8 @@ class SiteStatistics:
 @dataclass
 class Site(Building):
     """Site building for pickup and delivery operations."""
+
+    TYPE: ClassVar[str] = "site"
 
     id: BuildingID
     name: str
@@ -73,11 +75,17 @@ class Site(Building):
         data = asdict(self)
         # Convert SiteStatistics to dict
         data["statistics"] = self.statistics.to_dict()
+        # Add type field
+        data["type"] = self.TYPE
         return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Site":
         """Deserialize site from dictionary."""
+        # Remove type field (not needed for construction)
+        data = dict(data)  # Create copy to avoid mutating original
+        data.pop("type", None)
+
         # Convert statistics dict back to SiteStatistics
         if isinstance(data.get("statistics"), dict):
             data["statistics"] = SiteStatistics.from_dict(data["statistics"])

@@ -26,4 +26,8 @@ class Building:
             from core.buildings.parking import Parking
 
             return Parking.from_dict(data)
+        elif building_type == "site":
+            from core.buildings.site import Site
+
+            return Site.from_dict(data)
         return cls(id=BuildingID(data["id"]))

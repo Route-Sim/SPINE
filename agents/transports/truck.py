@@ -39,6 +39,17 @@ class Truck:
     current_building_id: BuildingID | None = None  # Parking building the truck occupies
     _parking_node_id: NodeID | None = field(default=None, init=False, repr=False)
 
+    # Tachograph fields
+    driving_time_s: float = 0.0  # Accumulated driving time in seconds
+    resting_time_s: float = 0.0  # Accumulated rest time in seconds
+    is_resting: bool = False  # Whether currently in mandatory rest
+    required_rest_s: float = 0.0  # Required rest duration when resting
+    balance_ducats: float = 0.0  # Financial balance for penalties
+    risk_factor: float = 0.5  # Risk tolerance (0.0-1.0, affects parking search timing)
+    is_seeking_parking: bool = False  # Flag for active parking search
+    original_destination: NodeID | None = None  # Preserved destination when diverting to parking
+    _tried_parkings: set[BuildingID] = field(default_factory=set, init=False, repr=False)
+
     def perceive(self, world: World) -> None:
         """Optional: pull local info into cached fields.
 
@@ -47,24 +58,96 @@ class Truck:
         pass
 
     def decide(self, world: World) -> None:
-        """Update truck state: route planning and movement.
+        """Update truck state: route planning and movement with tachograph management.
 
         Behavior:
+        - Track driving time and enforce rest periods
+        - Apply penalties for overtime driving
+        - Seek parking when approaching time limits
+        - Handle parking full scenarios
         - If route is empty: pick random destination and compute route
         - If at node with route: enter next edge in route
         - If on edge: update position along edge, transition to node when complete
         """
-        # Case 1: Need new route
-        if not self.route:
-            self._plan_new_route(world)
+        # Handle resting state (highest priority)
+        if self.is_resting:
+            self._handle_resting(world)
             return
 
-        # Case 2: At a node, need to enter next edge
+        # Check for overtime penalties (apply once per violation)
+        if self.driving_time_s > 8 * 3600:
+            self._apply_tachograph_penalty(world)
+
+        # Decide if should seek parking based on driving time
+        if not self.is_seeking_parking and self._should_seek_parking():
+            self.is_seeking_parking = True
+            self.original_destination = self.destination
+            parking_id, route = self._find_closest_parking(world)
+            if parking_id and route:
+                # Set route to parking
+                self.destination = route[-1] if route else None
+                self.route_end_node = self.destination
+                # Remove first node if it's current position
+                if route and self.current_node and route[0] == self.current_node:
+                    self.route = route[1:]
+                else:
+                    self.route = route
+            else:
+                # No parking found - clear seeking flag and continue
+                self.is_seeking_parking = False
+                self.original_destination = None
+
+        # Case 1: At a node
         if self.current_node is not None:
-            self._enter_next_edge(world)
-            return
+            # Handle parking arrival when seeking parking
+            if self.is_seeking_parking and not self.route:
+                # Try to find parking at current node
+                node = world.graph.get_node(self.current_node)
+                if node:
+                    parked = False
+                    # O(1) lookup for parking buildings by type
+                    for building in node.get_buildings_by_type(Parking):
+                        if building.has_space():
+                            try:
+                                self.park_in_building(world, building.id)
+                                # Successfully parked - start resting
+                                self.required_rest_s = self._calculate_required_rest()
+                                self.is_resting = True
+                                self.resting_time_s = 0.0
+                                parked = True
+                                break
+                            except ValueError:
+                                # Parking full, add to tried list
+                                self._tried_parkings.add(building.id)
 
-        # Case 3: On an edge, continue moving
+                    if not parked:
+                        # Parking full or not found - try next parking
+                        parking_id, route = self._find_closest_parking(world)
+                        if parking_id and route:
+                            self.destination = route[-1] if route else None
+                            self.route_end_node = self.destination
+                            if route and route[0] == self.current_node:
+                                self.route = route[1:]
+                            else:
+                                self.route = route
+                        else:
+                            # No more parkings available - give up seeking
+                            self.is_seeking_parking = False
+                            self.destination = self.original_destination
+                            self.original_destination = None
+                            self._tried_parkings.clear()
+                return
+
+            # Normal behavior: enter next edge or plan route
+            if not self.route:
+                if not self.is_seeking_parking:
+                    self._plan_new_route(world)
+                return
+            else:
+                self._enter_next_edge(world)
+                return
+
+        # Case 2: On an edge, continue moving
         if self.current_edge is not None:
             self._move_along_edge(world)
             return
@@ -161,6 +244,10 @@ class Truck:
         distance_traveled_m = self.current_speed_kph * (1000.0 / 3600.0) * world.dt_s
         self.edge_progress_m += distance_traveled_m
 
+        # Track driving time (tachograph)
+        if not self.is_resting:
+            self.driving_time_s += world.dt_s
+
         # Check if edge is complete
         if self.edge_progress_m >= edge.length_m:
             # Arrive at next node
@@ -231,6 +318,194 @@ class Truck:
 
         raise ValueError(f"Parking {building_id} not found on node {target_node_id}")
 
+    def _calculate_required_rest(self) -> float:
+        """Calculate required rest time based on driving time.
+
+        Formula: 6h drive → 6h rest, 8h drive → 10h rest (linear interpolation).
+        Mathematically: required_rest = driving_time * (2/3) + (driving_time / (8*3600)) * 4 * 3600
+
+        Returns:
+            Required rest time in seconds
+        """
+        driving_hours = self.driving_time_s / 3600.0
+        # Linear interpolation: at 6h need 6h, at 8h need 10h
+        # Slope = (10 - 6) / (8 - 6) = 2
+        # required_hours = driving_hours + (driving_hours - 6) * 2 if driving_hours >= 6
+        # Simplified: required_hours = 2 * driving_hours - 6 for driving_hours >= 6
+        # For driving_hours < 6: proportional (1:1 ratio)
+        if driving_hours <= 6.0:
+            required_hours = driving_hours
+        else:
+            # Between 6 and 8 hours: linear from 6h rest to 10h rest
+            required_hours = 6.0 + (driving_hours - 6.0) * 2.0
+
+        return required_hours * 3600.0
+
+    def _should_seek_parking(self) -> bool:
+        """Determine if truck should start seeking parking based on driving time and risk.
+
+        Uses probability-based decision that increases linearly as driving time approaches 8h.
+        Higher risk_factor means truck starts looking later.
+
+        Returns:
+            True if truck should start seeking parking
+        """
+        if self.is_resting or self.is_seeking_parking:
+            return False
+
+        hours_driven = self.driving_time_s / 3600.0
+        # Threshold: 7.0 to 8.0 hours based on risk_factor
+        start_threshold = 7.0 + self.risk_factor * 1.0
+
+        if hours_driven < start_threshold:
+            return False
+
+        # Linear probability increase from start_threshold to 8.0 hours
+        max_hours = 8.0
+        if hours_driven >= max_hours:
+            # Must seek parking if at or past 8 hours
+            return True
+
+        # Probability increases linearly
+        probability = (hours_driven - start_threshold) / (max_hours - start_threshold)
+        return random.random() < probability
+
+    def _find_closest_parking(self, world: World) -> tuple[BuildingID | None, list[NodeID] | None]:
+        """Find the closest available parking using the navigator.
+
+        Uses waypoint-aware search if truck has an active destination, preferring
+        parkings "on the way" to minimize total trip cost. Falls back to simple
+        closest search if no destination.
+
+        Returns:
+            Tuple of (parking_building_id, route) or (None, None) if no parking found
+        """
+        if self.current_node is None:
+            return None, None
+
+        # Import here to avoid circular dependency
+        from world.routing.criteria import BuildingTypeCriteria
+
+        # Create criteria for parking search
+        criteria = BuildingTypeCriteria(Parking, self._tried_parkings)
+
+        # If truck has a destination, use waypoint-aware search to find parking "on the way"
+        if self.destination is not None:
+            node_id, matched_item, route = world.router.find_closest_node_on_route(
+                self.current_node,
+                self.destination,
+                world.graph,
+                self.max_speed_kph,
+                criteria,
+            )
+        else:
+            # No destination - use simple closest search
+            node_id, matched_item, route = world.router.find_closest_node(
+                self.current_node, world.graph, self.max_speed_kph, criteria
+            )
+
+        if node_id is None or matched_item is None or route is None:
+            return None, None
+
+        # Extract building ID from matched item (which is the Parking instance)
+        parking = matched_item
+        return parking.id, route
+
+    def _handle_resting(self, world: World) -> None:
+        """Handle truck resting state and recovery.
+
+        While resting:
+        - Increment rest time
+        - Can plan route once to original destination
+        - Cannot move until rest complete
+        - When rest complete: reset counters and resume operation
+        """
+        # Increment rest time
+        self.resting_time_s += world.dt_s
+
+        # Plan route to original destination if needed (only once)
+        if not self.route and self.original_destination is not None:
+            self.destination = self.original_destination
+            self._set_route(world)
+            # Don't clear original_destination yet, keep it until rest is complete
+
+        # Check if rest is complete
+        if self.resting_time_s >= self.required_rest_s:
+            # Rest complete - reset tachograph and resume
+            self.is_resting = False
+            self.driving_time_s = 0.0
+            self.resting_time_s = 0.0
+            self.required_rest_s = 0.0
+            self.is_seeking_parking = False
+            self.original_destination = None
+            self._tried_parkings.clear()
+
+            # Adjust risk positively (learned to rest on time)
+            if self.driving_time_s < 8.0 * 3600:  # Rested before exceeding limit
+                self._adjust_risk(penalty=False)
+
+    def _apply_tachograph_penalty(self, world: World) -> None:
+        """Apply financial penalty for exceeding driving time limits.
+
+        Penalties (ducats):
+        - 0-1 hour overtime: -100
+        - 1-2 hours overtime: -200
+        - 2+ hours overtime: -500
+
+        Also adjusts risk factor downward as a learning mechanism.
+        """
+        overtime_s = self.driving_time_s - (8.0 * 3600)
+        if overtime_s <= 0:
+            return
+
+        overtime_hours = overtime_s / 3600.0
+
+        # Determine penalty amount
+        if overtime_hours <= 1.0:
+            penalty = 100.0
+        elif overtime_hours <= 2.0:
+            penalty = 200.0
+        else:
+            penalty = 500.0
+
+        # Apply penalty
+        self.balance_ducats -= penalty
+
+        # Emit penalty event through world
+        world.emit_event(
+            {
+                "type": "agent_event",
+                "event_type": "penalized",
+                "agent_id": str(self.id),
+                "agent_type": "truck",
+                "overtime_hours": overtime_hours,
+                "penalty_amount": penalty,
+                "new_balance": self.balance_ducats,
+            }
+        )
+
+        # Adjust risk downward (learned to be more cautious)
+        self._adjust_risk(penalty=True)
+
+    def _adjust_risk(self, penalty: bool) -> None:
+        """Adjust risk factor based on experience.
+
+        Args:
+            penalty: True if adjusting after penalty (decrease risk),
+                    False if adjusting after successful rest (increase risk)
+        """
+        if penalty:
+            # Decrease risk by 0.5% to 1%
+            adjustment = random.uniform(0.99, 0.995)
+            self.risk_factor *= adjustment
+        else:
+            # Increase risk by 0.5% to 1%
+            adjustment = random.uniform(1.005, 1.01)
+            self.risk_factor *= adjustment
+
+        # Clamp to [0.0, 1.0]
+        self.risk_factor = max(0.0, min(1.0, self.risk_factor))
+
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
@@ -250,6 +525,14 @@ class Truck:
             "current_building_id": str(self.current_building_id)
             if self.current_building_id
             else None,
+            # Tachograph fields
+            "driving_time_s": self.driving_time_s,
+            "resting_time_s": self.resting_time_s,
+            "is_resting": self.is_resting,
+            "balance_ducats": self.balance_ducats,
+            "risk_factor": self.risk_factor,
+            "is_seeking_parking": self.is_seeking_parking,
+            "original_destination": self.original_destination,
         }
 
         # Compare with last serialized state
@@ -277,6 +560,15 @@ class Truck:
             "current_building_id": str(self.current_building_id)
             if self.current_building_id
             else None,
+            # Tachograph fields
+            "driving_time_s": self.driving_time_s,
+            "resting_time_s": self.resting_time_s,
+            "is_resting": self.is_resting,
+            "required_rest_s": self.required_rest_s,
+            "balance_ducats": self.balance_ducats,
+            "risk_factor": self.risk_factor,
+            "is_seeking_parking": self.is_seeking_parking,
+            "original_destination": self.original_destination,
             "inbox_count": len(self.inbox),
             "outbox_count": len(self.outbox),
             "tags": self.tags.copy(),

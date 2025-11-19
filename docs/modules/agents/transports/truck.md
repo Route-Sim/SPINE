@@ -93,6 +93,16 @@ class Truck:
     route_start_node: NodeID | None  # Route origin
     route_end_node: NodeID | None  # Route destination
     current_building_id: BuildingID | None  # Parking facility association
+
+    # Tachograph fields
+    driving_time_s: float  # Accumulated driving time
+    resting_time_s: float  # Accumulated rest time
+    is_resting: bool  # Currently in mandatory rest
+    required_rest_s: float  # Required rest duration
+    balance_ducats: float  # Financial balance for penalties
+    risk_factor: float  # Risk tolerance (0.0-1.0)
+    is_seeking_parking: bool  # Actively seeking parking
+    original_destination: NodeID | None  # Preserved when diverting
 ```
 
 ### State Representation
@@ -144,6 +154,83 @@ class Truck:
 - `park_in_building(world, building_id)` validates node alignment, delegates capacity checks to `Parking.park`, and assigns `current_building_id`.
 - `leave_parking(world)` resolves the parking facility, releases the agent if still registered, and clears `current_building_id`.
 - `_enter_next_edge` defensively calls `leave_parking` before the truck departs a node, ensuring building occupancy remains consistent whenever movement resumes.
+
+### Tachograph System (Driving Time & Rest Management)
+
+The truck implements a tachograph system that enforces driving time limits and mandatory rest periods, simulating real-world driver regulations.
+
+**Key Components:**
+
+1. **Driving Time Tracking:**
+   - Accumulates `driving_time_s` while the truck is moving on edges
+   - Maximum legal driving time: 8 hours (28,800 seconds)
+   - Tracking begins from spawn and resets after completing mandatory rest
+
+2. **Rest Requirements:**
+   - Formula: Linear interpolation between 6h drive → 6h rest and 8h drive → 10h rest
+   - 6 hours driving requires 6 hours rest (21,600 seconds)
+   - 8 hours driving requires 10 hours rest (36,000 seconds)
+   - Rest must be taken at parking facilities
+
+3. **Parking Search Behavior:**
+   - Probabilistic decision-making based on driving time and `risk_factor`
+   - Search threshold: `7.0 + risk_factor` hours (range: 7.0-8.0 hours)
+   - Probability increases linearly from threshold to 8 hours
+   - Higher `risk_factor` means later parking search (riskier behavior)
+
+4. **Penalty System:**
+   - Overtime penalties applied when exceeding 8 hours:
+     - 0-1 hour overtime: -100 ducats
+     - 1-2 hours overtime: -200 ducats
+     - 2+ hours overtime: -500 ducats
+   - Penalties deducted from `balance_ducats` (can go negative)
+   - Emits `truck.penalty` signal for monitoring
+
+5. **Adaptive Risk Behavior:**
+   - Trucks learn from experience by adjusting `risk_factor`
+   - After penalty: risk decreases by 0.5-1% (more cautious)
+   - After successful rest: risk increases by 0.5-1% (more confident)
+   - Risk clamped to [0.0, 1.0] range
+
+6. **Parking Full Handling:**
+   - If parking full at arrival, searches for next closest parking
+   - Maintains set of tried parkings to avoid loops
+   - Navigator caches parking routes for efficiency
+   - Gives up if no available parking found
+
+**Tachograph State Fields:**
+
+```python
+driving_time_s: float = 0.0  # Accumulated driving time
+resting_time_s: float = 0.0  # Accumulated rest time
+is_resting: bool = False  # Currently in mandatory rest
+required_rest_s: float = 0.0  # Required rest duration
+balance_ducats: float = 0.0  # Financial balance
+risk_factor: float = 0.5  # Risk tolerance (0.0-1.0)
+is_seeking_parking: bool = False  # Actively seeking parking
+original_destination: NodeID | None  # Preserved when diverting
+```
+
+**Tachograph Workflow:**
+
+1. Truck drives accumulating `driving_time_s`
+2. As driving time approaches limit, probability of seeking parking increases
+3. When deciding to seek parking:
+   - Preserves `original_destination`
+   - Finds closest parking via Navigator
+   - Routes to parking location
+4. On arrival at parking:
+   - Attempts to park (may fail if full)
+   - If successful: calculates required rest and enters resting state
+   - If full: tries next parking
+5. While resting:
+   - Increments `resting_time_s`
+   - Can plan route to original destination (once)
+   - Cannot move until rest complete
+6. When rest complete:
+   - Resets tachograph counters
+   - Resumes journey to original destination
+   - Adjusts risk based on performance
 
 ### State Transitions
 
@@ -238,7 +325,7 @@ if current_state == _last_serialized_state:
 }
 ```
 
-**Custom speed:**
+**Custom speed and risk:**
 ```json
 {
   "action": "agent.create",
@@ -246,11 +333,18 @@ if current_state == _last_serialized_state:
     "agent_id": "truck-fast",
     "agent_kind": "truck",
     "agent_data": {
-      "max_speed_kph": 120.0
+      "max_speed_kph": 120.0,
+      "risk_factor": 0.8,
+      "initial_balance_ducats": 1000.0
     }
   }
 }
 ```
+
+**Parameters:**
+- `max_speed_kph` (float, default: 100.0): Maximum speed capability
+- `risk_factor` (float, default: 0.5, range: 0.0-1.0): Risk tolerance affecting parking search timing
+- `initial_balance_ducats` (float, default: 0.0): Starting financial balance
 
 ### State Updates
 

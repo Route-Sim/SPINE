@@ -13,6 +13,7 @@ from .queues import (
     ActionQueue,
     Signal,
     SignalQueue,
+    create_agent_event_signal,
     create_agent_update_signal,
     create_error_signal,
     create_package_created_signal,
@@ -169,6 +170,21 @@ class SimulationController:
                             event.get("package_id", ""),
                             event.get("site_id", ""),
                             event.get("value", 0.0),
+                            self.state.current_tick,
+                        )
+                    )
+                elif event.get("type") == "agent_event":
+                    event_data = {
+                        k: v
+                        for k, v in event.items()
+                        if k not in ("type", "event_type", "agent_id", "agent_type")
+                    }
+                    self._emit_signal(
+                        create_agent_event_signal(
+                            event.get("event_type", ""),
+                            event.get("agent_id", ""),
+                            event.get("agent_type", ""),
+                            event_data,
                             self.state.current_tick,
                         )
                     )

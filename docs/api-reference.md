@@ -192,7 +192,7 @@ Actions are commands sent from the Frontend to control the simulation.
 }
 ```
 
-**JSON Example - Truck Agent (Custom Speed)**:
+**JSON Example - Truck Agent (Custom Speed and Tachograph)**:
 ```json
 {
   "action": "agent.create",
@@ -200,7 +200,9 @@ Actions are commands sent from the Frontend to control the simulation.
     "agent_id": "truck-fast",
     "agent_kind": "truck",
     "agent_data": {
-      "max_speed_kph": 120.0
+      "max_speed_kph": 120.0,
+      "risk_factor": 0.7,
+      "initial_balance_ducats": 1000.0
     }
   }
 }
@@ -230,6 +232,14 @@ Actions are commands sent from the Frontend to control the simulation.
 **Truck (`agent_kind: "truck"`)**:
 - `max_speed_kph` (optional, number): Maximum speed capability in km/h (default: 100.0)
   - Must be positive number
+- `risk_factor` (optional, number): Risk tolerance affecting tachograph behavior (default: 0.5, range: 0.0-1.0)
+  - Lower values (0.0-0.4): Cautious, seeks parking earlier
+  - Medium values (0.4-0.6): Balanced behavior
+  - Higher values (0.6-1.0): Risky, delays parking search
+  - Adjusts adaptively based on penalties and successful rests
+- `initial_balance_ducats` (optional, number): Starting financial balance in ducats (default: 0.0)
+  - Used to track tachograph penalty costs
+  - Can go negative
   - Truck will spawn at random node
   - Actual speed limited by road max_speed during movement
 
@@ -252,15 +262,26 @@ Actions are commands sent from the Frontend to control the simulation.
 - `agent.created` signal emitted with full initial state
 - Truck automatically picks random destinations
 - Truck follows A* computed routes
-- State updates only sent when node, edge, speed, or route changes (NOT every tick)
+- State updates only sent when node, edge, speed, route, or tachograph state changes (NOT every tick)
 - Truck respects both its max_speed and edge speed limits
 - Frontend receives route information for visualization
+- **Tachograph system**:
+  - Tracks driving time; requires rest after 6-8 hours of driving
+  - Probabilistically seeks parking as driving time approaches limits
+  - Applies financial penalties for overtime driving (100-500 ducats)
+  - Adaptively adjusts risk_factor based on experience
+  - Emits `truck.penalty` signals when penalties applied
 
 **Notes**:
 - Trucks require a graph with at least 2 nodes to move
 - Single-node graphs will result in stationary trucks
 - Trucks continuously move to random destinations (future: package-driven routes)
 - Position state is either `current_node` (at node) or `current_edge` (on edge), never both
+- **Tachograph notes**:
+  - Rest requirements: 6h drive → 6h rest, 8h drive → 10h rest (linear)
+  - Must rest at parking facilities
+  - If parking full, truck seeks alternative parking
+  - Route preserved when diverting to parking
 
 ---
 
@@ -1443,7 +1464,53 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 21. SITE_STATS_UPDATE - Site Statistics Update
+### 21. AGENT_EVENT - Agent Event
+
+**Purpose**: Unified signal for various events happening to agents in the simulation.
+
+**Signal**: `agent.event`
+
+**JSON Example** (penalized event):
+```json
+{
+  "signal": "agent.event",
+  "data": {
+    "event_type": "penalized",
+    "agent_id": "truck-1",
+    "agent_type": "truck",
+    "overtime_hours": 1.5,
+    "penalty_amount": 200.0,
+    "new_balance": -200.0,
+    "tick": 7200
+  }
+}
+```
+
+**Common Fields**:
+- `data.event_type`: Type of event (e.g., "penalized", "awarded", "malfunction")
+- `data.agent_id`: ID of the agent
+- `data.agent_type`: Type of agent (e.g., "truck")
+- `data.tick`: Simulation tick when event occurred
+
+**Event-Specific Fields** (for "penalized"):
+- `data.overtime_hours`: Hours driven beyond the 8-hour limit
+- `data.penalty_amount`: Financial penalty applied (ducats)
+  - 0-1 hour overtime: 100 ducats
+  - 1-2 hours overtime: 200 ducats
+  - 2+ hours overtime: 500 ducats
+- `data.new_balance`: Agent's balance after penalty (can be negative)
+
+**When Received**: Various agent events throughout simulation lifecycle
+
+**Notes**:
+- Unified event signal for all agent-related events
+- Domain-based naming: domain=agent, type=event
+- Specific event details are in `event_type` and additional fields
+- Extensible for future agent event types
+
+---
+
+### 22. SITE_STATS_UPDATE - Site Statistics Update
 
 **Purpose**: Provides periodic updates of site statistics for business intelligence.
 

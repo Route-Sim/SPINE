@@ -214,7 +214,6 @@ class World:
 
     def _spawn_package_at_site(self, site: "Site", current_tick: int) -> None:
         """Spawn a new package at a site."""
-        from typing import cast
 
         from core.buildings.site import Site as SiteType
         from core.packages.package import Package
@@ -225,7 +224,7 @@ class World:
         for node in self.graph.nodes.values():
             for building in node.buildings:
                 if isinstance(building, SiteType) and building.id != site.id:
-                    available_sites.append(cast(SiteID, building.id))
+                    available_sites.append(building.id)
 
         if not available_sites:
             return  # No destinations available
@@ -244,7 +243,7 @@ class World:
         # Create package
         package = Package(
             id=package_id,
-            origin_site=cast(SiteID, site.id),
+            origin_site=site.id,
             destination_site=destination_site,
             size_kg=params["size_kg"],
             value_currency=params["value_currency"],
@@ -265,11 +264,9 @@ class World:
 
         expired_packages = []
         # Check all packages that originated from this site
-        from typing import cast
-
         from core.types import SiteID
 
-        site_id = cast(SiteID, site.id)
+        site_id: SiteID = site.id
         for package_id, package in self.packages.items():
             if package.origin_site == site_id and package.is_expired(current_tick):
                 expired_packages.append(package_id)

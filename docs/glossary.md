@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-11-12"
+last_updated: "2025-11-19"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -72,6 +72,12 @@ links:
 
 **Delivery Urgency**: Classification of package delivery speed requirements, including STANDARD, EXPRESS, and SAME_DAY levels that affect pricing and handling priority.
 
+**Detour Minimization**: Optimization strategy used in waypoint-aware search to find intermediate stops (e.g., parking, gas stations) that minimize the total trip cost from start through the waypoint to the destination, rather than just finding the closest waypoint to the start. Prevents unnecessary backtracking by preferring waypoints "on the way."
+
+**Dijkstra's Algorithm**: Single-source shortest path algorithm that explores nodes in order of increasing distance from the start. Used by Navigator for closest node search with early termination and for computing distance-to-destination fields in waypoint-aware search. Unlike A*, does not use a heuristic, guaranteeing exploration in optimal order.
+
+**Ducat**: Virtual currency unit used in the simulation for tracking financial transactions, particularly tachograph violation penalties. Trucks maintain a balance in ducats that can go negative when penalties are applied. Named after the historical European trade coin.
+
 ## E
 
 **Edge**: A connection between two Nodes in the Map's graph, representing a traversable route (e.g. road). Edges are directed, defining the allowed direction of movement between Nodes. Each edge includes attributes relevant to the simulation of traffic flow – such as distance, capacity and maximum speed – along with any additional parameters necessary to capture route-specific conditions.
@@ -128,7 +134,9 @@ links:
 
 **NodeID**: Unique identifier for nodes, implemented as an integer type.
 
-**Navigator**: Service providing A* pathfinding for agent navigation through the graph network. Computes optimal time-based routes respecting both edge speed limits and agent capabilities.
+**Navigator**: Service providing A* pathfinding and generalized node search for agent navigation through the graph network. Computes optimal time-based routes respecting both edge speed limits and agent capabilities. Supports criteria-based node search using Dijkstra's algorithm with early termination and waypoint-aware search for detour minimization.
+
+**Node Criteria**: Protocol-based system for defining node matching conditions in graph searches. Allows finding nodes based on arbitrary conditions (building types, edge counts, composite rules) without hardcoding search logic. Implementations include BuildingTypeCriteria, EdgeCountCriteria, and CompositeCriteria.
 
 ## P
 
@@ -162,6 +170,8 @@ links:
 
 ## R
 
+**Risk Factor**: A configurable parameter (0.0-1.0) that influences truck behavior in the tachograph system. Lower values make trucks more cautious (seek parking earlier), while higher values make them riskier (delay parking search). The risk factor adapts over time based on penalties and successful rest periods, creating learning behavior.
+
 **Route**: Ordered list of NodeIDs representing a planned path through the graph network. Transport agents follow routes computed by the Navigator service to reach their destinations.
 
 ## S
@@ -188,15 +198,19 @@ links:
 
 ## T
 
+**Tachograph**: A driving time and rest management system implemented for trucks that enforces realistic driver regulations. Tracks cumulative driving time, requires mandatory rest periods after 6-8 hours of driving, and applies financial penalties for overtime violations. The system includes probabilistic parking search behavior influenced by risk tolerance, adaptive learning through risk adjustment, and comprehensive monitoring through penalty signals.
+
 **Tick**: A single simulation step, representing a unit of time in the simulation.
 
 **Tick Rate**: Number of simulation ticks per second, configurable from 0.1 to 100 Hz.
 
-**Truck**: Autonomous transport agent that navigates through the graph network following A* computed routes. Trucks maintain position state (current node or edge), speed constraints, and continuously move to randomly selected destinations.
+**Truck**: Autonomous transport agent that navigates through the graph network following A* computed routes. Trucks maintain position state (current node or edge), speed constraints, continuously move to randomly selected destinations, and enforce tachograph regulations including driving time limits and mandatory rest periods.
 
 ## W
 
 **WebSocket**: Real-time bidirectional communication protocol for frontend-simulation communication.
+
+**Waypoint Optimization**: Two-phase Dijkstra algorithm for finding intermediate stops that minimize total trip cost from start through waypoint to destination. Uses reverse Dijkstra to compute distance-to-destination fields, then forward Dijkstra to evaluate S→B→T costs. Systematically prefers waypoints "on the way" over those requiring backtracking.
 
 **Weight Limit**: Maximum vehicle weight allowed on a road segment, measured in kilograms. Some local and access roads have weight restrictions (typically 3.5-7.5 tons) to prevent heavy truck traffic.
 
