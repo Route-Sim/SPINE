@@ -34,6 +34,7 @@
 * [Map Generation](modules/world/generation.md)
 * [World Generator](modules/world/generation/generator.md)
 * [Simulation Controller](modules/world/sim/controller.md)
+* [Simulation Control Handler](modules/world/sim/handlers/simulation.md)
 * [Agent Action Handler](modules/world/sim/handlers/agent.md)
 * [Building Action Handler](modules/world/sim/handlers/building.md)
 * [Map Action Handler](modules/world/sim/handlers/map.md)

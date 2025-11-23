@@ -167,12 +167,19 @@ class TestSimulationController:
         self.controller.action_processor.process(action_request)
         assert not self.controller.state.paused
 
-    def test_handle_set_tick_rate_action(self) -> None:
-        """Test handling set tick rate action."""
-        action_request = ActionRequest(action="tick_rate.update", params={"tick_rate": 50.0})
+    def test_handle_update_simulation_action(self) -> None:
+        """Test handling simulation update action (tick rate change)."""
+        action_request = ActionRequest(action="simulation.update", params={"tick_rate": 50.0})
         self.controller.action_processor.process(action_request)
 
         assert self.controller.state.tick_rate == 50.0
+
+        # Verify signal was emitted
+        assert not self.signal_queue.empty()
+        signal = self.signal_queue.get_nowait()
+        assert signal is not None
+        assert signal.signal == signal_type_to_string(SignalType.SIMULATION_UPDATED)
+        assert signal.data["tick_rate"] == 50
 
     def test_handle_add_agent_action(self) -> None:
         """Test handling add agent action."""
@@ -257,7 +264,7 @@ class TestSimulationController:
             ActionRequest(action=ActionType.START.value, params={"tick_rate": 25.0})
         )
         self.action_queue.put(
-            ActionRequest(action=ActionType.SET_TICK_RATE.value, params={"tick_rate": 40.0})
+            ActionRequest(action=ActionType.UPDATE_SIMULATION.value, params={"tick_rate": 40.0})
         )
 
         # Process actions

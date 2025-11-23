@@ -259,7 +259,7 @@ site_stats = create_site_stats_signal(
 - `simulation.start`: Begin simulation with optional `tick_rate`
 - `simulation.stop`: Stop simulation
 - `simulation.pause` / `simulation.resume`: Pause or resume the loop
-- `tick_rate.update`: Change simulation speed (`tick_rate` required)
+- `simulation.update`: Update simulation configuration (e.g., change tick rate - `tick_rate` required)
 - `agent.create` / `agent.delete` / `agent.update`: Agent management primitives
 - `agent.describe`: Request the full serialized state for a single agent
 - `agent.list`: Request aggregated serialized state for all agents, optionally filtered by `agent_kind`
@@ -330,6 +330,7 @@ The signal includes complete graph data with all buildings, providing full map f
 - `event.created`: General world events (data includes `tick` and event details)
 - `error`: Error notifications (data includes `code`, `message`, optional `tick`)
 - `simulation.started`/`simulation.stopped`/`simulation.paused`/`simulation.resumed`: Simulation state changes
+- `simulation.updated`: Simulation configuration updated (data includes `tick_rate`)
 - `map.exported`/`map.imported`/`map.created`: Map operation confirmations
 - `state.snapshot_start`/`state.snapshot_end`: State snapshot boundaries
 - `state.full_map_data`: Complete map structure

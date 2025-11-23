@@ -16,11 +16,11 @@ from world.sim.queues import (
     create_delete_agent_action,
     create_pause_action,
     create_resume_action,
-    create_set_tick_rate_action,
     create_start_action,
     create_stop_action,
     create_tick_end_signal,
     create_tick_start_signal,
+    create_update_simulation_action,
     signal_type_to_string,
 )
 
@@ -204,12 +204,12 @@ class TestConvenienceFunctions:
         assert delete_action.action == ActionType.DELETE_AGENT.value
         assert delete_action.params == {"agent_id": "agent_1"}
 
-    def test_create_tick_rate_action(self) -> None:
-        """Test tick rate update helper."""
-        action = create_set_tick_rate_action(55.0)
+    def test_create_update_simulation_action(self) -> None:
+        """Test simulation update helper for tick rate changes."""
+        action = create_update_simulation_action(55)
 
-        assert action.action == ActionType.SET_TICK_RATE.value
-        assert action.params == {"tick_rate": 55.0}
+        assert action.action == ActionType.UPDATE_SIMULATION.value
+        assert action.params == {"tick_rate": 55}
 
     def test_create_tick_signals(self) -> None:
         """Test create tick signal functions."""

@@ -20,7 +20,7 @@ class ActionType(str, Enum):
     STOP = "simulation.stop"
     PAUSE = "simulation.pause"
     RESUME = "simulation.resume"
-    SET_TICK_RATE = "tick_rate.update"
+    UPDATE_SIMULATION = "simulation.update"
     ADD_AGENT = "agent.create"
     DELETE_AGENT = "agent.delete"
     MODIFY_AGENT = "agent.update"
@@ -47,6 +47,7 @@ class SignalType(str, Enum):
     SIMULATION_STOPPED = "simulation.stopped"
     SIMULATION_PAUSED = "simulation.paused"
     SIMULATION_RESUMED = "simulation.resumed"
+    SIMULATION_UPDATED = "simulation.updated"
     MAP_EXPORTED = "map.exported"
     MAP_IMPORTED = "map.imported"
     MAP_CREATED = "map.created"
@@ -208,9 +209,9 @@ def create_resume_action() -> ActionRequest:
     return _create_action(ActionType.RESUME)
 
 
-def create_set_tick_rate_action(tick_rate: float) -> ActionRequest:
-    """Create a set tick rate action."""
-    return _create_action(ActionType.SET_TICK_RATE, {"tick_rate": tick_rate})
+def create_update_simulation_action(tick_rate: int) -> ActionRequest:
+    """Create an update simulation action to change tick rate."""
+    return _create_action(ActionType.UPDATE_SIMULATION, {"tick_rate": tick_rate})
 
 
 def create_delete_agent_action(agent_id: str) -> ActionRequest:
@@ -330,6 +331,13 @@ def create_simulation_paused_signal() -> Signal:
 def create_simulation_resumed_signal() -> Signal:
     """Create a simulation resumed signal."""
     return Signal(signal=signal_type_to_string(SignalType.SIMULATION_RESUMED), data={})
+
+
+def create_simulation_updated_signal(tick_rate: int) -> Signal:
+    """Create a simulation updated signal."""
+    return Signal(
+        signal=signal_type_to_string(SignalType.SIMULATION_UPDATED), data={"tick_rate": tick_rate}
+    )
 
 
 def create_map_exported_signal(map_name: str) -> Signal:

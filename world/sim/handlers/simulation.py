@@ -7,6 +7,7 @@ from ..queues import (
     create_simulation_resumed_signal,
     create_simulation_started_signal,
     create_simulation_stopped_signal,
+    create_simulation_updated_signal,
 )
 from .base import HandlerContext
 
@@ -80,3 +81,26 @@ class SimulationActionHandler:
             context.state.resume()
             _emit_signal(context, create_simulation_resumed_signal())
             context.logger.info("Simulation resumed")
+
+    @staticmethod
+    def handle_update(params: dict[str, Any], context: HandlerContext) -> None:
+        """Handle simulation update action (e.g., tick rate changes).
+
+        Args:
+            params: Action parameters (required 'tick_rate')
+            context: Handler context
+
+        Raises:
+            ValueError: If tick_rate is missing or invalid
+        """
+        if "tick_rate" not in params:
+            raise ValueError("tick_rate is required for simulation.update action")
+
+        tick_rate = params["tick_rate"]
+        if not isinstance(tick_rate, int | float):
+            raise ValueError("tick_rate must be a number")
+
+        context.state.set_tick_rate(float(tick_rate))
+        tick_rate_int = int(context.state.tick_rate)
+        _emit_signal(context, create_simulation_updated_signal(tick_rate=tick_rate_int))
+        context.logger.info(f"Simulation updated: tick rate set to {context.state.tick_rate}")

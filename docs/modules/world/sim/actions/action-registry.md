@@ -28,7 +28,7 @@ links:
 
 ## Responsibilities & Boundaries
 - In-scope
-  - Registering built-in handlers (simulation, tick-rate, agents, maps, state).
+  - Registering built-in handlers (simulation control, agents, maps, buildings).
   - Providing helper methods to check and fetch handlers.
   - Coordinating read-only agent introspection via the `agent.describe` action.
   - Exposing agent aggregation workflows (`agent.list`) alongside mutation handlers.

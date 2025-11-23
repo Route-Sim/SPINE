@@ -7,7 +7,6 @@ from ..handlers.agent import AgentActionHandler
 from ..handlers.building import BuildingActionHandler
 from ..handlers.map import MapActionHandler
 from ..handlers.simulation import SimulationActionHandler
-from ..handlers.tick_rate import TickRateActionHandler
 from ..queues import ActionType
 
 
@@ -26,9 +25,7 @@ class ActionRegistry:
         self.register(ActionType.STOP, SimulationActionHandler.handle_stop)
         self.register(ActionType.PAUSE, SimulationActionHandler.handle_pause)
         self.register(ActionType.RESUME, SimulationActionHandler.handle_resume)
-
-        # Tick rate actions
-        self.register(ActionType.SET_TICK_RATE, TickRateActionHandler.handle_update)
+        self.register(ActionType.UPDATE_SIMULATION, SimulationActionHandler.handle_update)
 
         # Agent actions
         self.register(ActionType.ADD_AGENT, AgentActionHandler.handle_create)

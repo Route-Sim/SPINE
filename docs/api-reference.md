@@ -119,26 +119,40 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
-### 5. SET_TICK_RATE - Change Simulation Speed
+### 5. simulation.update - Update Simulation Configuration
 
-**Purpose**: Change the simulation tick rate while running.
+**Purpose**: Update simulation configuration (e.g., tick rate) while running.
 
-**Action Type**: `set_tick_rate`
+**Action Type**: `simulation.update`
 
 **JSON Example**:
 ```json
 {
-  "type": "set_tick_rate",
-  "tick_rate": 60
+  "action": "simulation.update",
+  "params": {
+    "tick_rate": 60
+  }
 }
 ```
 
 **Parameters**:
-- `tick_rate` (required): New simulation frequency in Hz
+- `tick_rate` (required): New simulation frequency in Hz (integer)
+
+**Response Signal**: `simulation.updated`
+```json
+{
+  "signal": "simulation.updated",
+  "data": {
+    "tick_rate": 60
+  }
+}
+```
 
 **Postman Test**:
 1. Send the JSON above
-2. Expect acknowledgment (no additional signal)
+2. Expect `simulation.updated` signal with the new tick rate
+
+**Note**: This replaces the legacy `set_tick_rate` action with a canonical domain-based action format.
 
 ---
 
