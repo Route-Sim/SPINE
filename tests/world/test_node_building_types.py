@@ -103,6 +103,124 @@ def test_node_remove_building_updates_type_index() -> None:
     assert node.has_building_type(Site)
 
 
+def test_node_get_building_count_by_type_empty() -> None:
+    """Test getting building count by type on empty node returns zero."""
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+
+    assert node.get_building_count_by_type(Parking) == 0
+    assert node.get_building_count_by_type(Site) == 0
+
+
+def test_node_get_building_count_by_type_parking() -> None:
+    """Test Node can count Parking buildings efficiently."""
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    parking1 = Parking(id=BuildingID("parking-1"), capacity=5)
+    parking2 = Parking(id=BuildingID("parking-2"), capacity=3)
+    parking3 = Parking(id=BuildingID("parking-3"), capacity=8)
+    site = Site(id=SiteID("site-1"), name="Test Site", activity_rate=10.0)
+
+    # Initially zero
+    assert node.get_building_count_by_type(Parking) == 0
+
+    # Add parkings one by one
+    node.add_building(parking1)
+    assert node.get_building_count_by_type(Parking) == 1
+
+    node.add_building(parking2)
+    assert node.get_building_count_by_type(Parking) == 2
+
+    node.add_building(site)
+    assert node.get_building_count_by_type(Parking) == 2  # Adding site doesn't affect parking count
+    assert node.get_building_count_by_type(Site) == 1
+
+    node.add_building(parking3)
+    assert node.get_building_count_by_type(Parking) == 3
+    assert node.get_building_count_by_type(Site) == 1
+
+
+def test_node_get_building_count_by_type_site() -> None:
+    """Test Node can count Site buildings efficiently."""
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    parking = Parking(id=BuildingID("parking-1"), capacity=5)
+    site1 = Site(id=SiteID("site-1"), name="Site 1", activity_rate=10.0)
+    site2 = Site(id=SiteID("site-2"), name="Site 2", activity_rate=15.0)
+    site3 = Site(id=SiteID("site-3"), name="Site 3", activity_rate=20.0)
+
+    # Initially zero
+    assert node.get_building_count_by_type(Site) == 0
+
+    # Add sites
+    node.add_building(parking)
+    assert node.get_building_count_by_type(Site) == 0  # Adding parking doesn't affect site count
+    assert node.get_building_count_by_type(Parking) == 1
+
+    node.add_building(site1)
+    assert node.get_building_count_by_type(Site) == 1
+
+    node.add_building(site2)
+    assert node.get_building_count_by_type(Site) == 2
+
+    node.add_building(site3)
+    assert node.get_building_count_by_type(Site) == 3
+    assert node.get_building_count_by_type(Parking) == 1
+
+
+def test_node_get_building_count_updates_on_removal() -> None:
+    """Test that building count updates correctly when buildings are removed."""
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    parking1 = Parking(id=BuildingID("parking-1"), capacity=5)
+    parking2 = Parking(id=BuildingID("parking-2"), capacity=3)
+    parking3 = Parking(id=BuildingID("parking-3"), capacity=8)
+    site = Site(id=SiteID("site-1"), name="Test Site", activity_rate=10.0)
+
+    node.add_building(parking1)
+    node.add_building(parking2)
+    node.add_building(parking3)
+    node.add_building(site)
+
+    assert node.get_building_count_by_type(Parking) == 3
+    assert node.get_building_count_by_type(Site) == 1
+
+    # Remove one parking
+    node.remove_building(BuildingID("parking-1"))
+    assert node.get_building_count_by_type(Parking) == 2
+    assert node.get_building_count_by_type(Site) == 1
+
+    # Remove another parking
+    node.remove_building(BuildingID("parking-2"))
+    assert node.get_building_count_by_type(Parking) == 1
+    assert node.get_building_count_by_type(Site) == 1
+
+    # Remove site
+    node.remove_building(BuildingID("site-1"))
+    assert node.get_building_count_by_type(Parking) == 1
+    assert node.get_building_count_by_type(Site) == 0
+
+    # Remove last parking - count should be zero and cleaned up
+    node.remove_building(BuildingID("parking-3"))
+    assert node.get_building_count_by_type(Parking) == 0
+    assert node.get_building_count_by_type(Site) == 0
+
+
+def test_node_building_count_matches_list_length() -> None:
+    """Test that get_building_count_by_type returns same result as len(get_buildings_by_type())."""
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+
+    # Add various buildings
+    for i in range(5):
+        node.add_building(Parking(id=BuildingID(f"parking-{i}"), capacity=10))
+    for i in range(3):
+        node.add_building(Site(id=SiteID(f"site-{i}"), name=f"Site {i}", activity_rate=10.0))
+
+    # Count should match list length
+    assert node.get_building_count_by_type(Parking) == len(node.get_buildings_by_type(Parking))
+    assert node.get_building_count_by_type(Site) == len(node.get_buildings_by_type(Site))
+
+    # Verify actual counts
+    assert node.get_building_count_by_type(Parking) == 5
+    assert node.get_building_count_by_type(Site) == 3
+
+
 def test_navigator_find_route_to_site() -> None:
     """Test Navigator can find routes to Site buildings."""
     # Create graph with two nodes

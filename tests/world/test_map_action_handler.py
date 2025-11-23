@@ -73,6 +73,14 @@ def test_handle_create_includes_buildings_in_signal() -> None:
     # Convert to dict for easier testing (Pydantic uses model_dump)
     data_dict = data.model_dump() if hasattr(data, "model_dump") else data
 
+    # Verify building statistics fields exist
+    assert "generated_sites" in data_dict
+    assert "generated_parkings" in data_dict
+    assert isinstance(data_dict["generated_sites"], int)
+    assert isinstance(data_dict["generated_parkings"], int)
+    assert data_dict["generated_sites"] >= 0
+    assert data_dict["generated_parkings"] >= 0
+
     assert "graph" in data_dict
     assert "nodes" in data_dict["graph"]
     assert "edges" in data_dict["graph"]

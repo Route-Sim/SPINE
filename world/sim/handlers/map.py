@@ -163,14 +163,16 @@ class MapActionHandler:
             context.world.graph = new_graph
             context.world.generation_params = gen_params
 
-            # Count generated sites
+            # Count generated sites and parkings using efficient O(N) node count index
+            from core.buildings.parking import Parking
             from core.buildings.site import Site
 
             generated_sites = sum(
-                1
-                for node in new_graph.nodes.values()
-                for building in node.buildings
-                if isinstance(building, Site)
+                node.get_building_count_by_type(Site) for node in new_graph.nodes.values()
+            )
+
+            generated_parkings = sum(
+                node.get_building_count_by_type(Parking) for node in new_graph.nodes.values()
             )
 
             # Emit success signal with generation info using DTO for type safety
@@ -182,6 +184,7 @@ class MapActionHandler:
                 generated_nodes=new_graph.get_node_count(),
                 generated_edges=new_graph.get_edge_count(),
                 generated_sites=generated_sites,
+                generated_parkings=generated_parkings,
                 graph=new_graph.to_dict(),
             )
             _emit_signal(context, create_map_created_signal(signal_data))

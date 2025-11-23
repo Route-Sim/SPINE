@@ -1210,6 +1210,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "generated_nodes": 850,
     "generated_edges": 2400,
     "generated_sites": 45,
+    "generated_parkings": 12,
     "graph": {
       "nodes": [
         {"id": "1", "x": 0.0, "y": 0.0, "buildings": []},
@@ -1257,6 +1258,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created
 - `data.generated_sites`: Actual number of site buildings placed
+- `data.generated_parkings`: Actual number of parking buildings placed
 - `data.graph.nodes`: Complete node list with id, x, y coordinates, and buildings array (each building serialized with all attributes)
 - `data.graph.edges`: Complete edge list with topology and road attributes
 
@@ -1264,7 +1266,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Type Safety**: This signal uses `MapCreatedSignalData` DTO (Data Transfer Object) for compile-time type checking and runtime validation. See [Signal DTOs documentation](modules/world/sim/signal-dtos.md) for details.
 
-**Note on Existing Maps**: When a new WebSocket client connects to a simulation with an existing map, this signal is sent with placeholder values (0 or empty) for generation parameters, as these parameters are not stored after map creation. Only `generated_nodes`, `generated_edges`, `generated_sites`, and `graph` will contain actual data in this case.
+**Note on Existing Maps**: When a new WebSocket client connects to a simulation with an existing map, this signal is sent with placeholder values (0 or empty) for generation parameters, as these parameters are not stored after map creation. Only `generated_nodes`, `generated_edges`, `generated_sites`, `generated_parkings`, and `graph` will contain actual data in this case.
 
 ---
 

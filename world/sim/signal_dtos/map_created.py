@@ -19,7 +19,8 @@ class MapCreatedSignalData(GenerationParams):
     # Generation results (additional fields beyond GenerationParams)
     generated_nodes: int = Field(ge=0, description="Number of nodes generated")
     generated_edges: int = Field(ge=0, description="Number of edges generated")
-    generated_sites: int = Field(ge=0, description="Number of sites generated")
+    generated_sites: int = Field(ge=0, description="Number of site buildings generated")
+    generated_parkings: int = Field(ge=0, description="Number of parking buildings generated")
 
     # Graph structure
     graph: dict[str, Any] = Field(description="Complete graph structure as dict")

@@ -112,9 +112,19 @@ from .base import SignalData
 class MapCreatedSignalData(SignalData):
     """DTO for map.created signal data."""
 
+    # Inherits 20+ generation parameters from GenerationParams
     map_width: float = Field(gt=0, description="Map width in kilometers")
     map_height: float = Field(gt=0, description="Map height in kilometers")
-    # ... 20+ more fields
+    # ... other generation parameters
+
+    # Generation results (building statistics)
+    generated_nodes: int = Field(ge=0, description="Number of nodes generated")
+    generated_edges: int = Field(ge=0, description="Number of edges generated")
+    generated_sites: int = Field(ge=0, description="Number of site buildings generated")
+    generated_parkings: int = Field(ge=0, description="Number of parking buildings generated")
+
+    # Graph structure
+    graph: dict[str, Any] = Field(description="Complete graph structure as dict")
 ```
 
 This modular approach:

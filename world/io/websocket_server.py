@@ -298,16 +298,21 @@ class WebSocketServer:
             if self.controller.world.generation_params:
                 # Use actual generation parameters from map creation
                 self.logger.debug("Using stored generation parameters for map.created signal")
+                from core.buildings.parking import Parking
+                from core.buildings.site import Site
+
                 map_data = MapCreatedSignalData(
                     **self.controller.world.generation_params.model_dump(),
                     # Add actual graph data and counts
                     generated_nodes=self.controller.world.graph.get_node_count(),
                     generated_edges=self.controller.world.graph.get_edge_count(),
                     generated_sites=sum(
-                        1
+                        node.get_building_count_by_type(Site)
                         for node in self.controller.world.graph.nodes.values()
-                        for building in node.buildings
-                        if building.__class__.__name__ == "Site"
+                    ),
+                    generated_parkings=sum(
+                        node.get_building_count_by_type(Parking)
+                        for node in self.controller.world.graph.nodes.values()
                     ),
                     graph=self.controller.world.graph.to_dict(),
                 )
@@ -316,6 +321,9 @@ class WebSocketServer:
                 self.logger.debug(
                     "Using placeholder generation parameters (map was imported or pre-existing)"
                 )
+                from core.buildings.parking import Parking
+                from core.buildings.site import Site
+
                 map_data = MapCreatedSignalData(
                     map_width=0.0,
                     map_height=0.0,
@@ -340,10 +348,12 @@ class WebSocketServer:
                     generated_nodes=self.controller.world.graph.get_node_count(),
                     generated_edges=self.controller.world.graph.get_edge_count(),
                     generated_sites=sum(
-                        1
+                        node.get_building_count_by_type(Site)
                         for node in self.controller.world.graph.nodes.values()
-                        for building in node.buildings
-                        if building.__class__.__name__ == "Site"
+                    ),
+                    generated_parkings=sum(
+                        node.get_building_count_by_type(Parking)
+                        for node in self.controller.world.graph.nodes.values()
                     ),
                     graph=self.controller.world.graph.to_dict(),
                 )
