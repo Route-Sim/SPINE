@@ -51,6 +51,10 @@ class GenerationParams(BaseModel):
         description="[min, max] activity rate for rural sites (packages/hour)"
     )
 
+    # Parking generation parameters
+    urban_parkings_per_km2: float = Field(ge=0, description="Urban parking density per km²")
+    rural_parkings_per_km2: float = Field(ge=0, description="Rural parking density per km²")
+
     # Generation seed
     seed: int = Field(description="Random seed used for generation")
 

@@ -33,6 +33,7 @@
 * [Navigator - A* Pathfinding](modules/world/routing/navigator.md)
 * [Map Generation](modules/world/generation.md)
 * [World Generator](modules/world/generation/generator.md)
+* [Generation Parameters](modules/world/generation/params.md)
 * [Simulation Controller](modules/world/sim/controller.md)
 * [Simulation Control Handler](modules/world/sim/handlers/simulation.md)
 * [Agent Action Handler](modules/world/sim/handlers/agent.md)

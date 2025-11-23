@@ -2,7 +2,7 @@ title: "World Generator"
 summary: "Explains the stochastic generator that assembles roads, sites, and routing weights for SPINE simulation scenarios."
 source_paths:
   - "world/generation/generator.py"
-last_updated: "2025-11-12"
+last_updated: "2025-11-23"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
@@ -25,30 +25,33 @@ links:
 - Out-of-scope: runtime package spawning logic (handled by `Site`), transport agent behaviour, and persistence of generated maps.
 
 ## Architecture & Design
-- Key functions, classes, or modules: `WorldGenerator` orchestrates map creation; helper methods like `_select_site_nodes`, `_create_site`, `_place_parking`, and `_assign_destination_weights` subdivide tasks.
-- Data flow and interactions: the generator enriches a `Graph` instance, embeds `Site` buildings on nodes, adds `Parking` buildings based on road classes, then records metadata in `self.sites`/`self.parkings` for later simulation stages.
+- Key functions, classes, or modules: `WorldGenerator` orchestrates map creation; helper methods like `_select_site_nodes`, `_select_parking_nodes`, `_create_site`, `_place_parking`, and `_assign_destination_weights` subdivide tasks.
+- Data flow and interactions: the generator enriches a `Graph` instance, embeds `Site` buildings on nodes using density parameters, adds `Parking` buildings using similar density-based selection (capacity determined by road class), then records metadata in `self.sites`/`self.parkings` for later simulation stages.
 - State management or concurrency: uses internal counters (`site_count`, `parking_count`) to guarantee stable identifiers; no concurrent execution expected.
 - Resource handling: operates purely in-memory; no external files or network operations.
 
 ## Algorithms & Complexity
 - Node selection scans all graph nodes (`O(|V|)`) while filtering by road class and urban coverage.
 - Destination weight assignment iterates over the Cartesian product of sites (`O(|S|^2)`), applying biased random weights to emphasise urban importance.
-- Parking placement inspects the adjacency set of each node to compute the highest road class encountered and derive a capacity in `O(degree(node))`.
+- Parking placement now uses density-based selection: calculates target parking counts from urban/rural area densities (`urban_parkings_per_km2`, `rural_parkings_per_km2`), filters valid nodes (`O(|V|)`), then randomly samples to meet targets. Capacity assignment inspects the adjacency set of each selected node to derive capacity from the highest road class encountered in `O(degree(node))`.
 - Edge cases include isolated nodes (skipped), nodes with single incoming/outgoing edges (parking omitted), and scenarios with fewer than two sites (weights are not generated).
 
 ## Public API / Usage
 - Typical usage: invoked through higher-level scenario builders that call `WorldGenerator.build_world()`.
 - Helper signatures:
   - `_select_site_nodes(graph: Graph, is_urban: bool) -> list[NodeID]`
+  - `_select_parking_nodes(graph: Graph, is_urban: bool) -> list[NodeID]`
   - `_create_site(node_id: NodeID, is_urban: bool) -> Site`
   - `_place_parking(graph: Graph) -> None`
-  - `_determine_parking_capacity(road_classes: set[RoadClass], graph: Graph, node_id: NodeID) -> int | None`
+  - `_determine_parking_capacity(road_classes: set[RoadClass]) -> int`
   - `_assign_destination_weights(graph: Graph) -> None`
 
 ## Implementation Notes
 - Site identifiers now embed the origin node (e.g., `node42_site_3`), preserving a traceable link between buildings and their host nodes.
-- Parking identifiers follow `parking_<node>_<counter>` and capacities scale with the strongest connected road class (`A` → 80 slots, `S` → 60, …, `D` → 6).
-- Parking placement skips dead-ends (degree < 2) to avoid staging in cul-de-sacs.
+- Site placement uses density parameters (`urban_sites_per_km2`, `rural_sites_per_km2`) to calculate target counts based on calculated urban/rural areas, then randomly samples from valid nodes.
+- Parking identifiers follow `parking_<node>_<counter>` and capacities scale with the strongest connected road class (`A` → 80 slots, `S` → 60, …, `D` → 6, default → 5).
+- Parking placement uses density parameters (`urban_parkings_per_km2`, `rural_parkings_per_km2`) similar to sites, calculating target counts and randomly sampling from valid nodes. Valid parking nodes must have at least 2 connected edges (not dead-ends) and at least one non-highway edge.
+- Both site and parking selection filters out highway-only nodes to ensure accessibility for regular traffic.
 - Parking metadata becomes available for runtime handlers to honour parking occupancy semantics once truck parking workflows are implemented.
 - Site names mirror the hosting node index to aid debugging when inspecting generated worlds.
 - Random draws balance urban saturation with occasional high-activity rural hubs to encourage diverse routing.

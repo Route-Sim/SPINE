@@ -563,6 +563,8 @@ Actions are commands sent from the Frontend to control the simulation.
     "rural_sites_per_km2": 1.0,
     "urban_activity_rate_range": [5.0, 20.0],
     "rural_activity_rate_range": [1.0, 8.0],
+    "urban_parkings_per_km2": 2.0,
+    "rural_parkings_per_km2": 0.5,
     "seed": 42
   }
 }
@@ -588,6 +590,8 @@ Actions are commands sent from the Frontend to control the simulation.
 - `rural_sites_per_km2` (required): Density of site buildings in rural areas (sites per km², ≥0)
 - `urban_activity_rate_range` (required): Activity rate range for urban sites as [min, max] array (packages/hour, both ≥0)
 - `rural_activity_rate_range` (required): Activity rate range for rural sites as [min, max] array (packages/hour, both ≥0)
+- `urban_parkings_per_km2` (required): Density of parking buildings in urban areas (parkings per km², ≥0)
+- `rural_parkings_per_km2` (required): Density of parking buildings in rural areas (parkings per km², ≥0)
 - `seed` (required): Random seed for reproducibility (integer)
 
 **Notes**:
@@ -617,7 +621,9 @@ Actions are commands sent from the Frontend to control the simulation.
   "urban_sites_per_km2": 10.0,
   "rural_sites_per_km2": 0.0,
   "urban_activity_rate_range": [10.0, 30.0],
-  "rural_activity_rate_range": [0.0, 0.0]
+  "rural_activity_rate_range": [0.0, 0.0],
+  "urban_parkings_per_km2": 3.0,
+  "rural_parkings_per_km2": 0.0
 }
 ```
 
@@ -632,7 +638,9 @@ Actions are commands sent from the Frontend to control the simulation.
   "urban_sites_per_km2": 3.0,
   "rural_sites_per_km2": 2.0,
   "urban_activity_rate_range": [5.0, 15.0],
-  "rural_activity_rate_range": [0.5, 5.0]
+  "rural_activity_rate_range": [0.5, 5.0],
+  "urban_parkings_per_km2": 1.5,
+  "rural_parkings_per_km2": 1.0
 }
 ```
 
@@ -1206,6 +1214,8 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "rural_sites_per_km2": 1.0,
     "urban_activity_rate_range": [5.0, 20.0],
     "rural_activity_rate_range": [1.0, 8.0],
+    "urban_parkings_per_km2": 2.0,
+    "rural_parkings_per_km2": 0.5,
     "seed": 42,
     "generated_nodes": 850,
     "generated_edges": 2400,
@@ -1254,6 +1264,8 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.rural_sites_per_km2`: Site density in rural areas (sites per km²)
 - `data.urban_activity_rate_range`: Activity rate range for urban sites (packages/hour)
 - `data.rural_activity_rate_range`: Activity rate range for rural sites (packages/hour)
+- `data.urban_parkings_per_km2`: Parking density in urban areas (parkings per km²)
+- `data.rural_parkings_per_km2`: Parking density in rural areas (parkings per km²)
 - `data.seed`: Random seed used for generation
 - `data.generated_nodes`: Actual number of nodes created
 - `data.generated_edges`: Actual number of edges created

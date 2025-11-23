@@ -54,6 +54,8 @@ def test_handle_create_includes_buildings_in_signal() -> None:
         "rural_sites_per_km2": 1.0,
         "urban_activity_rate_range": [5.0, 10.0],
         "rural_activity_rate_range": [1.0, 5.0],
+        "urban_parkings_per_km2": 2.0,
+        "rural_parkings_per_km2": 0.5,
         "seed": 42,
     }
 
@@ -135,6 +137,8 @@ def test_handle_create_fails_when_simulation_running() -> None:
         "rural_sites_per_km2": 1.0,
         "urban_activity_rate_range": [5.0, 10.0],
         "rural_activity_rate_range": [1.0, 5.0],
+        "urban_parkings_per_km2": 2.0,
+        "rural_parkings_per_km2": 0.5,
         "seed": 42,
     }
 

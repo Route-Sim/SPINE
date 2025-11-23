@@ -1133,6 +1133,46 @@ class MapGenerator:
 
         return valid_nodes
 
+    def _select_parking_nodes(self, graph: Graph, is_urban: bool) -> list[NodeID]:
+        """Select valid nodes for parking placement.
+
+        Args:
+            graph: The graph to select nodes from
+            is_urban: If True, select urban nodes; if False, select rural nodes
+
+        Returns:
+            List of valid node IDs for parking placement
+        """
+        valid_nodes: list[NodeID] = []
+
+        for node_id in graph.nodes:
+            # Get all edges connected to this node
+            outgoing = graph.get_outgoing_edges(node_id)
+            incoming = graph.get_incoming_edges(node_id)
+            all_edges = outgoing + incoming
+
+            # Skip dead-ends and isolated nodes (need at least 2 edges)
+            if len(all_edges) < 2:
+                continue
+
+            # Check if node connects only to highways (A) or expressways (S)
+            non_highway_edges = [
+                e for e in all_edges if e.road_class not in (RoadClass.A, RoadClass.S)
+            ]
+
+            if not non_highway_edges:
+                # Node only connects to highways/expressways, skip
+                continue
+
+            # Check if node is in urban area
+            node = graph.nodes[node_id]
+            node_is_urban = self._is_in_urban_area(node.x, node.y)
+
+            if is_urban and node_is_urban or not is_urban and not node_is_urban:
+                valid_nodes.append(node_id)
+
+        return valid_nodes
+
     def _create_site(self, node_id: NodeID, is_urban: bool) -> Site:
         """Create a Site instance with appropriate configuration.
 
@@ -1308,33 +1348,70 @@ class MapGenerator:
                 }
 
     def _place_parking(self, graph: Graph) -> None:
-        """Create parking buildings based on connected road classes at each node."""
-        for node_id, node in graph.nodes.items():
-            road_classes = self._get_node_road_classes(graph, node_id)
-            capacity = self._determine_parking_capacity(road_classes, graph, node_id)
-            if capacity is None:
-                continue
+        """Create parking buildings based on density parameters and road classes.
 
-            parking_id = BuildingID(f"parking_{int(node_id)}_{self.parking_count}")
-            parking = Parking(id=parking_id, capacity=capacity)
-            node.add_building(parking)
-            self.parking_count += 1
-            self.parkings.append(node_id)
+        Args:
+            graph: The graph to place parking buildings on
+        """
+        # Calculate urban area
+        urban_area_km2 = sum(math.pi * (c.radius / 1000.0) ** 2 for c in self.centers)
+
+        # Calculate rural area
+        total_area_km2 = (self.params.map_width * self.params.map_height) / 1_000_000
+        rural_area_km2 = max(0, total_area_km2 - urban_area_km2)
+
+        # Calculate target number of parkings
+        target_urban_parkings = int(urban_area_km2 * self.params.urban_parkings_per_km2)
+        target_rural_parkings = int(rural_area_km2 * self.params.rural_parkings_per_km2)
+
+        # Get valid nodes for urban and rural parkings
+        urban_nodes = self._select_parking_nodes(graph, is_urban=True)
+        rural_nodes = self._select_parking_nodes(graph, is_urban=False)
+
+        # Place urban parkings
+        if urban_nodes and target_urban_parkings > 0:
+            num_urban = min(target_urban_parkings, len(urban_nodes))
+            selected_urban = random.sample(urban_nodes, num_urban)
+
+            for node_id in selected_urban:
+                road_classes = self._get_node_road_classes(graph, node_id)
+                capacity = self._determine_parking_capacity(road_classes)
+
+                parking_id = BuildingID(f"parking_{int(node_id)}_{self.parking_count}")
+                parking = Parking(id=parking_id, capacity=capacity)
+                graph.nodes[node_id].add_building(parking)
+                self.parking_count += 1
+                self.parkings.append(node_id)
+
+        # Place rural parkings
+        if rural_nodes and target_rural_parkings > 0:
+            num_rural = min(target_rural_parkings, len(rural_nodes))
+            selected_rural = random.sample(rural_nodes, num_rural)
+
+            for node_id in selected_rural:
+                road_classes = self._get_node_road_classes(graph, node_id)
+                capacity = self._determine_parking_capacity(road_classes)
+
+                parking_id = BuildingID(f"parking_{int(node_id)}_{self.parking_count}")
+                parking = Parking(id=parking_id, capacity=capacity)
+                graph.nodes[node_id].add_building(parking)
+                self.parking_count += 1
+                self.parkings.append(node_id)
 
     def _get_node_road_classes(self, graph: Graph, node_id: NodeID) -> set[RoadClass]:
         """Collect all road classes connected to a node."""
         connected_edges = graph.get_outgoing_edges(node_id) + graph.get_incoming_edges(node_id)
         return {edge.road_class for edge in connected_edges}
 
-    def _determine_parking_capacity(
-        self, road_classes: set[RoadClass], graph: Graph, node_id: NodeID
-    ) -> int | None:
-        """Derive parking capacity based on the road classes connected to a node."""
-        connected_edges = graph.get_outgoing_edges(node_id) + graph.get_incoming_edges(node_id)
-        if len(connected_edges) < 2:
-            # Skip dead-ends and isolated nodes
-            return None
+    def _determine_parking_capacity(self, road_classes: set[RoadClass]) -> int:
+        """Derive parking capacity based on the road classes connected to a node.
 
+        Args:
+            road_classes: Set of road classes connected to the node
+
+        Returns:
+            Parking capacity based on highest priority road class
+        """
         priority_capacity: list[tuple[RoadClass, int]] = [
             (RoadClass.A, 80),
             (RoadClass.S, 60),
@@ -1349,4 +1426,5 @@ class MapGenerator:
             if road_class in road_classes:
                 return capacity
 
-        return None
+        # Default capacity if no matching road class found
+        return 5
