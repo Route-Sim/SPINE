@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.4](https://github.com/Route-Sim/SPINE/compare/v0.25.3...v0.25.4) (2025-11-23)
+
+
+### 🐛 Bug Fixes
+
+* **simulation:** add support for parking building statistics in map creation signals ([e2e0737](https://github.com/Route-Sim/SPINE/commit/e2e0737f61dc1a467197c7aeac1eca8b79690389))
+
 ## [0.25.3](https://github.com/Route-Sim/SPINE/compare/v0.25.2...v0.25.3) (2025-11-23)
 
 
