@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0](https://github.com/Route-Sim/SPINE/compare/v0.25.4...v0.26.0) (2025-11-23)
+
+
+### 🚀 Features
+
+* **generation:** introduce parking generation parameters and enhance parking placement logic ([f8f1d23](https://github.com/Route-Sim/SPINE/commit/f8f1d2372fedf94db0d72078f398dd2de88ed653))
+
 ## [0.25.4](https://github.com/Route-Sim/SPINE/compare/v0.25.3...v0.25.4) (2025-11-23)
 
 
