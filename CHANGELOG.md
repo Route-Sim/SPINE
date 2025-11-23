@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.3](https://github.com/Route-Sim/SPINE/compare/v0.25.2...v0.25.3) (2025-11-23)
+
+
+### ♻️ Code Refactoring
+
+* **simulation:** enhance simulation parameters handling with DTO integration ([a5b1337](https://github.com/Route-Sim/SPINE/commit/a5b133785531bafcaa30b9137b63456efb249224))
+
 ## [0.25.2](https://github.com/Route-Sim/SPINE/compare/v0.25.1...v0.25.2) (2025-11-23)
 
 
