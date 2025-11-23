@@ -34,7 +34,7 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 1. START - Start Simulation
 
-**Purpose**: Start the simulation with optional tick rate configuration.
+**Purpose**: Start the simulation with optional tick rate and speed configuration.
 
 **Action Type**: `start`
 
@@ -42,17 +42,24 @@ Actions are commands sent from the Frontend to control the simulation.
 ```json
 {
   "type": "start",
-  "tick_rate": 30
+  "tick_rate": 30,
+  "speed": 1.0
 }
 ```
 
 **Parameters**:
-- `tick_rate` (optional): Simulation frequency in Hz (default: 20)
+- `tick_rate` (optional): Simulation frequency in Hz (default: 20). Range: 1-100.
+- `speed` (optional): Simulation time step in seconds per tick (dt_s, default: 1.0). Range: 0.01-10.0.
+
+**Notes**:
+- `tick_rate` controls how often the simulation computes (ticks per second)
+- `speed` controls how much simulated time passes per tick
+- Both parameters are optional; if omitted, defaults are used
 
 **Postman Test**:
 1. Connect to `ws://localhost:8000/ws`
 2. Send the JSON above
-3. Expect acknowledgment and simulation_started signal
+3. Expect acknowledgment and simulation_started signal with both parameters
 
 ---
 
@@ -121,11 +128,22 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 5. simulation.update - Update Simulation Configuration
 
-**Purpose**: Update simulation configuration (e.g., tick rate) while running.
+**Purpose**: Update simulation configuration (tick rate and/or speed) while running.
 
 **Action Type**: `simulation.update`
 
-**JSON Example**:
+**JSON Example (Update both parameters)**:
+```json
+{
+  "action": "simulation.update",
+  "params": {
+    "tick_rate": 60,
+    "speed": 0.1
+  }
+}
+```
+
+**JSON Example (Update tick_rate only)**:
 ```json
 {
   "action": "simulation.update",
@@ -135,24 +153,45 @@ Actions are commands sent from the Frontend to control the simulation.
 }
 ```
 
+**JSON Example (Update speed only)**:
+```json
+{
+  "action": "simulation.update",
+  "params": {
+    "speed": 0.08
+  }
+}
+```
+
 **Parameters**:
-- `tick_rate` (required): New simulation frequency in Hz (integer)
+- `tick_rate` (optional): New simulation frequency in Hz (1-100)
+- `speed` (optional): New simulation time step in seconds per tick (0.01-10.0)
+- **Note**: At least one parameter must be provided
 
 **Response Signal**: `simulation.updated`
 ```json
 {
   "signal": "simulation.updated",
   "data": {
-    "tick_rate": 60
+    "tick_rate": 60,
+    "speed": 0.1
   }
 }
 ```
 
-**Postman Test**:
-1. Send the JSON above
-2. Expect `simulation.updated` signal with the new tick rate
+**Response Fields**:
+- `data.tick_rate`: Current tick rate (always included)
+- `data.speed`: Current simulation speed (always included)
 
-**Note**: This replaces the legacy `set_tick_rate` action with a canonical domain-based action format.
+**Postman Test**:
+1. Start simulation first: `{"action": "simulation.start", "params": {}}`
+2. Send one of the JSON examples above
+3. Expect `simulation.updated` signal with current tick rate and speed
+
+**Notes**:
+- Changes take effect immediately
+- Response always includes both current tick_rate and speed, even if only one was updated
+- This replaces the legacy `set_tick_rate` action with a canonical domain-based action format
 
 ---
 
@@ -1005,7 +1044,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ### 6. SIMULATION_STARTED - Simulation Started
 
-**Purpose**: Confirms that the simulation has started.
+**Purpose**: Confirms that the simulation has started and provides current configuration.
 
 **Signal**: `simulation.started`
 
@@ -1014,15 +1053,17 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 {
   "signal": "simulation.started",
   "data": {
-    "tick_rate": 30
+    "tick_rate": 30,
+    "speed": 1.0
   }
 }
 ```
 
 **Fields**:
-- `data.tick_rate`: Simulation tick rate in Hz (optional)
+- `data.tick_rate`: Simulation tick rate in Hz (ticks per second)
+- `data.speed`: Simulation time step in seconds per tick (dt_s)
 
-**When Received**: After successful start action
+**When Received**: After successful simulation.start action
 
 ---
 

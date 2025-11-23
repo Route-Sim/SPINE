@@ -2,10 +2,6 @@
 alwaysApply: true
 ---
 
-Here’s a rule you can paste into your Cursor agent config:
-
-⸻
-
 Rule: Always use Pydantic DTOs for cross-boundary data
 
 When working on this project, you must explicitly model data with Pydantic DTO classes (BaseModel subclasses) instead of passing around raw dicts, loose primitives, or ORM models across layers.

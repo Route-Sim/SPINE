@@ -40,6 +40,8 @@
 * [Map Action Handler](modules/world/sim/handlers/map.md)
 * [Queue Infrastructure](modules/world/sim/queues.md) - Canonical action/signal queues
 * [Signal DTOs](modules/world/sim/signal-dtos.md) - Type-safe signal data structures
+* DTOs
+  * [Simulation Parameters DTO](modules/world/sim/dto/simulation-dto.md)
 * Actions
   * [Action Parser](modules/world/sim/actions/action-parser.md)
   * [Action Registry](modules/world/sim/actions/action-registry.md)

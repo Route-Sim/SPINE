@@ -100,7 +100,7 @@ class TestSimulationController:
             return {
                 "graph": {"nodes": [], "edges": []},
                 "agents": [agent.serialize_full() for agent in self.world._test_agents],
-                "metadata": {"tick": 0, "dt_s": 0.05, "now_s": 0, "time_min": 0},
+                "metadata": {"tick": 0, "dt_s": 1.0, "now_s": 0, "time_min": 0},
             }
 
         self.world.add_agent.side_effect = mock_add_agent
@@ -167,9 +167,31 @@ class TestSimulationController:
         self.controller.action_processor.process(action_request)
         assert not self.controller.state.paused
 
+    def test_handle_start_with_speed_parameter(self) -> None:
+        """Test handling start action with speed parameter."""
+        # Start with speed parameter
+        action_request = ActionRequest(
+            action=ActionType.START.value, params={"tick_rate": 25, "speed": 0.08}
+        )
+        self.controller.action_processor.process(action_request)
+
+        assert self.controller.state.running
+        assert self.controller.state.tick_rate == 25.0
+        assert self.controller.state.dt_s == 0.08
+        assert self.world.dt_s == 0.08
+
+        # Verify signal was emitted with both parameters
+        assert not self.signal_queue.empty()
+        signal = self.signal_queue.get_nowait()
+        assert signal is not None
+        assert signal.signal == signal_type_to_string(SignalType.SIMULATION_STARTED)
+        assert signal.data["tick_rate"] == 25
+        assert signal.data["speed"] == 0.08
+
     def test_handle_update_simulation_action(self) -> None:
-        """Test handling simulation update action (tick rate change)."""
-        action_request = ActionRequest(action="simulation.update", params={"tick_rate": 50.0})
+        """Test handling simulation update action (tick rate and speed changes)."""
+        # Test updating tick_rate only
+        action_request = ActionRequest(action="simulation.update", params={"tick_rate": 50})
         self.controller.action_processor.process(action_request)
 
         assert self.controller.state.tick_rate == 50.0
@@ -180,6 +202,40 @@ class TestSimulationController:
         assert signal is not None
         assert signal.signal == signal_type_to_string(SignalType.SIMULATION_UPDATED)
         assert signal.data["tick_rate"] == 50
+        assert "speed" in signal.data
+
+        # Test updating speed only
+        action_request = ActionRequest(action="simulation.update", params={"speed": 0.1})
+        self.controller.action_processor.process(action_request)
+
+        assert self.controller.state.dt_s == 0.1
+        assert self.world.dt_s == 0.1
+
+        # Verify signal was emitted
+        assert not self.signal_queue.empty()
+        signal = self.signal_queue.get_nowait()
+        assert signal is not None
+        assert signal.signal == signal_type_to_string(SignalType.SIMULATION_UPDATED)
+        assert signal.data["speed"] == 0.1
+        assert signal.data["tick_rate"] == 50
+
+        # Test updating both
+        action_request = ActionRequest(
+            action="simulation.update", params={"tick_rate": 30, "speed": 0.2}
+        )
+        self.controller.action_processor.process(action_request)
+
+        assert self.controller.state.tick_rate == 30.0
+        assert self.controller.state.dt_s == 0.2
+        assert self.world.dt_s == 0.2
+
+        # Verify signal was emitted
+        assert not self.signal_queue.empty()
+        signal = self.signal_queue.get_nowait()
+        assert signal is not None
+        assert signal.signal == signal_type_to_string(SignalType.SIMULATION_UPDATED)
+        assert signal.data["tick_rate"] == 30
+        assert signal.data["speed"] == 0.2
 
     def test_handle_add_agent_action(self) -> None:
         """Test handling add agent action."""

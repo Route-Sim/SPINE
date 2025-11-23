@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 from .actions.action_parser import ActionRequest
+from .dto.simulation_dto import SimulationParamsDTO
 
 if TYPE_CHECKING:
     from .signal_dtos.map_created import MapCreatedSignalData
@@ -209,9 +210,31 @@ def create_resume_action() -> ActionRequest:
     return _create_action(ActionType.RESUME)
 
 
-def create_update_simulation_action(tick_rate: int) -> ActionRequest:
-    """Create an update simulation action to change tick rate."""
-    return _create_action(ActionType.UPDATE_SIMULATION, {"tick_rate": tick_rate})
+def create_update_simulation_action(
+    tick_rate: int | None = None, speed: float | None = None
+) -> ActionRequest:
+    """Create an update simulation action to change tick rate and/or speed.
+
+    Args:
+        tick_rate: Optional tick rate (ticks per second)
+        speed: Optional simulation speed (dt_s, seconds per tick)
+
+    Returns:
+        ActionRequest for simulation update
+
+    Raises:
+        ValueError: If both parameters are None
+    """
+    if tick_rate is None and speed is None:
+        raise ValueError("At least one of tick_rate or speed must be provided")
+
+    params: dict[str, Any] = {}
+    if tick_rate is not None:
+        params["tick_rate"] = tick_rate
+    if speed is not None:
+        params["speed"] = speed
+
+    return _create_action(ActionType.UPDATE_SIMULATION, params)
 
 
 def create_delete_agent_action(agent_id: str) -> ActionRequest:
@@ -310,12 +333,19 @@ def create_error_signal(error_message: str, tick: int | None = None) -> Signal:
     return Signal(signal=signal_type_to_string(SignalType.ERROR), data=error_data)
 
 
-def create_simulation_started_signal(tick_rate: int | None = None) -> Signal:
-    """Create a simulation started signal."""
-    data: dict[str, Any] = {}
-    if tick_rate is not None:
-        data["tick_rate"] = tick_rate
-    return Signal(signal=signal_type_to_string(SignalType.SIMULATION_STARTED), data=data)
+def create_simulation_started_signal(params: SimulationParamsDTO) -> Signal:
+    """Create a simulation started signal.
+
+    Args:
+        params: Simulation parameters (tick_rate and speed)
+
+    Returns:
+        Signal with simulation parameters
+    """
+    return Signal(
+        signal=signal_type_to_string(SignalType.SIMULATION_STARTED),
+        data=params.to_dict(),
+    )
 
 
 def create_simulation_stopped_signal() -> Signal:
@@ -333,10 +363,18 @@ def create_simulation_resumed_signal() -> Signal:
     return Signal(signal=signal_type_to_string(SignalType.SIMULATION_RESUMED), data={})
 
 
-def create_simulation_updated_signal(tick_rate: int) -> Signal:
-    """Create a simulation updated signal."""
+def create_simulation_updated_signal(params: SimulationParamsDTO) -> Signal:
+    """Create a simulation updated signal.
+
+    Args:
+        params: Simulation parameters (tick_rate and speed)
+
+    Returns:
+        Signal with updated simulation parameters
+    """
     return Signal(
-        signal=signal_type_to_string(SignalType.SIMULATION_UPDATED), data={"tick_rate": tick_rate}
+        signal=signal_type_to_string(SignalType.SIMULATION_UPDATED),
+        data=params.to_dict(),
     )
 
 

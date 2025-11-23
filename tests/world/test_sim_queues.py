@@ -205,11 +205,21 @@ class TestConvenienceFunctions:
         assert delete_action.params == {"agent_id": "agent_1"}
 
     def test_create_update_simulation_action(self) -> None:
-        """Test simulation update helper for tick rate changes."""
-        action = create_update_simulation_action(55)
-
+        """Test simulation update helper for tick rate and speed changes."""
+        # Test with tick_rate only
+        action = create_update_simulation_action(tick_rate=55)
         assert action.action == ActionType.UPDATE_SIMULATION.value
         assert action.params == {"tick_rate": 55}
+
+        # Test with speed only
+        action = create_update_simulation_action(speed=0.1)
+        assert action.action == ActionType.UPDATE_SIMULATION.value
+        assert action.params == {"speed": 0.1}
+
+        # Test with both parameters
+        action = create_update_simulation_action(tick_rate=30, speed=1.0)
+        assert action.action == ActionType.UPDATE_SIMULATION.value
+        assert action.params == {"tick_rate": 30, "speed": 1.0}
 
     def test_create_tick_signals(self) -> None:
         """Test create tick signal functions."""

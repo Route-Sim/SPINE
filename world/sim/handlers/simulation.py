@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from world.sim.dto.simulation_dto import SimulationParamsDTO
+
 from ..queues import (
     create_simulation_paused_signal,
     create_simulation_resumed_signal,
@@ -28,21 +30,35 @@ class SimulationActionHandler:
         """Handle start simulation action.
 
         Args:
-            params: Action parameters (optional 'tick_rate')
+            params: Action parameters (optional 'tick_rate' and 'speed')
             context: Handler context
         """
-        # tick_rate is optional for simulation.start
-        if "tick_rate" in params:
-            tick_rate = params["tick_rate"]
-            if not isinstance(tick_rate, int | float):
-                raise ValueError("tick_rate must be a number")
-            context.state.set_tick_rate(float(tick_rate))
+        # Parse parameters using DTO
+        sim_params = SimulationParamsDTO.from_dict(params)
+
+        # Apply tick_rate if provided
+        if sim_params.tick_rate is not None:
+            context.state.set_tick_rate(float(sim_params.tick_rate))
+
+        # Apply speed (dt_s) if provided
+        if sim_params.speed is not None:
+            context.state.set_dt_s(sim_params.speed)
+            # Update world's dt_s if available
+            if context.world is not None:
+                context.world.dt_s = sim_params.speed
 
         context.state.start()
-        tick_rate_int = int(context.state.tick_rate) if context.state.tick_rate else None
-        _emit_signal(context, create_simulation_started_signal(tick_rate=tick_rate_int))
 
-        context.logger.info(f"Simulation started with tick rate: {context.state.tick_rate}")
+        # Create response DTO with current values
+        response_params = SimulationParamsDTO(
+            tick_rate=int(context.state.tick_rate),
+            speed=context.state.dt_s,
+        )
+        _emit_signal(context, create_simulation_started_signal(response_params))
+
+        context.logger.info(
+            f"Simulation started with tick rate: {context.state.tick_rate}, speed: {context.state.dt_s}"
+        )
 
     @staticmethod
     def handle_stop(_params: dict[str, Any], context: HandlerContext) -> None:
@@ -84,23 +100,40 @@ class SimulationActionHandler:
 
     @staticmethod
     def handle_update(params: dict[str, Any], context: HandlerContext) -> None:
-        """Handle simulation update action (e.g., tick rate changes).
+        """Handle simulation update action (e.g., tick rate and speed changes).
 
         Args:
-            params: Action parameters (required 'tick_rate')
+            params: Action parameters (optional 'tick_rate' and 'speed')
             context: Handler context
 
         Raises:
-            ValueError: If tick_rate is missing or invalid
+            ValueError: If both tick_rate and speed are missing or invalid
         """
-        if "tick_rate" not in params:
-            raise ValueError("tick_rate is required for simulation.update action")
+        # Parse parameters using DTO
+        sim_params = SimulationParamsDTO.from_dict(params)
 
-        tick_rate = params["tick_rate"]
-        if not isinstance(tick_rate, int | float):
-            raise ValueError("tick_rate must be a number")
+        # At least one parameter must be provided
+        if sim_params.tick_rate is None and sim_params.speed is None:
+            raise ValueError("At least one of 'tick_rate' or 'speed' must be provided")
 
-        context.state.set_tick_rate(float(tick_rate))
-        tick_rate_int = int(context.state.tick_rate)
-        _emit_signal(context, create_simulation_updated_signal(tick_rate=tick_rate_int))
-        context.logger.info(f"Simulation updated: tick rate set to {context.state.tick_rate}")
+        # Apply tick_rate if provided
+        if sim_params.tick_rate is not None:
+            context.state.set_tick_rate(float(sim_params.tick_rate))
+
+        # Apply speed (dt_s) if provided
+        if sim_params.speed is not None:
+            context.state.set_dt_s(sim_params.speed)
+            # Update world's dt_s if available
+            if context.world is not None:
+                context.world.dt_s = sim_params.speed
+
+        # Create response DTO with current values
+        response_params = SimulationParamsDTO(
+            tick_rate=int(context.state.tick_rate),
+            speed=context.state.dt_s,
+        )
+        _emit_signal(context, create_simulation_updated_signal(response_params))
+
+        context.logger.info(
+            f"Simulation updated: tick rate={context.state.tick_rate}, speed={context.state.dt_s}"
+        )

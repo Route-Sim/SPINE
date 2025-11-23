@@ -17,7 +17,7 @@ class World:
         graph: Any,
         router: Any,
         traffic: Any,
-        dt_s: float = 0.05,
+        dt_s: float = 1.0,
         generation_params: "GenerationParams | None" = None,
     ) -> None:
         self.graph = graph

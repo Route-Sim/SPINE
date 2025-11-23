@@ -344,8 +344,8 @@ Conversion: kph → m/s → m per tick
 
 **Example:**
 - Speed: 100 kph
-- dt_s: 0.05 seconds (20 ticks/second)
-- Distance per tick: 100 * (1000/3600) * 0.05 = 1.39 meters
+- dt_s: 1.0 seconds (typical, configurable via simulation.update)
+- Distance per tick: 100 * (1000/3600) * 1.0 = 27.78 meters
 
 ### Random Destination Selection
 
