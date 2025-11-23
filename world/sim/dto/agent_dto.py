@@ -1,9 +1,13 @@
 """DTOs for agent creation and management."""
 
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field, field_validator
 
-from agents.transports.truck import Truck
 from core.types import AgentID, NodeID
+
+if TYPE_CHECKING:
+    from agents.transports.truck import Truck
 
 
 class TruckCreateDTO(BaseModel):
@@ -28,7 +32,7 @@ class TruckCreateDTO(BaseModel):
             raise ValueError("max_speed_kph must be a positive number")
         return v
 
-    def to_truck(self, agent_id: AgentID, kind: str, spawn_node: NodeID) -> Truck:
+    def to_truck(self, agent_id: AgentID, kind: str, spawn_node: NodeID) -> "Truck":
         """Create a Truck instance from this DTO.
 
         Args:
@@ -39,6 +43,9 @@ class TruckCreateDTO(BaseModel):
         Returns:
             Configured Truck instance
         """
+        # Import here to avoid circular dependency
+        from agents.transports.truck import Truck
+
         return Truck(
             id=agent_id,
             kind=kind,

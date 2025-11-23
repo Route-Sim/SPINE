@@ -255,6 +255,80 @@ Given route `[A, B, C]` and `current_node = A`:
 
 This approach allows node-based routes while supporting graphs with multiple edges between nodes.
 
+## Serialization DTOs
+
+### TruckWatchFieldsDTO
+
+Immutable Pydantic DTO containing only fields that trigger serialization when changed:
+
+```python
+@dataclass(frozen=True)
+class TruckWatchFieldsDTO:
+    current_node: NodeID | None
+    current_edge: EdgeID | None
+    current_speed_kph: float
+    route: tuple[NodeID, ...]  # Immutable tuple for hashing
+    route_start_node: NodeID | None
+    route_end_node: NodeID | None
+```
+
+**Design Rationale:**
+- Position and navigation fields represent meaningful state changes requiring frontend updates
+- Excludes tachograph counters that change every tick (driving_time_s, resting_time_s)
+- Frozen for immutability and efficient equality comparison
+- Route converted to tuple for hashability
+
+### TruckStateDTO
+
+Complete state DTO returned in diff payloads:
+
+```python
+@dataclass(frozen=True)
+class TruckStateDTO:
+    # Watch fields
+    current_node: NodeID | None
+    current_edge: EdgeID | None
+    current_speed_kph: float
+    route: list[NodeID]  # Mutable list for frontend consumption
+    route_start_node: NodeID | None
+    route_end_node: NodeID | None
+
+    # Metadata
+    id: AgentID
+    kind: str
+    max_speed_kph: float
+    current_building_id: str | None
+
+    # Tachograph fields
+    driving_time_s: float
+    resting_time_s: float
+    is_resting: bool
+    balance_ducats: float
+    risk_factor: float
+    is_seeking_parking: bool
+    original_destination: NodeID | None
+```
+
+**Design Rationale:**
+- Contains all truck state for complete snapshot
+- Frontend receives full context on every update
+- Tachograph fields included but don't trigger updates
+- Route as list (not tuple) for JSON serialization
+
+### Serialization Workflow
+
+1. Create `TruckWatchFieldsDTO` from current state
+2. Compare with `_last_serialized_watch_state`
+3. If equal: return `None` (no changes)
+4. If different: create `TruckStateDTO` and return `model_dump()`
+5. Update `_last_serialized_watch_state`
+
+**Benefits:**
+- Eliminates per-tick updates from tachograph counters
+- Maintains complete state in each diff
+- Type-safe with Pydantic validation
+- Clear separation of concerns (trigger vs payload)
+
 ## Algorithms & Complexity
 
 ### Movement Calculation
@@ -300,15 +374,35 @@ for edge in world.graph.get_outgoing_edges(current_node):
 
 ### Differential Serialization
 
+The truck uses a two-tier DTO approach for efficient state change detection:
+
+**Watch Fields (TruckWatchFieldsDTO):**
+- Position and navigation fields that trigger serialization
+- Changes to these fields indicate meaningful state updates
+- Includes: `current_node`, `current_edge`, `current_speed_kph`, `route`, `route_start_node`, `route_end_node`
+
+**Complete State (TruckStateDTO):**
+- Full state payload returned in diffs
+- Includes watch fields plus tachograph counters, metadata, and configuration
+- All fields present in every diff, but diffs only emitted on watch field changes
+
 ```python
-if current_state == _last_serialized_state:
-    return None
+# Create watch fields DTO for comparison
+current_watch_fields = TruckWatchFieldsDTO(...)
+
+# Compare with last watch state
+if current_watch_fields == _last_serialized_watch_state:
+    return None  # No watch field changes
+
+# Return complete state DTO
+return TruckStateDTO(...).model_dump()
 ```
 
-**Complexity:** O(k) where k is number of state fields (constant)
-- Dictionary comparison: O(k)
-- Reduces network traffic by 90%+ (only changes sent)
-- Start/end metadata is part of the tracked state, enabling downstream consumers to label entire routes without diffing manually
+**Complexity:** O(k) where k is number of watch fields (6 fields, constant)
+- Pydantic DTO comparison: O(k)
+- Prevents excessive updates from continuously-changing tachograph counters (driving_time_s, resting_time_s)
+- Reduces network traffic by 90%+ (only changes to position/navigation sent)
+- All fields included in payload for complete state snapshot
 
 ## Public API / Usage
 

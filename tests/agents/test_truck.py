@@ -47,9 +47,14 @@ def test_truck_parking_registers_building_and_updates_state() -> None:
     assert truck.current_building_id == parking_id
     assert AgentID("truck-1") in parking.current_agents
 
+    # Parking alone doesn't trigger diff (only watch fields do)
+    # But current_building_id is included in full serialization
     diff = truck.serialize_diff()
-    assert diff is not None
-    assert diff["current_building_id"] == str(parking_id)
+    assert diff is None  # No watch field changes
+
+    # Verify that full serialization includes building
+    full = truck.serialize_full()
+    assert full["current_building_id"] == str(parking_id)
 
 
 def test_truck_leave_parking_releases_building() -> None:
@@ -58,17 +63,20 @@ def test_truck_leave_parking_releases_building() -> None:
     world, parking = _build_world_with_parking(node_id, parking_id)
     truck = _make_truck(node_id)
 
-    truck.serialize_diff()
+    truck.serialize_diff()  # Initial state
     truck.park_in_building(world, parking_id)
-    truck.serialize_diff()
 
     truck.leave_parking(world)
     assert truck.current_building_id is None
     assert AgentID("truck-1") not in parking.current_agents
 
+    # Leaving parking alone doesn't trigger diff (only watch fields do)
     diff = truck.serialize_diff()
-    assert diff is not None
-    assert diff["current_building_id"] is None
+    assert diff is None  # No watch field changes
+
+    # Verify that full serialization reflects the change
+    full = truck.serialize_full()
+    assert full["current_building_id"] is None
 
 
 def test_truck_parking_requires_same_node() -> None:
@@ -330,6 +338,128 @@ def test_tachograph_serialization() -> None:
     assert "is_resting" in diff
     assert "balance_ducats" in diff
     assert "risk_factor" in diff
+
+
+def test_serialize_diff_only_on_watch_field_changes() -> None:
+    """Test that serialize_diff only triggers on watch field changes."""
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+        driving_time_s=0.0,
+        balance_ducats=0.0,
+    )
+
+    # First call should return full state
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["current_node"] == NodeID(1)
+    assert diff["driving_time_s"] == 0.0
+
+    # Change only non-watch field (driving_time_s)
+    truck.driving_time_s = 3600.0
+    diff = truck.serialize_diff()
+    assert diff is None  # Should not trigger serialization
+
+    # Change watch field (current_node)
+    truck.current_node = NodeID(2)
+    diff = truck.serialize_diff()
+    assert diff is not None  # Should trigger serialization
+    assert diff["current_node"] == NodeID(2)
+    assert diff["driving_time_s"] == 3600.0  # Non-watch field included in payload
+
+
+def test_serialize_diff_includes_all_fields() -> None:
+    """Test that serialize_diff payload includes all fields (watch + non-watch)."""
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+        max_speed_kph=120.0,
+        driving_time_s=7200.0,
+        resting_time_s=1800.0,
+        is_resting=False,
+        balance_ducats=500.0,
+        risk_factor=0.6,
+        is_seeking_parking=True,
+        original_destination=NodeID(5),
+    )
+
+    # Trigger serialization by calling for first time
+    diff = truck.serialize_diff()
+    assert diff is not None
+
+    # Verify all fields are present
+    # Watch fields
+    assert "current_node" in diff
+    assert "current_edge" in diff
+    assert "current_speed_kph" in diff
+    assert "route" in diff
+    assert "route_start_node" in diff
+    assert "route_end_node" in diff
+
+    # Non-watch fields
+    assert "id" in diff
+    assert "kind" in diff
+    assert "max_speed_kph" in diff
+    assert "current_building_id" in diff
+
+    # Tachograph fields
+    assert "driving_time_s" in diff
+    assert "resting_time_s" in diff
+    assert "is_resting" in diff
+    assert "balance_ducats" in diff
+    assert "risk_factor" in diff
+    assert "is_seeking_parking" in diff
+    assert "original_destination" in diff
+
+    # Verify values
+    assert diff["driving_time_s"] == 7200.0
+    assert diff["balance_ducats"] == 500.0
+    assert diff["risk_factor"] == 0.6
+
+
+def test_serialize_diff_route_changes_trigger_serialization() -> None:
+    """Test that route modifications trigger serialization."""
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+        route=[NodeID(2), NodeID(3)],
+        route_start_node=NodeID(1),
+        route_end_node=NodeID(3),
+    )
+
+    # First call
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["route"] == [NodeID(2), NodeID(3)]
+
+    # No changes - should return None
+    diff = truck.serialize_diff()
+    assert diff is None
+
+    # Modify route (pop)
+    truck.route.pop(0)
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["route"] == [NodeID(3)]
+
+    # No changes - should return None
+    diff = truck.serialize_diff()
+    assert diff is None
+
+    # Modify route (append)
+    truck.route.append(NodeID(4))
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["route"] == [NodeID(3), NodeID(4)]
+
+    # Clear route
+    truck.route.clear()
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["route"] == []
 
 
 # Waypoint-Aware Parking Search Tests

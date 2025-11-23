@@ -7,6 +7,7 @@ from typing import Any
 from core.buildings.parking import Parking
 from core.messages import Msg
 from core.types import AgentID, BuildingID, EdgeID, NodeID
+from world.sim.dto.truck_dto import TruckStateDTO, TruckWatchFieldsDTO
 from world.world import World
 
 
@@ -24,7 +25,7 @@ class Truck:
     inbox: list[Msg] = field(default_factory=list)
     outbox: list[Msg] = field(default_factory=list)
     tags: dict[str, Any] = field(default_factory=dict)
-    _last_serialized_state: dict[str, Any] = field(default_factory=dict, init=False)
+    _last_serialized_watch_state: TruckWatchFieldsDTO | None = field(default=None, init=False)
 
     # Truck-specific fields
     max_speed_kph: float = 100.0  # Maximum speed capability
@@ -509,39 +510,50 @@ class Truck:
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
-        Only emits updates when node, edge, speed, route, or route boundary metadata changes.
-        Does NOT include edge_progress_m as frontend doesn't need it.
+        Only emits updates when watch fields change (node, edge, speed, route, or route boundary).
+        Watch field changes are detected using TruckWatchFieldsDTO comparison.
+        When changes are detected, returns complete state (TruckStateDTO) including tachograph fields.
         """
-        current_state = {
-            "id": self.id,
-            "kind": self.kind,
-            "max_speed_kph": self.max_speed_kph,
-            "current_speed_kph": self.current_speed_kph,
-            "current_node": self.current_node,
-            "current_edge": self.current_edge,
-            "route": self.route.copy(),  # Include route for frontend
-            "route_start_node": self.route_start_node,
-            "route_end_node": self.route_end_node,
-            "current_building_id": str(self.current_building_id)
-            if self.current_building_id
-            else None,
+        # Create watch fields DTO from current state
+        current_watch_fields = TruckWatchFieldsDTO(
+            current_node=self.current_node,
+            current_edge=self.current_edge,
+            current_speed_kph=self.current_speed_kph,
+            route=tuple(self.route),  # Convert to tuple for immutability
+            route_start_node=self.route_start_node,
+            route_end_node=self.route_end_node,
+        )
+
+        # Compare with last watch state
+        if current_watch_fields == self._last_serialized_watch_state:
+            return None  # No changes to watch fields
+
+        # Watch fields changed - update last state and return complete state
+        self._last_serialized_watch_state = current_watch_fields
+
+        # Create complete state DTO
+        complete_state = TruckStateDTO(
+            id=self.id,
+            kind=self.kind,
+            max_speed_kph=self.max_speed_kph,
+            current_speed_kph=self.current_speed_kph,
+            current_node=self.current_node,
+            current_edge=self.current_edge,
+            route=self.route.copy(),  # Return as list for frontend
+            route_start_node=self.route_start_node,
+            route_end_node=self.route_end_node,
+            current_building_id=str(self.current_building_id) if self.current_building_id else None,
             # Tachograph fields
-            "driving_time_s": self.driving_time_s,
-            "resting_time_s": self.resting_time_s,
-            "is_resting": self.is_resting,
-            "balance_ducats": self.balance_ducats,
-            "risk_factor": self.risk_factor,
-            "is_seeking_parking": self.is_seeking_parking,
-            "original_destination": self.original_destination,
-        }
+            driving_time_s=self.driving_time_s,
+            resting_time_s=self.resting_time_s,
+            is_resting=self.is_resting,
+            balance_ducats=self.balance_ducats,
+            risk_factor=self.risk_factor,
+            is_seeking_parking=self.is_seeking_parking,
+            original_destination=self.original_destination,
+        )
 
-        # Compare with last serialized state
-        if current_state == self._last_serialized_state:
-            return None  # No changes
-
-        # Update last serialized state
-        self._last_serialized_state = current_state.copy()
-        return current_state
+        return complete_state.model_dump()
 
     def serialize_full(self) -> dict[str, Any]:
         """Return complete agent state for state snapshot."""
