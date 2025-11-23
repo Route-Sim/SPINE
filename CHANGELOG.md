@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.1](https://github.com/Route-Sim/SPINE/compare/v0.25.0...v0.25.1) (2025-11-23)
+
+
+### 🐛 Bug Fixes
+
+* **truck:** implement two-tier DTOs for selective state serialization ([187a74b](https://github.com/Route-Sim/SPINE/commit/187a74bd77812557dd4b52e1f172c50f40844b88))
+
 ## [0.25.0](https://github.com/Route-Sim/SPINE/compare/v0.24.0...v0.25.0) (2025-11-19)
 
 
