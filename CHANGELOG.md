@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.2](https://github.com/Route-Sim/SPINE/compare/v0.25.1...v0.25.2) (2025-11-23)
+
+
+### ♻️ Code Refactoring
+
+* **simulation:** replace legacy tick rate action ([eb58b85](https://github.com/Route-Sim/SPINE/commit/eb58b85607e2cafaf3b9c64e777496e6d6a55a87))
+
 ## [0.25.1](https://github.com/Route-Sim/SPINE/compare/v0.25.0...v0.25.1) (2025-11-23)
 
 
