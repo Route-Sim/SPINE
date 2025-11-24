@@ -1,7 +1,5 @@
 """Tests for Site building and SiteStatistics."""
 
-from typing import cast
-
 import pytest
 
 from core.buildings.site import Site, SiteStatistics
@@ -55,7 +53,7 @@ class TestSite:
     def test_site_creation(self) -> None:
         """Test site creation with all parameters."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Warehouse",
             activity_rate=5.0,  # 5 packages/hour
             destination_weights={
@@ -64,7 +62,7 @@ class TestSite:
             },
         )
 
-        assert cast(SiteID, site.id) == SiteID("site-1")
+        assert site.id == BuildingID("site-1")
         assert site.name == "Test Warehouse"
         assert site.activity_rate == 5.0
         assert len(site.destination_weights) == 2
@@ -76,7 +74,7 @@ class TestSite:
     def test_site_default_configuration(self) -> None:
         """Test that site gets default package configuration."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=2.0,
         )
@@ -97,7 +95,7 @@ class TestSite:
     def test_site_serialization(self) -> None:
         """Test site serialization and deserialization."""
         original_site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Warehouse",
             activity_rate=3.0,
             destination_weights={
@@ -124,7 +122,7 @@ class TestSite:
     def test_site_package_management(self) -> None:
         """Test adding and removing packages from site."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=1.0,
         )
@@ -151,7 +149,7 @@ class TestSite:
     def test_site_statistics_updates(self) -> None:
         """Test site statistics updates."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=1.0,
         )
@@ -177,7 +175,7 @@ class TestSite:
     def test_site_destination_selection(self) -> None:
         """Test destination site selection."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=1.0,
             destination_weights={
@@ -194,7 +192,7 @@ class TestSite:
 
         # Test with no weights (should select randomly)
         site_no_weights = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=1.0,
         )
@@ -208,7 +206,7 @@ class TestSite:
     def test_site_package_parameter_generation(self) -> None:
         """Test package parameter generation."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=1.0,
         )
@@ -240,7 +238,7 @@ class TestSite:
     def test_site_poisson_spawning_probability(self) -> None:
         """Test Poisson spawning probability calculation."""
         site = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Test Site",
             activity_rate=10.0,  # 10 packages/hour
         )
@@ -274,7 +272,7 @@ class TestSite:
 
         # Test with zero activity rate
         site_zero = Site(
-            id=cast(BuildingID, SiteID("site-2")),
+            id=BuildingID("site-2"),
             name="Inactive Site",
             activity_rate=0.0,
         )

@@ -344,6 +344,8 @@ class WebSocketServer:
                     rural_sites_per_km2=0.0,
                     urban_activity_rate_range=(0.0, 0.0),
                     rural_activity_rate_range=(0.0, 0.0),
+                    urban_parkings_per_km2=0.0,
+                    rural_parkings_per_km2=0.0,
                     seed=0,
                     generated_nodes=self.controller.world.graph.get_node_count(),
                     generated_edges=self.controller.world.graph.get_edge_count(),

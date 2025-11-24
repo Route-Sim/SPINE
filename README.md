@@ -2,6 +2,8 @@
 
 Backend system for managing agentic transport logistics using FastAPI and agent-based modeling.
 
+[![codecov](https://codecov.io/gh/Route-Sim/SPINE/branch/main/graph/badge.svg)](https://codecov.io/gh/Route-Sim/SPINE)
+
 ## Setup
 
 ### Prerequisites

@@ -1,7 +1,5 @@
 """Integration tests for Site and Package functionality in World."""
 
-from typing import cast
-
 from core.buildings.site import Site
 from core.packages.package import Package
 from core.types import (
@@ -37,7 +35,7 @@ class TestSitePackageIntegration:
 
         # Create sites with high activity rates for testing
         site1 = Site(
-            id=cast(BuildingID, SiteID("site-1")),
+            id=BuildingID("site-1"),
             name="Warehouse A",
             activity_rate=3600.0,  # 3600 packages/hour (1 per second)
             destination_weights={
@@ -46,7 +44,7 @@ class TestSitePackageIntegration:
             },
         )
         site2 = Site(
-            id=cast(BuildingID, SiteID("site-2")),
+            id=BuildingID("site-2"),
             name="Warehouse B",
             activity_rate=1800.0,  # 1800 packages/hour (0.5 per second)
             destination_weights={
@@ -55,7 +53,7 @@ class TestSitePackageIntegration:
             },
         )
         site3 = Site(
-            id=cast(BuildingID, SiteID("site-3")),
+            id=BuildingID("site-3"),
             name="Distribution Center",
             activity_rate=900.0,  # 900 packages/hour (0.25 per second)
             destination_weights={
@@ -206,7 +204,7 @@ class TestSitePackageIntegration:
         # Find the site and add package to its active list
         for node in world.graph.nodes.values():
             for building in node.buildings:
-                if isinstance(building, Site) and cast(SiteID, building.id) == SiteID("site-1"):
+                if isinstance(building, Site) and building.id == BuildingID("site-1"):
                     building.add_package(PackageID("expiring-pkg"))
                     break
 
@@ -313,7 +311,7 @@ class TestSitePackageIntegration:
         site1 = None
         for node in world.graph.nodes.values():
             for building in node.buildings:
-                if isinstance(building, Site) and cast(SiteID, building.id) == SiteID("site-1"):
+                if isinstance(building, Site) and building.id == BuildingID("site-1"):
                     site1 = building
                     break
 
