@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.27.0](https://github.com/Route-Sim/SPINE/compare/v0.26.0...v0.27.0) (2025-11-24)
+
+
+### 🚀 Features
+
+* **simulation:** implement statistics collection and tick rate warning system ([882688b](https://github.com/Route-Sim/SPINE/commit/882688bc48fbf67a0edd65e3f36d2d80e4704497))
+
 ## [0.26.0](https://github.com/Route-Sim/SPINE/compare/v0.25.4...v0.26.0) (2025-11-23)
 
 
