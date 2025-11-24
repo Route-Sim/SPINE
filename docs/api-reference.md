@@ -49,11 +49,13 @@ Actions are commands sent from the Frontend to control the simulation.
 
 **Parameters**:
 - `tick_rate` (optional): Simulation frequency in Hz (default: 20). Range: 1-100.
-- `speed` (optional): Simulation time step in seconds per tick (dt_s, default: 1.0). Range: 0.01-10.0.
+- `speed` (optional): Simulation speed - simulation seconds per real second (default: 1.0). Range: 0.01-10.0.
 
 **Notes**:
 - `tick_rate` controls how often the simulation computes (ticks per second)
-- `speed` controls how much simulated time passes per tick
+- `speed` controls how much simulated time passes per real second
+- The actual `dt_s` (simulation time step per tick) is calculated as `dt_s = speed / tick_rate`
+- Example: `speed=2.0` with `tick_rate=10` results in `dt_s=0.2`, meaning 2 simulation seconds pass per real second
 - Both parameters are optional; if omitted, defaults are used
 
 **Postman Test**:
@@ -165,8 +167,9 @@ Actions are commands sent from the Frontend to control the simulation.
 
 **Parameters**:
 - `tick_rate` (optional): New simulation frequency in Hz (1-100)
-- `speed` (optional): New simulation time step in seconds per tick (0.01-10.0)
+- `speed` (optional): New simulation speed - simulation seconds per real second (0.01-10.0)
 - **Note**: At least one parameter must be provided
+- **Note**: When `speed` is updated, `dt_s` is recalculated as `dt_s = speed / tick_rate`. When `tick_rate` is updated, `dt_s` is recalculated based on current `speed`.
 
 **Response Signal**: `simulation.updated`
 ```json
@@ -1069,9 +1072,13 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 **Fields**:
 - `data.tick_rate`: Simulation tick rate in Hz (ticks per second)
-- `data.speed`: Simulation time step in seconds per tick (dt_s)
+- `data.speed`: Simulation speed - simulation seconds per real second
 
 **When Received**: After successful simulation.start action
+
+**Notes**:
+- The actual `dt_s` (simulation time step per tick) is calculated as `dt_s = speed / tick_rate`
+- Example: `speed=2.0` with `tick_rate=10` results in `dt_s=0.2`
 
 ---
 
@@ -1138,7 +1145,72 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 10. MAP_EXPORTED - Map Export Confirmation
+### 10. SIMULATION_UPDATED - Simulation Configuration Updated
+
+**Purpose**: Confirms that simulation configuration (tick rate and/or speed) has been updated.
+
+**Signal**: `simulation.updated`
+
+**JSON Example**:
+```json
+{
+  "signal": "simulation.updated",
+  "data": {
+    "tick_rate": 60,
+    "speed": 2.0
+  }
+}
+```
+
+**Fields**:
+- `data.tick_rate`: Current tick rate in Hz (always included)
+- `data.speed`: Current simulation speed - simulation seconds per real second (always included)
+
+**When Received**: After successful simulation.update action
+
+**Notes**:
+- Response always includes both current tick_rate and speed, even if only one was updated
+- The actual `dt_s` (simulation time step per tick) is calculated as `dt_s = speed / tick_rate`
+
+---
+
+### 11. SIMULATION_TICK_RATE_WARNING - Tick Rate Cannot Be Maintained
+
+**Purpose**: Warns that the simulation cannot maintain the target tick rate due to processing time exceeding available time per tick.
+
+**Signal**: `simulation.tick_rate_warning`
+
+**JSON Example**:
+```json
+{
+  "signal": "simulation.tick_rate_warning",
+  "data": {
+    "target_tick_rate": 50.0,
+    "actual_processing_time_ms": 25.5,
+    "required_time_ms": 20.0,
+    "message": "Cannot maintain tick rate 50.0 Hz. Processing took 25.50 ms, but only 20.00 ms available per tick.",
+    "tick": 1234
+  }
+}
+```
+
+**Fields**:
+- `data.target_tick_rate`: Target ticks per second
+- `data.actual_processing_time_ms`: Actual time taken to process the tick (milliseconds)
+- `data.required_time_ms`: Required time per tick to maintain target rate (milliseconds)
+- `data.message`: Human-readable warning message
+- `data.tick` (optional): Tick number when warning occurred
+
+**When Received**: When processing time exceeds available time per tick (i.e., `actual_processing_time_ms > required_time_ms`)
+
+**Notes**:
+- This signal indicates performance issues - the simulation is running slower than requested
+- Consider reducing tick_rate or optimizing simulation logic
+- The simulation will continue running but at a lower effective rate than requested
+
+---
+
+### 12. MAP_EXPORTED - Map Export Confirmation
 
 **Purpose**: Confirms that a map was successfully exported.
 
@@ -1161,7 +1233,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 11. MAP_IMPORTED - Map Import Confirmation
+### 13. MAP_IMPORTED - Map Import Confirmation
 
 **Purpose**: Confirms that a map was successfully imported.
 

@@ -4,7 +4,7 @@ summary: "Thread-safe queues exposing canonical <domain>.<action>/<signal> envel
 source_paths:
   - "world/sim/queues.py"
   - "tests/world/test_sim_queues.py"
-last_updated: "2025-11-12"
+last_updated: "2025-01-27"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -256,10 +256,10 @@ site_stats = create_site_stats_signal(
 ```
 
 ### ActionType Identifiers
-- `simulation.start`: Begin simulation with optional `tick_rate`
+- `simulation.start`: Begin simulation with optional `tick_rate` and `speed`
 - `simulation.stop`: Stop simulation
 - `simulation.pause` / `simulation.resume`: Pause or resume the loop
-- `simulation.update`: Update simulation configuration (e.g., change tick rate - `tick_rate` required)
+- `simulation.update`: Update simulation configuration (e.g., change tick rate and/or speed - at least one required)
 - `agent.create` / `agent.delete` / `agent.update`: Agent management primitives
 - `agent.describe`: Request the full serialized state for a single agent
 - `agent.list`: Request aggregated serialized state for all agents, optionally filtered by `agent_kind`
@@ -330,7 +330,8 @@ The signal includes complete graph data with all buildings, providing full map f
 - `event.created`: General world events (data includes `tick` and event details)
 - `error`: Error notifications (data includes `code`, `message`, optional `tick`)
 - `simulation.started`/`simulation.stopped`/`simulation.paused`/`simulation.resumed`: Simulation state changes
-- `simulation.updated`: Simulation configuration updated (data includes `tick_rate`)
+- `simulation.updated`: Simulation configuration updated (data includes `tick_rate` and `speed`)
+- `simulation.tick_rate_warning`: Warning when tick rate cannot be maintained (data includes `target_tick_rate`, `actual_processing_time_ms`, `required_time_ms`, `message`, optional `tick`)
 - `map.exported`/`map.imported`/`map.created`: Map operation confirmations
 - `state.snapshot_start`/`state.snapshot_end`: State snapshot boundaries
 - `state.full_map_data`: Complete map structure

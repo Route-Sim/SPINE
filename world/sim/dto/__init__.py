@@ -2,6 +2,7 @@
 
 from .agent_dto import BuildingCreateDTO, TruckCreateDTO
 from .simulation_dto import SimulationParamsDTO
+from .statistics_dto import StatisticsBatchDTO, TickStatisticsDTO
 from .truck_dto import TruckStateDTO, TruckWatchFieldsDTO
 
 __all__ = [
@@ -10,4 +11,6 @@ __all__ = [
     "TruckStateDTO",
     "TruckWatchFieldsDTO",
     "SimulationParamsDTO",
+    "TickStatisticsDTO",
+    "StatisticsBatchDTO",
 ]

@@ -36,28 +36,28 @@ class SimulationActionHandler:
         # Parse parameters using DTO
         sim_params = SimulationParamsDTO.from_dict(params)
 
-        # Apply tick_rate if provided
+        # Apply tick_rate if provided (this will recalculate dt_s if speed is already set)
         if sim_params.tick_rate is not None:
             context.state.set_tick_rate(float(sim_params.tick_rate))
 
-        # Apply speed (dt_s) if provided
+        # Apply speed if provided (this will recalculate dt_s based on current tick_rate)
         if sim_params.speed is not None:
-            context.state.set_dt_s(sim_params.speed)
+            context.state.set_speed(float(sim_params.speed))
             # Update world's dt_s if available
             if context.world is not None:
-                context.world.dt_s = sim_params.speed
+                context.world.dt_s = context.state.dt_s
 
         context.state.start()
 
         # Create response DTO with current values
         response_params = SimulationParamsDTO(
             tick_rate=int(context.state.tick_rate),
-            speed=context.state.dt_s,
+            speed=context.state.speed,
         )
         _emit_signal(context, create_simulation_started_signal(response_params))
 
         context.logger.info(
-            f"Simulation started with tick rate: {context.state.tick_rate}, speed: {context.state.dt_s}"
+            f"Simulation started with tick rate: {context.state.tick_rate}, speed: {context.state.speed}, dt_s: {context.state.dt_s}"
         )
 
     @staticmethod
@@ -116,24 +116,24 @@ class SimulationActionHandler:
         if sim_params.tick_rate is None and sim_params.speed is None:
             raise ValueError("At least one of 'tick_rate' or 'speed' must be provided")
 
-        # Apply tick_rate if provided
+        # Apply tick_rate if provided (this will recalculate dt_s if speed is already set)
         if sim_params.tick_rate is not None:
             context.state.set_tick_rate(float(sim_params.tick_rate))
 
-        # Apply speed (dt_s) if provided
+        # Apply speed if provided (this will recalculate dt_s based on current tick_rate)
         if sim_params.speed is not None:
-            context.state.set_dt_s(sim_params.speed)
+            context.state.set_speed(float(sim_params.speed))
             # Update world's dt_s if available
             if context.world is not None:
-                context.world.dt_s = sim_params.speed
+                context.world.dt_s = context.state.dt_s
 
         # Create response DTO with current values
         response_params = SimulationParamsDTO(
             tick_rate=int(context.state.tick_rate),
-            speed=context.state.dt_s,
+            speed=context.state.speed,
         )
         _emit_signal(context, create_simulation_updated_signal(response_params))
 
         context.logger.info(
-            f"Simulation updated: tick rate={context.state.tick_rate}, speed={context.state.dt_s}"
+            f"Simulation updated: tick rate={context.state.tick_rate}, speed={context.state.speed}, dt_s={context.state.dt_s}"
         )

@@ -30,6 +30,8 @@ class TestSimulationState:
         assert not state.running
         assert not state.paused
         assert state.tick_rate == 20.0
+        assert state.speed == 1.0  # Default speed
+        assert state.dt_s == 1.0 / 20.0  # dt_s = speed / tick_rate
         assert state.current_tick == 0
 
     def test_start_stop(self) -> None:
@@ -63,13 +65,46 @@ class TestSimulationState:
 
         state.set_tick_rate(50.0)
         assert state.tick_rate == 50.0
+        # dt_s should be recalculated: speed (1.0) / tick_rate (50.0) = 0.02
+        assert state.dt_s == 1.0 / 50.0
 
         # Test clamping
         state.set_tick_rate(200.0)
         assert state.tick_rate == 100.0
+        assert state.dt_s == 1.0 / 100.0
 
         state.set_tick_rate(0.05)
         assert state.tick_rate == 0.1
+        assert state.dt_s == 1.0 / 0.1
+
+    def test_set_speed(self) -> None:
+        """Test setting speed and dt_s calculation."""
+        state = SimulationState()
+
+        # Default: speed=1.0, tick_rate=20.0, so dt_s=0.05
+        assert state.speed == 1.0
+        assert state.tick_rate == 20.0
+        assert state.dt_s == 1.0 / 20.0
+
+        # Set speed to 2.0, dt_s should be recalculated
+        state.set_speed(2.0)
+        assert state.speed == 2.0
+        assert state.dt_s == 2.0 / 20.0
+
+        # Change tick_rate, dt_s should be recalculated
+        state.set_tick_rate(10.0)
+        assert state.tick_rate == 10.0
+        assert state.speed == 2.0
+        assert state.dt_s == 2.0 / 10.0
+
+        # Test clamping
+        state.set_speed(20.0)
+        assert state.speed == 10.0  # Clamped to max 10.0
+        assert state.dt_s == 10.0 / 10.0
+
+        state.set_speed(0.001)
+        assert state.speed == 0.01  # Clamped to min 0.01
+        assert state.dt_s == 0.01 / 10.0
 
     def test_increment_tick(self) -> None:
         """Test tick increment."""
@@ -177,8 +212,10 @@ class TestSimulationController:
 
         assert self.controller.state.running
         assert self.controller.state.tick_rate == 25.0
-        assert self.controller.state.dt_s == 0.08
-        assert self.world.dt_s == 0.08
+        assert self.controller.state.speed == 0.08
+        # dt_s should be calculated as speed / tick_rate = 0.08 / 25 = 0.0032
+        assert self.controller.state.dt_s == 0.08 / 25.0
+        assert self.world.dt_s == 0.08 / 25.0
 
         # Verify signal was emitted with both parameters
         assert not self.signal_queue.empty()
@@ -208,8 +245,10 @@ class TestSimulationController:
         action_request = ActionRequest(action="simulation.update", params={"speed": 0.1})
         self.controller.action_processor.process(action_request)
 
-        assert self.controller.state.dt_s == 0.1
-        assert self.world.dt_s == 0.1
+        assert self.controller.state.speed == 0.1
+        # dt_s should be calculated as speed / tick_rate = 0.1 / 50 = 0.002
+        assert self.controller.state.dt_s == 0.1 / 50.0
+        assert self.world.dt_s == 0.1 / 50.0
 
         # Verify signal was emitted
         assert not self.signal_queue.empty()
@@ -226,8 +265,10 @@ class TestSimulationController:
         self.controller.action_processor.process(action_request)
 
         assert self.controller.state.tick_rate == 30.0
-        assert self.controller.state.dt_s == 0.2
-        assert self.world.dt_s == 0.2
+        assert self.controller.state.speed == 0.2
+        # dt_s should be calculated as speed / tick_rate = 0.2 / 30 = 0.006666...
+        assert abs(self.controller.state.dt_s - (0.2 / 30.0)) < 0.0001
+        assert abs(self.world.dt_s - (0.2 / 30.0)) < 0.0001
 
         # Verify signal was emitted
         assert not self.signal_queue.empty()

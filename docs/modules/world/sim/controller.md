@@ -1,9 +1,9 @@
 ---
 title: "Simulation Controller"
-summary: "Manages the simulation loop, processes commands from frontend, and emits events to WebSocket clients in a dedicated thread."
+summary: "Manages the simulation loop, processes commands from frontend, and emits events to WebSocket clients in a dedicated thread. Includes performance monitoring, timing adjustments, and statistics collection."
 source_paths:
   - "world/sim/controller.py"
-last_updated: "2025-10-25"
+last_updated: "2025-01-27"
 owner: "Mateusz Polis"
 tags: ["module", "api", "algorithm"]
 links:
@@ -26,11 +26,14 @@ The simulation needs to run continuously while accepting real-time commands from
 ## Responsibilities & Boundaries
 
 **In-scope:**
-- Simulation loop management with configurable tick rate
+- Simulation loop management with configurable tick rate and speed
 - Command processing from frontend (start/stop/pause/modify agents)
 - Event emission to frontend (tick markers, agent updates, errors)
 - Thread-safe state management (running/paused/stopped)
 - Agent lifecycle management (add/remove/modify)
+- Performance timing and tick rate maintenance
+- Statistics collection and background file writing
+- Warning signals when tick rate cannot be maintained
 
 **Out-of-scope:**
 - WebSocket communication (handled by WebSocketServer)
@@ -74,12 +77,14 @@ Simulation Thread: Controller loop + World.step()
 ## Algorithms & Complexity
 
 **Simulation Loop**: O(1) per tick
-- Fixed-time step simulation with configurable rate
-- Command processing between ticks
+- Fixed-time step simulation with configurable rate and speed
+- Command processing between ticks with timing measurement
 - Event emission after each tick
+- Sleep time adjustment to account for processing overhead
+- Performance statistics collection per tick
 
 **Command Processing**: O(n) where n = number of queued commands
-- Non-blocking command processing
+- Non-blocking command processing with timing measurement
 - Error handling with event emission
 - Agent lifecycle management
 
@@ -87,6 +92,11 @@ Simulation Thread: Controller loop + World.step()
 - Atomic state transitions
 - Thread-safe property access
 - Lock contention minimized
+
+**Statistics Collection**: O(1) per tick, O(b) per batch write
+- Per-tick statistics stored in memory
+- Batched writes to file (default 1000 ticks per batch)
+- Background thread for non-blocking file I/O
 
 ## Public API / Usage
 
@@ -166,6 +176,7 @@ The controller provides complete state snapshot capabilities for frontend synchr
 - `WORLD_EVENT`: General world events
 - `ERROR`: Error notifications
 - `SIMULATION_*`: Simulation state changes
+- `SIMULATION_TICK_RATE_WARNING`: Warning when tick rate cannot be maintained
 - `MAP_EXPORTED`/`MAP_IMPORTED`: Map operation confirmations
 - `STATE_SNAPSHOT_START`/`STATE_SNAPSHOT_END`: State snapshot boundaries
 - `FULL_MAP_DATA`: Complete map structure
@@ -184,9 +195,14 @@ Comprehensive test coverage includes:
 ## Performance
 
 **Tick Rate**: Configurable from 0.1 to 100 Hz
-**Command Processing**: Non-blocking, processes all queued commands per tick
+**Speed Control**: Simulation speed (simulation seconds per real second) configurable from 0.01 to 10.0
+**Timing Precision**: Uses `time.perf_counter()` for high-precision timing measurements
+**Sleep Adjustment**: Automatically adjusts sleep time to account for processing overhead, maintaining exact tick rate
+**Command Processing**: Non-blocking, processes all queued commands per tick with timing measurement
 **Memory Usage**: Minimal overhead, reuses World instance
-**Thread Overhead**: Single dedicated thread for simulation
+**Thread Overhead**: Two threads: simulation loop + statistics writer
+**Statistics Collection**: Batched writes (default 1000 ticks) to prevent I/O blocking
+**Warning System**: Emits warnings when processing time exceeds available time per tick
 
 ## Security & Reliability
 
@@ -195,8 +211,35 @@ Comprehensive test coverage includes:
 **Resource Management**: Configurable tick rate prevents CPU overload
 **Logging**: All operations logged with appropriate levels
 
+## Performance Monitoring & Statistics
+
+The controller includes comprehensive performance monitoring:
+
+### Timing Measurements
+- **Action Processing Time**: Measured for each tick using `time.perf_counter()`
+- **Simulation Step Time**: Measured for each world.step() call
+- **Total Processing Time**: Sum of action processing + simulation step
+- **Achieved Rate**: Calculated as `1000.0 / total_time_ms` (ticks per second)
+
+### Statistics Collection
+- Statistics are collected per tick using `TickStatisticsDTO`
+- Batched into `StatisticsBatchDTO` (default: 1000 ticks per batch)
+- Written to JSON files in `stats/` directory by background thread
+- File naming: `stats_batch_{batch_id:06d}_{timestamp}.json`
+
+### Tick Rate Maintenance
+- Sleep time is adjusted: `max(0, (1.0 / tick_rate) - processing_time)`
+- Ensures exact tick rate is maintained when processing is fast enough
+- Warning signal emitted when processing time exceeds available time per tick
+- Warning includes: target tick rate, actual processing time, required time, and descriptive message
+
+### Configuration
+- `stats_dir`: Directory for statistics files (default: `stats/`)
+- `stats_batch_size`: Number of ticks per batch (default: 1000)
+
 ## References
 
 - [world/sim/queues.md](queues.md) - Message infrastructure
+- [world/sim/dto/statistics-dto.md](dto/statistics-dto.md) - Statistics DTOs
 - [world/world.md](../world.md) - World simulation logic
 - [agents/base.md](../../../agents/base.md) - Agent base classes

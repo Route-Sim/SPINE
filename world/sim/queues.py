@@ -49,6 +49,7 @@ class SignalType(str, Enum):
     SIMULATION_PAUSED = "simulation.paused"
     SIMULATION_RESUMED = "simulation.resumed"
     SIMULATION_UPDATED = "simulation.updated"
+    SIMULATION_TICK_RATE_WARNING = "simulation.tick_rate_warning"
     MAP_EXPORTED = "map.exported"
     MAP_IMPORTED = "map.imported"
     MAP_CREATED = "map.created"
@@ -375,6 +376,44 @@ def create_simulation_updated_signal(params: SimulationParamsDTO) -> Signal:
     return Signal(
         signal=signal_type_to_string(SignalType.SIMULATION_UPDATED),
         data=params.to_dict(),
+    )
+
+
+def create_simulation_tick_rate_warning_signal(
+    target_tick_rate: float,
+    actual_processing_time_ms: float,
+    required_time_ms: float,
+    tick: int | None = None,
+) -> Signal:
+    """Create a simulation tick rate warning signal.
+
+    This signal is emitted when the simulation cannot maintain the target tick rate
+    due to processing time exceeding the available time per tick.
+
+    Args:
+        target_tick_rate: Target ticks per second
+        actual_processing_time_ms: Actual time taken to process (milliseconds)
+        required_time_ms: Required time per tick to maintain target rate (milliseconds)
+        tick: Optional tick number when warning occurred
+
+    Returns:
+        Signal with warning information
+    """
+    data: dict[str, Any] = {
+        "target_tick_rate": target_tick_rate,
+        "actual_processing_time_ms": actual_processing_time_ms,
+        "required_time_ms": required_time_ms,
+        "message": (
+            f"Cannot maintain tick rate {target_tick_rate} Hz. "
+            f"Processing took {actual_processing_time_ms:.2f} ms, "
+            f"but only {required_time_ms:.2f} ms available per tick."
+        ),
+    }
+    if tick is not None:
+        data["tick"] = tick
+    return Signal(
+        signal=signal_type_to_string(SignalType.SIMULATION_TICK_RATE_WARNING),
+        data=data,
     )
 
 

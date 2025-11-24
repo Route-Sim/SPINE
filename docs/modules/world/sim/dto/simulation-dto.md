@@ -1,14 +1,14 @@
 ---
 title: "SimulationParamsDTO"
-summary: "Data Transfer Object for simulation control parameters (tick_rate and speed) used in actions and responses."
+summary: "Data Transfer Object for simulation control parameters (tick_rate and speed) used in actions and responses. Speed represents simulation seconds per real second, with dt_s calculated as speed / tick_rate."
 source_paths:
   - "world/sim/dto/simulation_dto.py"
-last_updated: "2025-11-23"
+last_updated: "2025-01-27"
 owner: "Mateusz Polis"
 tags: ["module", "dto", "sim"]
 links:
   parent: "../../../../SUMMARY.md"
-  siblings: ["agent-dto.md", "truck-dto.md"]
+  siblings: ["agent-dto.md", "truck-dto.md", "statistics-dto.md"]
 ---
 
 # SimulationParamsDTO
@@ -55,10 +55,12 @@ class SimulationParamsDTO(BaseModel):
    - Clamped to prevent performance issues
 
 2. **speed**: Optional float (0.01-10.0)
-   - Represents simulation time advancement per tick (dt_s)
-   - Controls how much simulated time passes per tick
-   - Default: 1.0 seconds per tick
-   - Higher values = faster simulation time progression
+   - Represents simulation seconds per real second
+   - Controls how much simulated time passes per real second
+   - Default: 1.0 (1 simulation second per real second)
+   - The actual `dt_s` (simulation time step per tick) is calculated as `dt_s = speed / tick_rate`
+   - Example: `speed=2.0` with `tick_rate=10` results in `dt_s=0.2`, meaning 2 simulation seconds pass per real second
+   - Higher values = faster simulation time progression relative to real time
 
 ### Data Flow
 
@@ -69,7 +71,9 @@ Client Action → SimulationParamsDTO.from_dict()
               ↓
     SimulationActionHandler
               ↓
-    SimulationState.set_tick_rate() / set_dt_s()
+    SimulationState.set_tick_rate() / set_speed()
+              ↓
+    dt_s calculation: dt_s = speed / tick_rate
               ↓
     World.dt_s update
               ↓
@@ -143,7 +147,13 @@ except ValidationError:
 
 2. **Range Constraints**:
    - `tick_rate`: 1-100 Hz balances responsiveness vs server load
-   - `speed`: 0.01-10.0s allows both slow-motion and fast-forward simulation
+   - `speed`: 0.01-10.0 allows both slow-motion (0.01) and fast-forward (10.0) simulation relative to real time
+
+3. **Speed vs dt_s Relationship**:
+   - `speed` represents simulation seconds per real second (intuitive for users)
+   - `dt_s` is automatically calculated as `speed / tick_rate` (internal simulation parameter)
+   - This separation allows independent control of simulation speed and computation frequency
+   - Example: `speed=2.0, tick_rate=20` → `dt_s=0.1` means 2 simulation seconds pass per real second at 20 ticks/second
 
 3. **Pydantic v2**: Uses modern Pydantic patterns:
    - `Field()` for constraints

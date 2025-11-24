@@ -150,3 +150,7 @@ Thumbs.db
 
 # Maps
 /maps/
+
+
+# Statistics
+/stats/

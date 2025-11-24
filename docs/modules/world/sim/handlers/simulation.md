@@ -1,9 +1,9 @@
 ---
 title: "Simulation Control Action Handler"
-summary: "Orchestrates simulation lifecycle commands (start, stop, pause, resume, update) with consistent state management and signal emission."
+summary: "Orchestrates simulation lifecycle commands (start, stop, pause, resume, update) with consistent state management and signal emission. Handles speed and tick_rate parameters with automatic dt_s calculation."
 source_paths:
   - "world/sim/handlers/simulation.py"
-last_updated: "2025-11-23"
+last_updated: "2025-01-27"
 owner: "Mateusz Polis"
 tags: ["module", "api", "sim"]
 links:
@@ -41,11 +41,11 @@ links:
 
 ## Architecture & Design
 - Key functions, classes, or modules
-  - `SimulationActionHandler.handle_start`: Initializes simulation with optional tick rate and speed parameters.
+  - `SimulationActionHandler.handle_start`: Initializes simulation with optional tick rate and speed parameters. Calculates `dt_s = speed / tick_rate`.
   - `SimulationActionHandler.handle_stop`: Halts simulation execution.
   - `SimulationActionHandler.handle_pause`: Suspends simulation loop while maintaining running state.
   - `SimulationActionHandler.handle_resume`: Continues simulation from paused state.
-  - `SimulationActionHandler.handle_update`: Updates simulation configuration (supports tick rate and/or speed).
+  - `SimulationActionHandler.handle_update`: Updates simulation configuration (supports tick rate and/or speed). Recalculates `dt_s` when either parameter changes.
   - `_emit_signal`: Internal helper for thread-safe signal emission with error handling.
 - Data flow and interactions
   - Handlers read parameters from action envelopes, modify `SimulationState`, and emit signals via `SignalQueue`.
@@ -69,15 +69,23 @@ links:
 ### Start Simulation
 ```python
 # With both parameters
-handler.handle_start({"tick_rate": 30, "speed": 1.0}, context)
-# Emits: {"signal": "simulation.started", "data": {"tick_rate": 30, "speed": 1.0}}
+handler.handle_start({"tick_rate": 30, "speed": 2.0}, context)
+# Calculates: dt_s = 2.0 / 30 = 0.0667
+# Emits: {"signal": "simulation.started", "data": {"tick_rate": 30, "speed": 2.0}}
 
 # With tick_rate only
 handler.handle_start({"tick_rate": 30}, context)
-# Emits: {"signal": "simulation.started", "data": {"tick_rate": 30, "speed": <current>}}
+# Uses current speed (default 1.0), calculates: dt_s = 1.0 / 30 = 0.0333
+# Emits: {"signal": "simulation.started", "data": {"tick_rate": 30, "speed": 1.0}}
+
+# With speed only
+handler.handle_start({"speed": 2.0}, context)
+# Uses current tick_rate (default 20.0), calculates: dt_s = 2.0 / 20.0 = 0.1
+# Emits: {"signal": "simulation.started", "data": {"tick_rate": 20, "speed": 2.0}}
 
 # With no parameters (uses defaults)
 handler.handle_start({}, context)
+# Uses defaults: tick_rate=20.0, speed=1.0, calculates: dt_s = 1.0 / 20.0 = 0.05
 # Emits: {"signal": "simulation.started", "data": {"tick_rate": 20, "speed": 1.0}}
 ```
 
@@ -99,23 +107,29 @@ handler.handle_resume({}, context)
 ### Update Configuration
 ```python
 # Update both parameters
-handler.handle_update({"tick_rate": 50, "speed": 0.1}, context)
-# Emits: {"signal": "simulation.updated", "data": {"tick_rate": 50, "speed": 0.1}}
+handler.handle_update({"tick_rate": 50, "speed": 2.0}, context)
+# Calculates: dt_s = 2.0 / 50 = 0.04
+# Emits: {"signal": "simulation.updated", "data": {"tick_rate": 50, "speed": 2.0}}
 
-# Update tick_rate only
+# Update tick_rate only (recalculates dt_s based on current speed)
 handler.handle_update({"tick_rate": 50}, context)
-# Emits: {"signal": "simulation.updated", "data": {"tick_rate": 50, "speed": <current>}}
+# If current speed is 1.0, calculates: dt_s = 1.0 / 50 = 0.02
+# Emits: {"signal": "simulation.updated", "data": {"tick_rate": 50, "speed": 1.0}}
 
-# Update speed only
-handler.handle_update({"speed": 0.08}, context)
-# Emits: {"signal": "simulation.updated", "data": {"tick_rate": <current>, "speed": 0.08}}
+# Update speed only (recalculates dt_s based on current tick_rate)
+handler.handle_update({"speed": 2.0}, context)
+# If current tick_rate is 20.0, calculates: dt_s = 2.0 / 20.0 = 0.1
+# Emits: {"signal": "simulation.updated", "data": {"tick_rate": 20, "speed": 2.0}}
 ```
 
 ## Implementation Notes
 - `handle_start` accepts optional `tick_rate` and `speed` parameters; if omitted, uses current state values.
 - `handle_update` requires at least one parameter (`tick_rate` or `speed`) and emits confirmation signal with both current values.
 - Parameters are validated using `SimulationParamsDTO` for consistent validation logic.
-- `speed` parameter is mapped to `World.dt_s` (simulation time step in seconds per tick).
+- **Speed and dt_s Calculation**: The `speed` parameter represents simulation seconds per real second. The actual `dt_s` (simulation time step per tick) is calculated as `dt_s = speed / tick_rate`. This ensures that setting `speed=2.0` with `tick_rate=10` results in `dt_s=0.2`, meaning 2 simulation seconds pass per real second.
+- When `speed` is set, `dt_s` is automatically recalculated based on the current `tick_rate`.
+- When `tick_rate` is set, `dt_s` is automatically recalculated based on the current `speed`.
+- Both `context.state.set_speed()` and `context.world.dt_s` are updated to maintain consistency.
 - Tick rate values are converted to integers for signal emission to match API specification.
 - Pause/resume only take effect when simulation is in appropriate state (running for pause, running+paused for resume).
 - Signal emission failures are logged but don't propagate exceptions to maintain handler reliability.
