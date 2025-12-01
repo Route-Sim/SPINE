@@ -56,6 +56,10 @@ def test_handle_create_includes_buildings_in_signal() -> None:
         "rural_activity_rate_range": [1.0, 5.0],
         "urban_parkings_per_km2": 2.0,
         "rural_parkings_per_km2": 0.5,
+        "urban_gas_stations_per_km2": 0.5,
+        "rural_gas_stations_per_km2": 0.1,
+        "gas_station_capacity_range": [2, 6],
+        "gas_station_cost_factor_range": [0.9, 1.2],
         "seed": 42,
     }
 
@@ -139,6 +143,10 @@ def test_handle_create_fails_when_simulation_running() -> None:
         "rural_activity_rate_range": [1.0, 5.0],
         "urban_parkings_per_km2": 2.0,
         "rural_parkings_per_km2": 0.5,
+        "urban_gas_stations_per_km2": 0.5,
+        "rural_gas_stations_per_km2": 0.1,
+        "gas_station_capacity_range": [2, 6],
+        "gas_station_cost_factor_range": [0.9, 1.2],
         "seed": 42,
     }
 

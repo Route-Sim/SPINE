@@ -1,3 +1,4 @@
+import random
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -10,6 +11,11 @@ from core.types import AgentID, PackageID, SiteID
 from world.io import map_manager
 from world.routing.navigator import Navigator
 
+# Constants for fuel price simulation
+SECONDS_PER_DAY = 86400  # 24 hours in seconds
+DEFAULT_FUEL_PRICE = 5.0  # Default fuel price in ducats/liter
+DEFAULT_FUEL_VOLATILITY = 0.1  # ±10% daily change
+
 
 class World:
     def __init__(
@@ -19,6 +25,8 @@ class World:
         traffic: Any,
         dt_s: float = 1.0,
         generation_params: "GenerationParams | None" = None,
+        global_fuel_price: float = DEFAULT_FUEL_PRICE,
+        fuel_price_volatility: float = DEFAULT_FUEL_VOLATILITY,
     ) -> None:
         self.graph = graph
         # Ensure router is Navigator instance
@@ -30,6 +38,11 @@ class World:
         self.packages: dict[PackageID, Package] = {}  # PackageID -> Package
         self._events: list[Any] = []
         self.generation_params = generation_params  # Store generation params if available
+
+        # Global fuel price management
+        self.global_fuel_price = global_fuel_price
+        self.fuel_price_volatility = fuel_price_volatility
+        self._last_fuel_price_day = -1  # Initialize to -1 so first tick triggers update
 
     def now_s(self) -> int:
         return int(self.tick * self.dt_s)
@@ -43,6 +56,8 @@ class World:
     def step(self) -> dict[str, Any]:
         self.tick += 1
 
+        # 0) update global fuel price once per simulation day
+        self._update_daily_fuel_price()
         # 1) sense (optional)
         for a in self.agents.values():
             a.perceive(self)
@@ -191,6 +206,8 @@ class World:
                 "dt_s": self.dt_s,
                 "now_s": self.now_s(),
                 "time_min": self.time_min(),
+                "global_fuel_price": self.global_fuel_price,
+                "current_day": self.now_s() // SECONDS_PER_DAY,
             },
         }
 
@@ -297,6 +314,19 @@ class World:
 
             # Remove package from world (directly without emitting event)
             del self.packages[package_id]
+
+    def _update_daily_fuel_price(self) -> None:
+        """Update global fuel price once per simulation day.
+
+        Uses a random walk with volatility to simulate market fluctuations.
+        The price changes at most once per simulation day (86400 simulation seconds).
+        """
+        current_day = self.now_s() // SECONDS_PER_DAY
+        if current_day > self._last_fuel_price_day:
+            # Random walk: multiply by (1 + random change within volatility range)
+            change = random.uniform(-self.fuel_price_volatility, self.fuel_price_volatility)
+            self.global_fuel_price *= 1 + change
+            self._last_fuel_price_day = current_day
 
     def _deliver_all(self) -> None:
         # deliver last tick's outboxes (you can store separately)

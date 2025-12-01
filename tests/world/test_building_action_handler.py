@@ -421,3 +421,192 @@ def test_handle_create_site_invalid_destination_weights_type() -> None:
 
     with pytest.raises(ValueError, match="destination_weights must be a dictionary"):
         BuildingActionHandler.handle_create(params, context)
+
+
+# Gas station creation tests
+def test_handle_create_valid_gas_station() -> None:
+    """Test successful creation of gas station building."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+        "cost_factor": 1.15,
+    }
+
+    BuildingActionHandler.handle_create(params, context)
+
+    # Verify building was added to node
+    node = context.world.graph.nodes[NodeID(1)]
+    assert len(node.buildings) == 1
+    building = node.buildings[0]
+    assert building.id == BuildingID("gas-station-1")
+    assert building.TYPE == "gas_station"
+    assert hasattr(building, "capacity")
+    assert building.capacity == 4
+    assert hasattr(building, "cost_factor")
+    assert building.cost_factor == 1.15
+
+    # Verify signal was emitted
+    signal = context.signal_queue.get_nowait()
+    assert signal is not None
+    assert signal.signal == SignalType.BUILDING_CREATED.value
+    assert signal.data["node_id"] == 1
+    assert signal.data["building"]["id"] == "gas-station-1"
+    assert signal.data["building"]["type"] == "gas_station"
+    assert signal.data["building"]["capacity"] == 4
+    assert signal.data["building"]["cost_factor"] == 1.15
+    assert signal.data["tick"] == context.state.current_tick
+
+
+def test_handle_create_gas_station_missing_capacity() -> None:
+    """Test that missing capacity for gas_station raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "cost_factor": 1.15,
+    }
+
+    with pytest.raises(ValueError, match="capacity is required for gas_station buildings"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_missing_cost_factor() -> None:
+    """Test that missing cost_factor for gas_station raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+    }
+
+    with pytest.raises(ValueError, match="cost_factor is required for gas_station buildings"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_invalid_capacity_type() -> None:
+    """Test that non-integer capacity raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": "4",
+        "cost_factor": 1.15,
+    }
+
+    with pytest.raises(ValueError, match="capacity must be an integer"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_invalid_cost_factor_type() -> None:
+    """Test that non-float cost_factor raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+        "cost_factor": "1.15",
+    }
+
+    with pytest.raises(ValueError, match="cost_factor must be a float"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_invalid_cost_factor_zero() -> None:
+    """Test that zero cost_factor raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+        "cost_factor": 0.0,
+    }
+
+    with pytest.raises(ValueError, match="cost_factor must be greater than 0"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_invalid_cost_factor_negative() -> None:
+    """Test that negative cost_factor raises ValueError."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+        "cost_factor": -0.5,
+    }
+
+    with pytest.raises(ValueError, match="cost_factor must be greater than 0"):
+        BuildingActionHandler.handle_create(params, context)
+
+
+def test_handle_create_gas_station_price_calculation() -> None:
+    """Test gas station fuel price calculation."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 4,
+        "cost_factor": 1.2,  # 20% above base price
+    }
+
+    BuildingActionHandler.handle_create(params, context)
+
+    # Verify price calculation
+    node = context.world.graph.nodes[NodeID(1)]
+    building = node.buildings[0]
+
+    # Test price calculation with global price of 5.0
+    global_price = 5.0
+    expected_price = 5.0 * 1.2  # 6.0
+    actual_price = building.get_fuel_price(global_price)
+    assert abs(actual_price - expected_price) < 0.001
+
+
+def test_handle_create_gas_station_occupancy() -> None:
+    """Test gas station agent occupancy functions."""
+    context = _build_context()
+
+    params: dict[str, Any] = {
+        "building_type": "gas_station",
+        "building_id": "gas-station-1",
+        "node_id": 1,
+        "capacity": 2,
+        "cost_factor": 1.0,
+    }
+
+    BuildingActionHandler.handle_create(params, context)
+
+    # Verify building was created
+    node = context.world.graph.nodes[NodeID(1)]
+    building = node.buildings[0]
+
+    # Test occupancy methods
+    from core.types import AgentID
+
+    assert building.has_space() is True
+    building.enter(AgentID("truck-1"))
+    assert building.has_space() is True
+    building.enter(AgentID("truck-2"))
+    assert building.has_space() is False  # At capacity
+
+    # Test leaving
+    building.leave(AgentID("truck-1"))
+    assert building.has_space() is True

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.buildings.base import Building
+from core.buildings.gas_station import GasStation
 from core.buildings.parking import Parking
 from core.buildings.site import Site
 from core.types import BuildingID, NodeID, SiteID
@@ -140,9 +141,34 @@ def _create_building(
             activity_rate=activity_rate,
             destination_weights=destination_weights,
         )
+    elif building_type == "gas_station":
+        # Validate required parameters
+        if "capacity" not in params:
+            raise ValueError("capacity is required for gas_station buildings")
+        if "cost_factor" not in params:
+            raise ValueError("cost_factor is required for gas_station buildings")
+
+        capacity_raw = params["capacity"]
+        cost_factor_raw = params["cost_factor"]
+
+        if not isinstance(capacity_raw, int):
+            raise ValueError("capacity must be an integer")
+        if not isinstance(cost_factor_raw, int | float):
+            raise ValueError("cost_factor must be a float")
+
+        cost_factor = float(cost_factor_raw)
+        if cost_factor <= 0:
+            raise ValueError("cost_factor must be greater than 0")
+
+        return GasStation(
+            id=building_id,
+            capacity=capacity_raw,
+            cost_factor=cost_factor,
+        )
     else:
         raise ValueError(
-            f"Unsupported building type: {building_type}. Supported types: 'parking', 'site'."
+            f"Unsupported building type: {building_type}. "
+            "Supported types: 'parking', 'site', 'gas_station'."
         )
 
 

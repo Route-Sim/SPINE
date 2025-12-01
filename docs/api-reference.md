@@ -683,7 +683,7 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 13. BUILDING_CREATE - Provision Building
 
-**Purpose**: Provision a building facility on an existing node. Supports parking buildings with capacity limits and site buildings for pickup/delivery operations.
+**Purpose**: Provision a building facility on an existing node. Supports parking buildings with capacity limits, site buildings for pickup/delivery operations, and gas station buildings for fuel services.
 
 **Action Type**: `building.create`
 
@@ -718,8 +718,22 @@ Actions are commands sent from the Frontend to control the simulation.
 }
 ```
 
+**JSON Example (Gas Station)**:
+```json
+{
+  "action": "building.create",
+  "params": {
+    "building_id": "gas-station-node15",
+    "node_id": 15,
+    "building_type": "gas_station",
+    "capacity": 4,
+    "cost_factor": 1.15
+  }
+}
+```
+
 **Parameters**:
-- `building_type` (required, string): Type of building to create. Supported values: `"parking"`, `"site"`.
+- `building_type` (required, string): Type of building to create. Supported values: `"parking"`, `"site"`, `"gas_station"`.
 - `building_id` (required, string): Unique identifier for the building.
 - `node_id` (required, integer): Graph node (host) that already exists in the generated map.
 
@@ -731,12 +745,17 @@ Actions are commands sent from the Frontend to control the simulation.
 - `activity_rate` (required for sites, float): Package generation rate in packages/hour; must be greater than 0.
 - `destination_weights` (optional for sites, dict[string, float]): Mapping of destination site IDs to delivery probability weights. Keys are site ID strings, values are float weights (will be normalized internally).
 
+**Gas Station-specific parameters**:
+- `capacity` (required for gas_station, integer): Maximum number of agents that can fuel simultaneously; must be positive.
+- `cost_factor` (required for gas_station, float): Multiplier on the global fuel price (e.g., 1.15 means 15% above base price); must be greater than 0.
+
 **Notes**:
-- `building_type` must be explicitly specified. Supported types: `"parking"` and `"site"`; other types will be rejected with an error.
-- Parameter requirements are type-specific: parking buildings require `capacity`, while site buildings require `name` and `activity_rate`.
+- `building_type` must be explicitly specified. Supported types: `"parking"`, `"site"`, and `"gas_station"`; other types will be rejected with an error.
+- Parameter requirements are type-specific: parking buildings require `capacity`, site buildings require `name` and `activity_rate`, gas station buildings require `capacity` and `cost_factor`.
 - Validation fails if the node is missing, the ID collides with an existing building, or an unsupported building type is specified.
 - For sites, `activity_rate` must be a positive float representing packages per hour.
 - For sites, `destination_weights` is optional; if provided, it maps destination site IDs to probability weights for package delivery routing.
+- For gas stations, the actual fuel price is calculated as `global_fuel_price * cost_factor`. The global fuel price is managed by the World and updates daily.
 - Successful execution mutates the world graph in-place and emits a `building.created` signal with canonical payload.
 
 **Postman Test**:
@@ -745,7 +764,9 @@ Actions are commands sent from the Frontend to control the simulation.
 3. Expect immediate `building.created` signal acknowledging the new facility.
 4. Send the site JSON example to create a site building.
 5. Verify the site was created with the specified name and activity rate.
-6. Optionally send a follow-up `state.request` to verify the buildings were attached to their respective nodes.
+6. Send the gas station JSON example to create a gas station.
+7. Verify the gas station was created with the specified capacity and cost_factor.
+8. Optionally send a follow-up `state.request` to verify the buildings were attached to their respective nodes.
 
 ---
 
@@ -1687,7 +1708,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ### 22. BUILDING_CREATED - Building Provisioned
 
-**Purpose**: Confirms that a building (parking or site) has been provisioned on a node in response to `building.create`.
+**Purpose**: Confirms that a building (parking, site, or gas station) has been provisioned on a node in response to `building.create`.
 
 **Signal**: `building.created`
 
@@ -1738,12 +1759,30 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 }
 ```
 
+**JSON Example (Gas Station)**:
+```json
+{
+  "signal": "building.created",
+  "data": {
+    "node_id": 15,
+    "building": {
+      "id": "gas-station-node15",
+      "type": "gas_station",
+      "capacity": 4,
+      "current_agents": [],
+      "cost_factor": 1.15
+    },
+    "tick": 512
+  }
+}
+```
+
 **Fields**:
 - `data.node_id`: Host node identifier.
-- `data.building`: Canonical building payload (matches `Parking.to_dict()` or `Site.to_dict()` output depending on building type).
+- `data.building`: Canonical building payload (matches `Parking.to_dict()`, `Site.to_dict()`, or `GasStation.to_dict()` output depending on building type).
 - `data.tick`: Simulation tick when the building was created.
 
-**When Received**: Immediately after the handler validates and installs the building (parking or site).
+**When Received**: Immediately after the handler validates and installs the building (parking, site, or gas station).
 
 ---
 

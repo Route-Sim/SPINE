@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-11-19"
+last_updated: "2025-12-01"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -62,6 +62,8 @@ links:
 
 **CommandQueue**: Legacy name for the `ActionQueue`. Retained only in historical discussions; new code uses the canonical action terminology.
 
+**Cost Factor**: A per-gas-station multiplier applied to the global fuel price to determine the actual price at that station. Values above 1.0 indicate premium pricing, while values below 1.0 indicate discounted pricing. Typically ranges from 0.8 to 1.2.
+
 ## D
 
 **D (Droga dojazdowa)**: Polish road classification for access roads. Lowest class roads with 1 lane, speeds of 20-40 km/h. May have weight limits. Used for local access.
@@ -102,11 +104,17 @@ links:
 
 **FSM**: Finite State Machine, used for modeling agent behavior states.
 
+**Fuel Price Volatility**: A configurable parameter (default 0.1) controlling how much the global fuel price can change each simulation day. A volatility of 0.1 means the price can change by up to ±10% daily using a random walk model.
+
 ## G
 
 **G (Droga główna)**: Polish road classification for main roads. Major roads with 2-4 lanes, speeds of 50-70 km/h, no weight limits. Used for arterial roads in major cities.
 
 **Gabriel Graph**: A geometric graph where an edge exists between two points only if no other point lies within the circle having that edge as diameter. Used to filter Delaunay triangulation for more realistic road networks.
+
+**Gas Station**: Building type that provides fuel services to transport agents. Gas stations have capacity limits for simultaneous fueling and individual cost factors that adjust the global fuel price. Inherits agent storage functionality from OccupiableBuilding.
+
+**Global Fuel Price**: A world-level variable representing the base fuel price in ducats per liter. Updates daily (every 86400 simulation seconds) using a random walk with configurable volatility. Individual gas station prices are calculated as global_fuel_price * cost_factor.
 
 **GP (Droga główna ruchu przyspieszonego)**: Polish road classification for main accelerated traffic roads. High-speed roads with 2-4 lanes, speeds of 90-110 km/h, no weight limits. Used for inter-city connections.
 
@@ -137,6 +145,10 @@ links:
 **Navigator**: Service providing A* pathfinding and generalized node search for agent navigation through the graph network. Computes optimal time-based routes respecting both edge speed limits and agent capabilities. Supports criteria-based node search using Dijkstra's algorithm with early termination and waypoint-aware search for detour minimization.
 
 **Node Criteria**: Protocol-based system for defining node matching conditions in graph searches. Allows finding nodes based on arbitrary conditions (building types, edge counts, composite rules) without hardcoding search logic. Implementations include BuildingTypeCriteria, EdgeCountCriteria, and CompositeCriteria.
+
+## O
+
+**OccupiableBuilding**: Abstract base class for buildings that can hold agents with capacity limits. Provides common functionality for tracking occupants, checking available space, and managing agent entry/exit. Used as the base for Parking and GasStation buildings.
 
 ## P
 

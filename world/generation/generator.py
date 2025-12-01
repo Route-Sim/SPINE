@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import Delaunay, cKDTree
 
+from core.buildings.gas_station import GasStation
 from core.buildings.parking import Parking
 from core.buildings.site import Site
 from core.types import BuildingID, EdgeID, NodeID, SiteID
@@ -59,6 +60,8 @@ class MapGenerator:
         self.sites: list[tuple[NodeID, bool]] = []  # (node_id, is_urban)
         self.parking_count = 0
         self.parkings: list[NodeID] = []
+        self.gas_station_count = 0
+        self.gas_stations: list[NodeID] = []
 
     def _get_speed_for_road_class(self, road_class: RoadClass, lanes: int, is_urban: bool) -> float:
         """Get the appropriate speed limit for a road class.
@@ -1258,6 +1261,9 @@ class MapGenerator:
         # Place parking facilities
         self._place_parking(graph)
 
+        # Place gas station facilities
+        self._place_gas_stations(graph)
+
         # Assign destination weights
         self._assign_destination_weights(graph)
 
@@ -1428,3 +1434,118 @@ class MapGenerator:
 
         # Default capacity if no matching road class found
         return 5
+
+    def _place_gas_stations(self, graph: Graph) -> None:
+        """Create gas station buildings based on density parameters.
+
+        Args:
+            graph: The graph to place gas station buildings on
+        """
+        # Calculate urban area
+        urban_area_km2 = sum(math.pi * (c.radius / 1000.0) ** 2 for c in self.centers)
+
+        # Calculate rural area
+        total_area_km2 = (self.params.map_width * self.params.map_height) / 1_000_000
+        rural_area_km2 = max(0, total_area_km2 - urban_area_km2)
+
+        # Calculate target number of gas stations
+        target_urban_stations = int(urban_area_km2 * self.params.urban_gas_stations_per_km2)
+        target_rural_stations = int(rural_area_km2 * self.params.rural_gas_stations_per_km2)
+
+        # Get valid nodes for urban and rural gas stations
+        urban_nodes = self._select_gas_station_nodes(graph, is_urban=True)
+        rural_nodes = self._select_gas_station_nodes(graph, is_urban=False)
+
+        # Place urban gas stations
+        if urban_nodes and target_urban_stations > 0:
+            num_urban = min(target_urban_stations, len(urban_nodes))
+            selected_urban = random.sample(urban_nodes, num_urban)
+
+            for node_id in selected_urban:
+                gas_station = self._create_gas_station(node_id, is_urban=True)
+                graph.nodes[node_id].add_building(gas_station)
+                self.gas_stations.append(node_id)
+
+        # Place rural gas stations
+        if rural_nodes and target_rural_stations > 0:
+            num_rural = min(target_rural_stations, len(rural_nodes))
+            selected_rural = random.sample(rural_nodes, num_rural)
+
+            for node_id in selected_rural:
+                gas_station = self._create_gas_station(node_id, is_urban=False)
+                graph.nodes[node_id].add_building(gas_station)
+                self.gas_stations.append(node_id)
+
+    def _select_gas_station_nodes(self, graph: Graph, is_urban: bool) -> list[NodeID]:
+        """Select valid nodes for gas station placement.
+
+        Gas stations are placed similar to parking lots - preferring nodes
+        with multiple connections, excluding highway-only nodes.
+
+        Args:
+            graph: The graph to select nodes from
+            is_urban: If True, select urban nodes; if False, select rural nodes
+
+        Returns:
+            List of valid node IDs for gas station placement
+        """
+        valid_nodes: list[NodeID] = []
+
+        for node_id in graph.nodes:
+            # Get all edges connected to this node
+            outgoing = graph.get_outgoing_edges(node_id)
+            incoming = graph.get_incoming_edges(node_id)
+            all_edges = outgoing + incoming
+
+            # Skip dead-ends and isolated nodes (need at least 2 edges)
+            if len(all_edges) < 2:
+                continue
+
+            # Check if node connects only to highways (A) or expressways (S)
+            non_highway_edges = [
+                e for e in all_edges if e.road_class not in (RoadClass.A, RoadClass.S)
+            ]
+
+            if not non_highway_edges:
+                # Node only connects to highways/expressways, skip
+                continue
+
+            # Check if node is in urban area
+            node = graph.nodes[node_id]
+            node_is_urban = self._is_in_urban_area(node.x, node.y)
+
+            if is_urban and node_is_urban or not is_urban and not node_is_urban:
+                valid_nodes.append(node_id)
+
+        return valid_nodes
+
+    def _create_gas_station(self, node_id: NodeID, is_urban: bool) -> GasStation:
+        """Create a GasStation instance with appropriate configuration.
+
+        Args:
+            node_id: The node where the gas station will be placed
+            is_urban: Whether this is an urban or rural gas station
+
+        Returns:
+            A new GasStation instance
+        """
+        # Generate unique ID
+        location_prefix = "urban" if is_urban else "rural"
+        gas_station_id = BuildingID(
+            f"gas_station_{location_prefix}_{int(node_id)}_{self.gas_station_count}"
+        )
+        self.gas_station_count += 1
+
+        # Get capacity from range
+        min_capacity, max_capacity = self.params.gas_station_capacity_range
+        capacity = random.randint(min_capacity, max_capacity)
+
+        # Get cost factor from range
+        min_factor, max_factor = self.params.gas_station_cost_factor_range
+        cost_factor = random.uniform(min_factor, max_factor)
+
+        return GasStation(
+            id=gas_station_id,
+            capacity=capacity,
+            cost_factor=cost_factor,
+        )

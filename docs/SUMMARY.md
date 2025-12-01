@@ -21,8 +21,10 @@
 * [Messages](modules/core/messages.md)
 * [FSM](modules/core/fsm.md)
 * [Building Base Class](modules/core/buildings/base.md)
+* [Occupiable Building Base](modules/core/buildings/occupancy.md)
 * [Parking Building](modules/core/buildings/parking.md)
 * [Site Building](modules/core/buildings/site.md)
+* [Gas Station Building](modules/core/buildings/gas-station.md)
 * [Package Data Model](modules/core/packages/package.md)
 
 ### World

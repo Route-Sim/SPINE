@@ -30,4 +30,8 @@ class Building:
             from core.buildings.site import Site
 
             return Site.from_dict(data)
+        elif building_type == "gas_station":
+            from core.buildings.gas_station import GasStation
+
+            return GasStation.from_dict(data)
         return cls(id=BuildingID(data["id"]))

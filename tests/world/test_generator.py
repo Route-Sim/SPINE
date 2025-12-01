@@ -35,6 +35,10 @@ class TestGenerationParams(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         assert params.map_width == 10000.0
         assert params.map_height == 10000.0
@@ -67,6 +71,10 @@ class TestGenerationParams(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_invalid_map_height(self) -> None:
@@ -95,6 +103,10 @@ class TestGenerationParams(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_invalid_num_major_centers(self) -> None:
@@ -123,6 +135,10 @@ class TestGenerationParams(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_invalid_intra_connectivity(self) -> None:
@@ -151,6 +167,10 @@ class TestGenerationParams(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_invalid_gridness(self) -> None:
@@ -179,6 +199,10 @@ class TestGenerationParams(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
 
@@ -210,6 +234,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -250,6 +278,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -287,6 +319,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -319,6 +355,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -351,6 +391,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -383,6 +427,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -427,6 +475,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -469,6 +521,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -502,6 +558,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -535,6 +595,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -567,6 +631,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -611,6 +679,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -643,6 +715,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -680,6 +756,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -717,6 +797,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
 
         params2 = GenerationParams(
@@ -742,6 +826,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
 
         generator1 = MapGenerator(params1)
@@ -789,6 +877,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -826,6 +918,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -864,6 +960,10 @@ class TestMapGenerator(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_invalid_activity_rate_range(self) -> None:
@@ -892,6 +992,10 @@ class TestMapGenerator(unittest.TestCase):
                 rural_activity_rate_range=(1.0, 8.0),
                 urban_parkings_per_km2=2.0,
                 rural_parkings_per_km2=0.5,
+                urban_gas_stations_per_km2=0.5,
+                rural_gas_stations_per_km2=0.1,
+                gas_station_capacity_range=(2, 6),
+                gas_station_cost_factor_range=(0.9, 1.2),
             )
 
     def test_buildings_are_placed(self) -> None:
@@ -919,6 +1023,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -958,6 +1066,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -1005,6 +1117,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()
@@ -1057,6 +1173,10 @@ class TestMapGenerator(unittest.TestCase):
             rural_activity_rate_range=(1.0, 8.0),
             urban_parkings_per_km2=2.0,
             rural_parkings_per_km2=0.5,
+            urban_gas_stations_per_km2=0.5,
+            rural_gas_stations_per_km2=0.1,
+            gas_station_capacity_range=(2, 6),
+            gas_station_cost_factor_range=(0.9, 1.2),
         )
         generator = MapGenerator(params)
         graph = generator.generate()

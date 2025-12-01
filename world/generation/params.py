@@ -55,6 +55,16 @@ class GenerationParams(BaseModel):
     urban_parkings_per_km2: float = Field(ge=0, description="Urban parking density per km²")
     rural_parkings_per_km2: float = Field(ge=0, description="Rural parking density per km²")
 
+    # Gas station generation parameters
+    urban_gas_stations_per_km2: float = Field(ge=0, description="Urban gas station density per km²")
+    rural_gas_stations_per_km2: float = Field(ge=0, description="Rural gas station density per km²")
+    gas_station_capacity_range: tuple[int, int] = Field(
+        description="[min, max] fuel places at gas stations"
+    )
+    gas_station_cost_factor_range: tuple[float, float] = Field(
+        description="[min, max] cost factor multiplier for gas station prices"
+    )
+
     # Generation seed
     seed: int = Field(description="Random seed used for generation")
 
@@ -68,4 +78,28 @@ class GenerationParams(BaseModel):
             raise ValueError("Activity rate values must be non-negative")
         if v[0] > v[1]:
             raise ValueError("Activity rate min must be <= max")
+        return v
+
+    @field_validator("gas_station_capacity_range")
+    @classmethod
+    def validate_capacity_range(cls, v: tuple[int, int]) -> tuple[int, int]:
+        """Validate that gas station capacity range is a valid [min, max] pair."""
+        if len(v) != 2:
+            raise ValueError("Gas station capacity range must contain exactly 2 values")
+        if any(x < 1 for x in v):
+            raise ValueError("Gas station capacity values must be at least 1")
+        if v[0] > v[1]:
+            raise ValueError("Gas station capacity min must be <= max")
+        return v
+
+    @field_validator("gas_station_cost_factor_range")
+    @classmethod
+    def validate_cost_factor_range(cls, v: tuple[float, float]) -> tuple[float, float]:
+        """Validate that gas station cost factor range is a valid [min, max] pair."""
+        if len(v) != 2:
+            raise ValueError("Gas station cost factor range must contain exactly 2 values")
+        if any(x <= 0 for x in v):
+            raise ValueError("Gas station cost factor values must be positive")
+        if v[0] > v[1]:
+            raise ValueError("Gas station cost factor min must be <= max")
         return v

@@ -3,12 +3,12 @@ title: "Parking Building"
 summary: "Captures capacity-limited parking facilities that track staged trucks and round-trip through graph serialization."
 source_paths:
   - "core/buildings/parking.py"
-last_updated: "2025-11-12"
+last_updated: "2025-12-01"
 owner: "Mateusz Polis"
 tags: ["module", "data-structure", "building", "sim"]
 links:
   parent: "../../SUMMARY.md"
-  siblings: ["base.md", "site.md"]
+  siblings: ["base.md", "occupancy.md", "gas-station.md", "site.md"]
 ---
 
 # Parking Building
@@ -35,10 +35,9 @@ links:
   - Persistence beyond the in-memory graph.
 
 ## Architecture & Design
-- Class: `Parking(Building)` extends the base dataclass with:
-  - `capacity: int`
-  - `current_agents: set[AgentID]`
-  - Convenience methods `has_space()`, `park()`, `release()`, `assign_occupants()`.
+- Class: `Parking(OccupiableBuilding)` extends the occupancy-capable building with domain-specific aliases:
+  - Inherits from `OccupiableBuilding`: `capacity: int`, `current_agents: set[AgentID]`, `has_space()`, `enter()`, `leave()`, `assign_occupants()`.
+  - Provides `park()` and `release()` as domain-specific aliases for `enter()` and `leave()`.
 - Data flow:
   - Generator attaches `Parking` instances when road heuristics recommend rest areas.
   - `building.create` actions provision additional slots at runtime; occupancy starts empty.
@@ -74,6 +73,7 @@ payload = parking.to_dict()
 - Integration via world generation and WebSocket action handler tests.
 
 ## References
+- [Occupiable Building Base](occupancy.md) — provides capacity and occupancy tracking.
 - [Building Base Class](base.md) — core serializer and factory.
 - [World Generator](../../world/generation/generator.md) — automatic parking placement.
 - [Building Action Handler](../../world/sim/handlers/building.md) — runtime provisioning via `building.create`.
