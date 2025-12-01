@@ -4,21 +4,25 @@ import pytest
 from pydantic import ValidationError
 
 from core.types import AgentID, NodeID
-from world.sim.dto.agent_dto import TruckCreateDTO
+from world.sim.dto.truck_dto import TruckCreateDTO
 
 
 def test_truck_create_dto_defaults() -> None:
     """Test TruckCreateDTO with default values."""
     dto = TruckCreateDTO()
     assert dto.max_speed_kph == 100.0
+    assert dto.capacity == 24.0
     assert dto.risk_factor == 0.5
     assert dto.initial_balance_ducats == 0.0
 
 
 def test_truck_create_dto_custom_values() -> None:
     """Test TruckCreateDTO with custom values."""
-    dto = TruckCreateDTO(max_speed_kph=120.0, risk_factor=0.8, initial_balance_ducats=1000.0)
+    dto = TruckCreateDTO(
+        max_speed_kph=120.0, capacity=30.0, risk_factor=0.8, initial_balance_ducats=1000.0
+    )
     assert dto.max_speed_kph == 120.0
+    assert dto.capacity == 30.0
     assert dto.risk_factor == 0.8
     assert dto.initial_balance_ducats == 1000.0
 
@@ -34,6 +38,28 @@ def test_truck_create_dto_validates_max_speed() -> None:
         TruckCreateDTO(max_speed_kph=-50.0)
     errors = exc_info.value.errors()
     assert any("max_speed_kph" in str(err["loc"]) for err in errors)
+
+
+def test_truck_create_dto_validates_capacity_range() -> None:
+    """Test that capacity must be between 4.0 and 45.0."""
+    # Below minimum
+    with pytest.raises(ValidationError) as exc_info:
+        TruckCreateDTO(capacity=3.0)
+    errors = exc_info.value.errors()
+    assert any("capacity" in str(err["loc"]) for err in errors)
+
+    # Above maximum
+    with pytest.raises(ValidationError) as exc_info:
+        TruckCreateDTO(capacity=50.0)
+    errors = exc_info.value.errors()
+    assert any("capacity" in str(err["loc"]) for err in errors)
+
+    # Edge cases should work
+    dto_min = TruckCreateDTO(capacity=4.0)
+    assert dto_min.capacity == 4.0
+
+    dto_max = TruckCreateDTO(capacity=45.0)
+    assert dto_max.capacity == 45.0
 
 
 def test_truck_create_dto_validates_risk_factor_range() -> None:
@@ -60,7 +86,9 @@ def test_truck_create_dto_validates_risk_factor_range() -> None:
 
 def test_truck_create_dto_to_truck() -> None:
     """Test conversion from DTO to Truck instance."""
-    dto = TruckCreateDTO(max_speed_kph=150.0, risk_factor=0.7, initial_balance_ducats=500.0)
+    dto = TruckCreateDTO(
+        max_speed_kph=150.0, capacity=35.0, risk_factor=0.7, initial_balance_ducats=500.0
+    )
 
     agent_id = AgentID("test-truck-1")
     spawn_node = NodeID(42)
@@ -70,6 +98,7 @@ def test_truck_create_dto_to_truck() -> None:
     assert truck.id == agent_id
     assert truck.kind == "truck"
     assert truck.max_speed_kph == 150.0
+    assert truck.capacity == 35.0
     assert truck.risk_factor == 0.7
     assert truck.balance_ducats == 500.0
     assert truck.current_node == spawn_node
@@ -78,6 +107,7 @@ def test_truck_create_dto_to_truck() -> None:
     assert truck.edge_progress_m == 0.0
     assert truck.route == []
     assert truck.destination is None
+    assert truck.loaded_packages == []
 
 
 def test_truck_create_dto_accepts_numeric_types() -> None:

@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from core.types import AgentID, NodeID
 from world.graph.graph import Graph
 
-from ..dto.agent_dto import BuildingCreateDTO, TruckCreateDTO
+from ..dto.agent_dto import BuildingCreateDTO
+from ..dto.truck_dto import TruckCreateDTO
 from ..queues import (
     Signal,
     SignalType,

@@ -205,7 +205,7 @@ package_created = create_package_created_signal(
         "id": "pkg-123",
         "origin_site": "warehouse-a",
         "destination_site": "warehouse-b",
-        "size_kg": 25.0,
+        "size": 15.0,
         "value_currency": 1500.0,
         "priority": "HIGH",
         "urgency": "EXPRESS",

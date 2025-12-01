@@ -44,7 +44,7 @@ The Package class is implemented as a frozen dataclass with the following key co
 
 ### Core Attributes
 - **Identity**: `PackageID`, `origin_site`, `destination_site`
-- **Physical Properties**: `size_kg`, `value_currency`
+- **Physical Properties**: `size` (unitless cargo size, 1-30), `value_currency`
 - **Classification**: `priority` (LOW/MEDIUM/HIGH/URGENT), `urgency` (STANDARD/EXPRESS/SAME_DAY)
 - **Temporal**: `spawn_tick`, `pickup_deadline_tick`, `delivery_deadline_tick`
 - **State**: `status` (WAITING_PICKUP/IN_TRANSIT/DELIVERED/EXPIRED)
@@ -79,7 +79,7 @@ package = Package(
     id=PackageID("pkg-123"),
     origin_site=SiteID("warehouse-a"),
     destination_site=SiteID("warehouse-b"),
-    size_kg=25.5,
+    size=15.0,  # Unitless cargo size (1-30)
     value_currency=1500.0,
     priority=Priority.HIGH,
     urgency=DeliveryUrgency.EXPRESS,

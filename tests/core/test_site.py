@@ -79,7 +79,7 @@ class TestSite:
             activity_rate=2.0,
         )
 
-        assert "size_range_kg" in site.package_config
+        assert "size_range" in site.package_config
         assert "value_range_currency" in site.package_config
         assert "priority_weights" in site.package_config
         assert "urgency_weights" in site.package_config
@@ -214,7 +214,7 @@ class TestSite:
         params = site.generate_package_parameters()
 
         # Check required parameters
-        assert "size_kg" in params
+        assert "size" in params
         assert "value_currency" in params
         assert "priority" in params
         assert "urgency" in params
@@ -223,8 +223,8 @@ class TestSite:
 
         # Check value ranges
         config = site.package_config
-        size_min, size_max = config["size_range_kg"]
-        assert size_min <= params["size_kg"] <= size_max
+        size_min, size_max = config["size_range"]
+        assert size_min <= params["size"] <= size_max
 
         value_min, value_max = config["value_range_currency"]
         # Value can exceed value_max due to priority/urgency multipliers

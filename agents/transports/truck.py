@@ -6,7 +6,7 @@ from typing import Any
 
 from core.buildings.parking import Parking
 from core.messages import Msg
-from core.types import AgentID, BuildingID, EdgeID, NodeID
+from core.types import AgentID, BuildingID, EdgeID, NodeID, PackageID
 from world.sim.dto.truck_dto import TruckStateDTO, TruckWatchFieldsDTO
 from world.world import World
 
@@ -29,6 +29,8 @@ class Truck:
 
     # Truck-specific fields
     max_speed_kph: float = 100.0  # Maximum speed capability
+    capacity: float = 24.0  # Cargo capacity (unitless, 4-45)
+    loaded_packages: list[PackageID] = field(default_factory=list)  # Currently loaded packages
     current_speed_kph: float = 0.0  # Actual current speed (limited by edge max_speed)
     current_node: NodeID | None = None  # If at a node
     current_edge: EdgeID | None = None  # If on an edge
@@ -319,6 +321,67 @@ class Truck:
 
         raise ValueError(f"Parking {building_id} not found on node {target_node_id}")
 
+    def get_total_loaded_size(self, world: World) -> float:
+        """Calculate total size of all loaded packages.
+
+        Args:
+            world: World instance to look up package sizes
+
+        Returns:
+            Total size of loaded packages
+        """
+        total = 0.0
+        for pkg_id in self.loaded_packages:
+            package = world.packages.get(pkg_id)
+            if package is not None:
+                total += package.size
+        return total
+
+    def can_load_package(self, world: World, package_id: PackageID) -> bool:
+        """Check if a package can be loaded without exceeding capacity.
+
+        Args:
+            world: World instance to look up package sizes
+            package_id: ID of the package to check
+
+        Returns:
+            True if package can be loaded, False otherwise
+        """
+        package = world.packages.get(package_id)
+        if package is None:
+            return False
+
+        current_load = self.get_total_loaded_size(world)
+        return current_load + package.size <= self.capacity
+
+    def load_package(self, package_id: PackageID) -> None:
+        """Add a package to the loaded packages list.
+
+        Note: This does not check capacity - use can_load_package first.
+
+        Args:
+            package_id: ID of the package to load
+
+        Raises:
+            ValueError: If package is already loaded
+        """
+        if package_id in self.loaded_packages:
+            raise ValueError(f"Package {package_id} is already loaded")
+        self.loaded_packages.append(package_id)
+
+    def unload_package(self, package_id: PackageID) -> None:
+        """Remove a package from the loaded packages list.
+
+        Args:
+            package_id: ID of the package to unload
+
+        Raises:
+            ValueError: If package is not loaded
+        """
+        if package_id not in self.loaded_packages:
+            raise ValueError(f"Package {package_id} is not loaded")
+        self.loaded_packages.remove(package_id)
+
     def _calculate_required_rest(self) -> float:
         """Calculate required rest time based on driving time.
 
@@ -510,8 +573,8 @@ class Truck:
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
-        Only emits updates when watch fields change (node, edge, speed, route, or route boundary).
-        Watch field changes are detected using TruckWatchFieldsDTO comparison.
+        Only emits updates when watch fields change (node, edge, speed, route, route boundary,
+        or loaded packages). Watch field changes are detected using TruckWatchFieldsDTO comparison.
         When changes are detected, returns complete state (TruckStateDTO) including tachograph fields.
         """
         # Create watch fields DTO from current state
@@ -522,6 +585,7 @@ class Truck:
             route=tuple(self.route),  # Convert to tuple for immutability
             route_start_node=self.route_start_node,
             route_end_node=self.route_end_node,
+            loaded_packages=tuple(self.loaded_packages),  # Convert to tuple for immutability
         )
 
         # Compare with last watch state
@@ -536,6 +600,8 @@ class Truck:
             id=self.id,
             kind=self.kind,
             max_speed_kph=self.max_speed_kph,
+            capacity=self.capacity,
+            loaded_packages=list(self.loaded_packages),
             current_speed_kph=self.current_speed_kph,
             current_node=self.current_node,
             current_edge=self.current_edge,
@@ -561,6 +627,8 @@ class Truck:
             "id": self.id,
             "kind": self.kind,
             "max_speed_kph": self.max_speed_kph,
+            "capacity": self.capacity,
+            "loaded_packages": list(self.loaded_packages),
             "current_speed_kph": self.current_speed_kph,
             "current_node": self.current_node,
             "current_edge": self.current_edge,

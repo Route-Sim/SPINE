@@ -262,7 +262,7 @@ class World:
             id=package_id,
             origin_site=site.id,
             destination_site=destination_site,
-            size_kg=params["size_kg"],
+            size=params["size"],
             value_currency=params["value_currency"],
             priority=params["priority"],
             urgency=params["urgency"],

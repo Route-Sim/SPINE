@@ -13,7 +13,7 @@ class Package:
     id: PackageID
     origin_site: SiteID
     destination_site: SiteID
-    size_kg: float
+    size: float  # Unitless size (1-30), represents cargo space consumed
     value_currency: float
     priority: Priority
     urgency: DeliveryUrgency

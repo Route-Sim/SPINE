@@ -57,9 +57,10 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Random destination selection
 - Differential state serialization
 - Edge resolution from node-based routes
+- Package loading/unloading with capacity management
 
 ### Out-of-scope
-- Package pickup and delivery (future feature)
+- Automated package pickup and delivery logic (manual via methods)
 - Collision detection or avoidance
 - Traffic simulation or congestion
 - Fuel consumption or maintenance
@@ -84,6 +85,8 @@ class Truck:
 
     # Truck-specific state
     max_speed_kph: float  # Agent's maximum speed capability
+    capacity: float  # Cargo capacity (unitless, 4-45, default 24)
+    loaded_packages: list[PackageID]  # Currently loaded packages
     current_speed_kph: float  # Actual speed (limited by edge)
     current_node: NodeID | None  # Position if at a node
     current_edge: EdgeID | None  # Position if on an edge
@@ -148,6 +151,31 @@ class Truck:
 3. **Serialization phase:**
    - Compare current state with last serialized state
    - Return diff if changed, None otherwise (diff payload now includes `current_building_id`)
+
+### Package Loading Helpers
+
+The truck manages package loading with capacity constraints:
+
+- `capacity`: Cargo capacity (unitless, default 24, range 4-45)
+- `loaded_packages`: List of currently loaded PackageIDs
+- `get_total_loaded_size(world)`: Calculate total size of loaded packages
+- `can_load_package(world, package_id)`: Check if package fits within remaining capacity
+- `load_package(package_id)`: Add package to loaded list
+- `unload_package(package_id)`: Remove package from loaded list
+
+**Example:**
+```python
+# Check and load a package
+if truck.can_load_package(world, PackageID("pkg-123")):
+    truck.load_package(PackageID("pkg-123"))
+
+# Get current load
+total_size = truck.get_total_loaded_size(world)
+remaining_capacity = truck.capacity - total_size
+
+# Unload at destination
+truck.unload_package(PackageID("pkg-123"))
+```
 
 ### Parking Lifecycle Helpers
 
@@ -270,13 +298,14 @@ class TruckWatchFieldsDTO:
     route: tuple[NodeID, ...]  # Immutable tuple for hashing
     route_start_node: NodeID | None
     route_end_node: NodeID | None
+    loaded_packages: tuple[PackageID, ...]  # Immutable tuple for hashing
 ```
 
 **Design Rationale:**
-- Position and navigation fields represent meaningful state changes requiring frontend updates
+- Position, navigation, and cargo fields represent meaningful state changes requiring frontend updates
 - Excludes tachograph counters that change every tick (driving_time_s, resting_time_s)
 - Frozen for immutability and efficient equality comparison
-- Route converted to tuple for hashability
+- Route and loaded_packages converted to tuples for hashability
 
 ### TruckStateDTO
 
@@ -297,6 +326,8 @@ class TruckStateDTO:
     id: AgentID
     kind: str
     max_speed_kph: float
+    capacity: float  # Cargo capacity
+    loaded_packages: list[PackageID]  # Currently loaded packages
     current_building_id: str | None
 
     # Tachograph fields
@@ -377,9 +408,9 @@ for edge in world.graph.get_outgoing_edges(current_node):
 The truck uses a two-tier DTO approach for efficient state change detection:
 
 **Watch Fields (TruckWatchFieldsDTO):**
-- Position and navigation fields that trigger serialization
+- Position, navigation, and cargo fields that trigger serialization
 - Changes to these fields indicate meaningful state updates
-- Includes: `current_node`, `current_edge`, `current_speed_kph`, `route`, `route_start_node`, `route_end_node`
+- Includes: `current_node`, `current_edge`, `current_speed_kph`, `route`, `route_start_node`, `route_end_node`, `loaded_packages`
 
 **Complete State (TruckStateDTO):**
 - Full state payload returned in diffs
@@ -419,7 +450,7 @@ return TruckStateDTO(...).model_dump()
 }
 ```
 
-**Custom speed and risk:**
+**Custom speed, capacity, and risk:**
 ```json
 {
   "action": "agent.create",
@@ -428,6 +459,7 @@ return TruckStateDTO(...).model_dump()
     "agent_kind": "truck",
     "agent_data": {
       "max_speed_kph": 120.0,
+      "capacity": 30.0,
       "risk_factor": 0.8,
       "initial_balance_ducats": 1000.0
     }
@@ -437,6 +469,7 @@ return TruckStateDTO(...).model_dump()
 
 **Parameters:**
 - `max_speed_kph` (float, default: 100.0): Maximum speed capability
+- `capacity` (float, default: 24.0, range: 4.0-45.0): Cargo capacity (unitless)
 - `risk_factor` (float, default: 0.5, range: 0.0-1.0): Risk tolerance affecting parking search timing
 - `initial_balance_ducats` (float, default: 0.0): Starting financial balance
 

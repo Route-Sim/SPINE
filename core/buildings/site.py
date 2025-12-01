@@ -53,7 +53,7 @@ class Site(Building):
         object.__setattr__(self, "id", cast(BuildingID, self.id))  # type: ignore[redundant-cast]
         if not self.package_config:
             self.package_config = {
-                "size_range_kg": (1.0, 50.0),
+                "size_range": (1.0, 30.0),  # Unitless size (1-30)
                 "value_range_currency": (10.0, 1000.0),
                 "pickup_deadline_range_ticks": (1800, 7200),  # 30min to 2h in ticks
                 "delivery_deadline_range_ticks": (3600, 14400),  # 1h to 4h in ticks
@@ -157,9 +157,9 @@ class Site(Building):
         """Generate random package parameters based on configuration."""
         config = self.package_config
 
-        # Generate size
-        size_min, size_max = config["size_range_kg"]
-        size_kg = random.uniform(size_min, size_max)
+        # Generate size (unitless, 1-30)
+        size_min, size_max = config["size_range"]
+        size = random.uniform(size_min, size_max)
 
         # Generate value (higher priority/urgency = higher value)
         value_min, value_max = config["value_range_currency"]
@@ -195,7 +195,7 @@ class Site(Building):
             delivery_deadline_tick = pickup_deadline_tick + random.randint(1800, 3600)
 
         return {
-            "size_kg": size_kg,
+            "size": size,
             "value_currency": value_currency,
             "priority": priority,
             "urgency": urgency,

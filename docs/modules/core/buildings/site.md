@@ -125,7 +125,7 @@ site = Site(
         SiteID("warehouse-south"): 0.6,
     },
     package_config={
-        "size_range_kg": (5.0, 100.0),
+        "size_range": (1.0, 30.0),  # Unitless cargo size
         "value_range_currency": (50.0, 2000.0),
         "pickup_deadline_range_ticks": (1800, 7200),
         "delivery_deadline_range_ticks": (3600, 14400),

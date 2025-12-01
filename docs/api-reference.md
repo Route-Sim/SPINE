@@ -1521,7 +1521,7 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
     "id": "pkg-123",
     "origin_site": "warehouse-a",
     "destination_site": "warehouse-b",
-    "size_kg": 25.0,
+    "size": 15.0,
     "value_currency": 1500.0,
     "priority": "HIGH",
     "urgency": "EXPRESS",

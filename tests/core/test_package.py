@@ -19,7 +19,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=25.5,
+            size=25.5,
             value_currency=1500.0,
             priority=Priority.HIGH,
             urgency=DeliveryUrgency.EXPRESS,
@@ -31,7 +31,7 @@ class TestPackage:
         assert package.id == PackageID("pkg-123")
         assert package.origin_site == SiteID("site-1")
         assert package.destination_site == SiteID("site-2")
-        assert package.size_kg == 25.5
+        assert package.size == 25.5
         assert package.value_currency == 1500.0
         assert package.priority == Priority.HIGH
         assert package.urgency == DeliveryUrgency.EXPRESS
@@ -46,7 +46,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=10.0,
+            size=10.0,
             value_currency=100.0,
             priority=Priority.MEDIUM,
             urgency=DeliveryUrgency.STANDARD,
@@ -63,7 +63,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=25.5,
+            size=25.5,
             value_currency=1500.0,
             priority=Priority.HIGH,
             urgency=DeliveryUrgency.EXPRESS,
@@ -86,7 +86,7 @@ class TestPackage:
         assert restored_package.id == original_package.id
         assert restored_package.origin_site == original_package.origin_site
         assert restored_package.destination_site == original_package.destination_site
-        assert restored_package.size_kg == original_package.size_kg
+        assert restored_package.size == original_package.size
         assert restored_package.value_currency == original_package.value_currency
         assert restored_package.priority == original_package.priority
         assert restored_package.urgency == original_package.urgency
@@ -101,7 +101,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=10.0,
+            size=10.0,
             value_currency=100.0,
             priority=Priority.MEDIUM,
             urgency=DeliveryUrgency.STANDARD,
@@ -125,7 +125,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=10.0,
+            size=10.0,
             value_currency=100.0,
             priority=Priority.MEDIUM,
             urgency=DeliveryUrgency.STANDARD,
@@ -149,7 +149,7 @@ class TestPackage:
             id=PackageID("pkg-123"),
             origin_site=SiteID("site-1"),
             destination_site=SiteID("site-2"),
-            size_kg=10.0,
+            size=10.0,
             value_currency=100.0,
             priority=Priority.MEDIUM,
             urgency=DeliveryUrgency.STANDARD,

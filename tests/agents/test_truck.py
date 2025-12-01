@@ -620,3 +620,237 @@ def test_truck_uses_simple_search_without_destination() -> None:
 
     assert parking_id == BuildingID("parking-2")
     assert route == [NodeID(1), NodeID(2)]
+
+
+# Capacity and Package Loading Tests
+
+
+def _create_world_with_packages() -> World:
+    """Create a test world with packages for loading tests."""
+    from core.packages.package import Package
+    from core.types import DeliveryUrgency, PackageID, Priority, SiteID
+
+    graph = Graph()
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    graph.add_node(node)
+    world = World(graph=graph, router=None, traffic=None, dt_s=1.0)
+
+    # Add some test packages with various sizes
+    pkg1 = Package(
+        id=PackageID("pkg-1"),
+        origin_site=SiteID("site-1"),
+        destination_site=SiteID("site-2"),
+        size=5.0,
+        value_currency=100.0,
+        priority=Priority.MEDIUM,
+        urgency=DeliveryUrgency.STANDARD,
+        spawn_tick=0,
+        pickup_deadline_tick=3600,
+        delivery_deadline_tick=7200,
+    )
+    pkg2 = Package(
+        id=PackageID("pkg-2"),
+        origin_site=SiteID("site-1"),
+        destination_site=SiteID("site-2"),
+        size=10.0,
+        value_currency=200.0,
+        priority=Priority.HIGH,
+        urgency=DeliveryUrgency.EXPRESS,
+        spawn_tick=0,
+        pickup_deadline_tick=3600,
+        delivery_deadline_tick=7200,
+    )
+    pkg3 = Package(
+        id=PackageID("pkg-3"),
+        origin_site=SiteID("site-1"),
+        destination_site=SiteID("site-2"),
+        size=15.0,
+        value_currency=300.0,
+        priority=Priority.LOW,
+        urgency=DeliveryUrgency.STANDARD,
+        spawn_tick=0,
+        pickup_deadline_tick=3600,
+        delivery_deadline_tick=7200,
+    )
+
+    world.add_package(pkg1)
+    world.add_package(pkg2)
+    world.add_package(pkg3)
+
+    return world
+
+
+def test_truck_default_capacity() -> None:
+    """Test that truck has default capacity of 24."""
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    assert truck.capacity == 24.0
+
+
+def test_truck_custom_capacity() -> None:
+    """Test that truck can be created with custom capacity."""
+    truck = Truck(id=AgentID("truck-1"), kind="truck", capacity=30.0)
+    assert truck.capacity == 30.0
+
+
+def test_truck_load_package() -> None:
+    """Test loading a package onto a truck."""
+    from core.types import PackageID
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    pkg_id = PackageID("pkg-1")
+
+    truck.load_package(pkg_id)
+    assert pkg_id in truck.loaded_packages
+    assert len(truck.loaded_packages) == 1
+
+
+def test_truck_load_package_duplicate_raises() -> None:
+    """Test that loading the same package twice raises an error."""
+    from core.types import PackageID
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    pkg_id = PackageID("pkg-1")
+
+    truck.load_package(pkg_id)
+    with pytest.raises(ValueError, match="already loaded"):
+        truck.load_package(pkg_id)
+
+
+def test_truck_unload_package() -> None:
+    """Test unloading a package from a truck."""
+    from core.types import PackageID
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    pkg_id = PackageID("pkg-1")
+
+    truck.load_package(pkg_id)
+    truck.unload_package(pkg_id)
+    assert pkg_id not in truck.loaded_packages
+    assert len(truck.loaded_packages) == 0
+
+
+def test_truck_unload_package_not_loaded_raises() -> None:
+    """Test that unloading a package not on the truck raises an error."""
+    from core.types import PackageID
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    pkg_id = PackageID("pkg-1")
+
+    with pytest.raises(ValueError, match="not loaded"):
+        truck.unload_package(pkg_id)
+
+
+def test_truck_get_total_loaded_size() -> None:
+    """Test calculating total loaded size."""
+    from core.types import PackageID
+
+    world = _create_world_with_packages()
+    truck = Truck(id=AgentID("truck-1"), kind="truck", current_node=NodeID(1))
+
+    # Initially empty
+    assert truck.get_total_loaded_size(world) == 0.0
+
+    # Load packages
+    truck.load_package(PackageID("pkg-1"))  # size=5.0
+    assert truck.get_total_loaded_size(world) == 5.0
+
+    truck.load_package(PackageID("pkg-2"))  # size=10.0
+    assert truck.get_total_loaded_size(world) == 15.0
+
+    truck.load_package(PackageID("pkg-3"))  # size=15.0
+    assert truck.get_total_loaded_size(world) == 30.0
+
+
+def test_truck_can_load_package_within_capacity() -> None:
+    """Test that can_load_package returns True when package fits."""
+    from core.types import PackageID
+
+    world = _create_world_with_packages()
+    truck = Truck(id=AgentID("truck-1"), kind="truck", capacity=24.0, current_node=NodeID(1))
+
+    # pkg-1 (size=5.0) fits in capacity of 24
+    assert truck.can_load_package(world, PackageID("pkg-1")) is True
+
+    # Load pkg-1 and pkg-2 (total 15.0)
+    truck.load_package(PackageID("pkg-1"))
+    truck.load_package(PackageID("pkg-2"))
+
+    # pkg-3 (size=15.0) would exceed capacity (15 + 15 = 30 > 24)
+    assert truck.can_load_package(world, PackageID("pkg-3")) is False
+
+
+def test_truck_can_load_package_nonexistent_returns_false() -> None:
+    """Test that can_load_package returns False for nonexistent package."""
+    from core.types import PackageID
+
+    world = _create_world_with_packages()
+    truck = Truck(id=AgentID("truck-1"), kind="truck", current_node=NodeID(1))
+
+    assert truck.can_load_package(world, PackageID("nonexistent")) is False
+
+
+def test_truck_serialize_includes_capacity_and_loaded_packages() -> None:
+    """Test that serialization includes capacity and loaded_packages."""
+    from core.types import PackageID
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        capacity=30.0,
+        current_node=NodeID(1),
+    )
+    truck.load_package(PackageID("pkg-1"))
+    truck.load_package(PackageID("pkg-2"))
+
+    # Test serialize_full
+    full = truck.serialize_full()
+    assert full["capacity"] == 30.0
+    assert full["loaded_packages"] == [PackageID("pkg-1"), PackageID("pkg-2")]
+
+    # Test serialize_diff (first call returns state)
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["capacity"] == 30.0
+    assert diff["loaded_packages"] == [PackageID("pkg-1"), PackageID("pkg-2")]
+
+
+def test_truck_loading_triggers_serialization() -> None:
+    """Test that loading or unloading packages triggers serialize_diff."""
+    from core.types import PackageID
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+    )
+
+    # First call - establishes baseline
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["loaded_packages"] == []
+
+    # No changes - should return None
+    diff = truck.serialize_diff()
+    assert diff is None
+
+    # Load a package - should trigger update
+    truck.load_package(PackageID("pkg-1"))
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["loaded_packages"] == [PackageID("pkg-1")]
+
+    # No changes - should return None
+    diff = truck.serialize_diff()
+    assert diff is None
+
+    # Load another package - should trigger update
+    truck.load_package(PackageID("pkg-2"))
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["loaded_packages"] == [PackageID("pkg-1"), PackageID("pkg-2")]
+
+    # Unload a package - should trigger update
+    truck.unload_package(PackageID("pkg-1"))
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["loaded_packages"] == [PackageID("pkg-2")]

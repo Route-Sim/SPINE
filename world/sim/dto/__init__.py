@@ -1,9 +1,9 @@
 """DTOs for simulation domain."""
 
-from .agent_dto import BuildingCreateDTO, TruckCreateDTO
+from .agent_dto import BuildingCreateDTO
 from .simulation_dto import SimulationParamsDTO
 from .statistics_dto import StatisticsBatchDTO, TickStatisticsDTO
-from .truck_dto import TruckStateDTO, TruckWatchFieldsDTO
+from .truck_dto import TruckCreateDTO, TruckStateDTO, TruckWatchFieldsDTO
 
 __all__ = [
     "TruckCreateDTO",
