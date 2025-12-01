@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.0](https://github.com/Route-Sim/SPINE/compare/v0.28.0...v0.29.0) (2025-12-01)
+
+
+### 🚀 Features
+
+* **truck:** enhance package loading functionality and capacity management ([7c3034c](https://github.com/Route-Sim/SPINE/commit/7c3034cbb802600ccabd5c3dd62bdf378cf59cbe))
+
 ## [0.28.0](https://github.com/Route-Sim/SPINE/compare/v0.27.0...v0.28.0) (2025-12-01)
 
 
