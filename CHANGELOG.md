@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.0](https://github.com/Route-Sim/SPINE/compare/v0.27.0...v0.28.0) (2025-12-01)
+
+
+### 🚀 Features
+
+* **buildings:** add GasStation and OccupiableBuilding classes ([899b712](https://github.com/Route-Sim/SPINE/commit/899b712e0a88c2fccee082c389cf67903c3ea602))
+
 ## [0.27.0](https://github.com/Route-Sim/SPINE/compare/v0.26.0...v0.27.0) (2025-11-24)
 
 
