@@ -52,15 +52,11 @@ links:
 
 ## B
 
-**Backend**: A server-side system responsible for executing the Agentic Simulation and managing the overall logic of the Logistics Network. The Backend maintains the state of all Agents, processes Events, and produces Actions that describe updates to be reflected in the Frontend. It communicates with the Frontend through a WebSocket connection, continuously sending Signals and receiving Actions that represent user commands or parameter changes.
+**Backend**: A server-side system responsible for executing the Agentic Simulation and managing the overall logic of the Logistics Network. The Backend maintains the state of all Agents, processes Actions from the Frontend, and produces Signals that describe state changes to be reflected in the Frontend. It communicates with the Frontend through a WebSocket connection, continuously sending Signals and receiving Actions that represent user intents or parameter changes.
 
 **Building**: A physical facility located at a Node within the Map. Buildings represent logistic infrastructure such as warehouses, depots or retail outlets. A Building may function as an Agent, actively participating in the simulation (e.g. managing inventory, dispatching vehicles), but it does not have to. Some may serve as passive locations or resources.
 
 ## C
-
-**Command**: A message sent from frontend to simulation requesting an action (start, stop, add agent, etc.). *Note: This is the technical implementation term; see "Action" for the user-facing term.*
-
-**CommandQueue**: Legacy name for the `ActionQueue`. Retained only in historical discussions; new code uses the canonical action terminology.
 
 **Cost Factor**: A per-gas-station multiplier applied to the global fuel price to determine the actual price at that station. Values above 1.0 indicate premium pricing, while values below 1.0 indicate discounted pricing. Typically ranges from 0.8 to 1.2.
 
@@ -158,7 +154,7 @@ links:
 
 ## Q
 
-**Queue**: Thread-safe data structure for inter-thread communication. In SPINE the primary queues are `ActionQueue` (commands in) and `SignalQueue` (events out), both backed by Python's `queue.Queue`.
+**Queue**: Thread-safe data structure for inter-thread communication. In SPINE the primary queues are `ActionQueue` (actions in from frontend) and `SignalQueue` (signals out to frontend), both backed by Python's `queue.Queue`.
 
 **Expired Package**: A package that has passed its pickup deadline without being picked up by an agent. Expired packages are automatically removed from the simulation and generate failure metrics.
 
@@ -198,7 +194,7 @@ links:
 
 **SPINE**: Simulation Processing & INteraction Engine - the main project name.
 
-**Simulation Controller**: Component that manages the simulation loop and processes commands.
+**Simulation Controller**: Component that manages the simulation loop and processes actions.
 
 **Simulation Runner**: Main entry point that orchestrates all components.
 

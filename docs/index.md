@@ -38,7 +38,7 @@ SPINE is a sophisticated simulation engine that models logistics networks using 
                                            │ Queues
                                            ▼
 ┌─────────────────┐                ┌─────────────────┐
-│  Simulation     │ ←─────────────→ │  Command/Event  │
+│  Simulation     │ ←─────────────→ │  Action/Signal  │
 │  Controller     │                │  Queues         │
 └─────────────────┘                └─────────────────┘
          │
@@ -61,11 +61,11 @@ SPINE is a sophisticated simulation engine that models logistics networks using 
 
 ### Communication Layer
 - **WebSocket Server**: FastAPI-based real-time communication
-- **Queue Infrastructure**: Thread-safe command/event queues
+- **Queue Infrastructure**: Thread-safe action/signal queues
 - **Message Validation**: Pydantic-based message validation
 
 ### Control Layer
-- **Simulation Controller**: Manages simulation loop and command processing
+- **Simulation Controller**: Manages simulation loop and action processing
 - **Runner**: Orchestrates all components with graceful shutdown
 - **State Management**: Thread-safe simulation state tracking
 
@@ -74,7 +74,8 @@ SPINE is a sophisticated simulation engine that models logistics networks using 
 - **Python 3.10+**: Core language
 - **FastAPI**: WebSocket server and API
 - **Pydantic**: Message validation and serialization
-- **NetworkX**: Graph operations
+- **NumPy & SciPy**: Map generation (Delaunay triangulation, spatial queries)
+- **orjson**: Fast JSON serialization for WebSocket messages
 - **Uvicorn**: ASGI server
 - **pytest**: Testing framework
 
@@ -100,10 +101,10 @@ ws.send(JSON.stringify({
   "tick_rate": 30.0
 }));
 
-// Listen for events
+// Listen for signals
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  console.log('Event:', data.type, data);
+  console.log('Signal:', data.signal, data);
 };
 ```
 
@@ -142,7 +143,7 @@ ws.onmessage = (event) => {
 - **Agent Capacity**: Supports thousands of concurrent agents
 - **WebSocket Connections**: Multiple concurrent clients
 - **Memory Usage**: Efficient delta-based updates
-- **Latency**: Sub-millisecond command processing
+- **Latency**: Sub-millisecond action processing
 
 ## References
 

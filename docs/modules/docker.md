@@ -154,7 +154,7 @@ services:
 ### Image Size Optimization
 
 - **Base Image**: `python:3.10-slim` (~45MB)
-- **Application Dependencies**: ~150MB (FastAPI, NetworkX, NumPy)
+- **Application Dependencies**: ~150MB (FastAPI, NumPy, SciPy, Pydantic)
 - **Total Runtime Image**: ~200MB
 
 ### Resource Requirements
@@ -192,7 +192,7 @@ volumes:
 ### Production Deployment
 
 - **Kubernetes Manifests**: Deployment and service configurations
-- **Monitoring**: Prometheus metrics integration
+- **Monitoring**: Standard logging and health checks
 - **Logging**: Centralized logging with ELK stack
 - **Load Balancing**: Multiple instance deployment
 

@@ -19,8 +19,8 @@ links:
 ## Context & Motivation
 
 The SPINE simulation requires bidirectional communication between:
-- **Frontend → Simulation**: Commands to start/stop/pause simulation, add/remove agents, manage packages and sites
-- **Simulation → Frontend**: Events like tick markers, agent updates, world events, package lifecycle events
+- **Frontend → Simulation**: Actions to start/stop/pause simulation, add/remove agents, manage packages and sites
+- **Simulation → Frontend**: Signals like tick markers, agent updates, world events, package lifecycle events
 - Canonical `<domain>.<action>` / `<domain>.<signal>` identifiers keep this communication aligned with the published WebSocket API.
 
 This module implements thread-safe queues with Pydantic validation to ensure reliable, type-safe communication between threads.
@@ -28,7 +28,7 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 ## Responsibilities & Boundaries
 
 **In-scope:**
-- Thread-safe queue implementations for commands and events
+- Thread-safe queue implementations for actions and signals
 - Pydantic models for message validation
 - Convenience functions for common message types
 - Package lifecycle signal definitions
@@ -44,17 +44,17 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 
 ### Core Components
 
-**ActionQueue**: Thread-safe queue for frontend → simulation commands
+**ActionQueue**: Thread-safe queue for frontend → simulation actions
 - Backed by `queue.Queue` with configurable maxsize
 - Exposes blocking, timeout-aware `put`/`get` plus `get_nowait()` for polling loops
 - Stores fully validated `ActionRequest` envelopes (`{"action": "<domain>.<action>", "params": {...}}`)
 
-**SignalQueue**: Thread-safe queue for simulation → frontend events
+**SignalQueue**: Thread-safe queue for simulation → frontend signals
 - Mirrors the ActionQueue API for symmetry
 - Streams `Signal` envelopes back to the WebSocket broadcaster
 
 **Message Models & Enumerations**
-- `ActionRequest` (defined in `world/sim/actions/action_parser.py`) guarantees the canonical command shape and delegates field validation to the parser layer
+- `ActionRequest` (defined in `world/sim/actions/action_parser.py`) guarantees the canonical action shape and delegates field validation to the parser layer
 - `ActionType` enumerates the supported `<domain>.<action>` identifiers used throughout helpers and tests
 - `Signal` consolidates outbound payloads into `{ "signal": "<domain>.<signal>", "data": {...} }`
 - `SignalType` enumerates the canonical outbound identifiers, ensuring parity with the WebSocket contract
@@ -62,8 +62,8 @@ This module implements thread-safe queues with Pydantic validation to ensure rel
 ### Data Flow
 
 ```
-Frontend → WebSocket → CommandQueue → SimulationController → World
-World → SimulationController → EventQueue → WebSocket → Frontend
+Frontend → WebSocket → ActionQueue → SimulationController → World
+World → SimulationController → SignalQueue → WebSocket → Frontend
 ```
 
 ## Algorithms & Complexity
@@ -75,7 +75,7 @@ World → SimulationController → EventQueue → WebSocket → Frontend
 
 **Message Validation**: O(n) where n is message size
 - Pydantic validation on all incoming messages
-- Early rejection of malformed commands
+- Early rejection of malformed actions
 - Type coercion and field validation
 - Context-aware validation (e.g., `agent_id` required for `ADD_AGENT` actions)
 - Model validators ensure data consistency across fields
@@ -381,6 +381,6 @@ Comprehensive test coverage includes:
 
 ## References
 
-- [world/sim/controller.py](../controller.md) - Command processing
-- [world/io/websocket_server.py](../../io/websocket_server.md) - Event broadcasting
+- [world/sim/controller.py](../controller.md) - Action processing
+- [world/io/websocket_server.py](../../io/websocket_server.md) - Signal broadcasting
 - [Pydantic Documentation](https://docs.pydantic.dev/) - Message validation

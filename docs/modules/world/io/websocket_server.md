@@ -1,6 +1,6 @@
 ---
 title: "WebSocket Server"
-summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management, event broadcasting, and robust error handling."
+summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management, signal broadcasting, and robust error handling."
 source_paths:
   - "world/io/websocket_server.py"
 last_updated: "2025-10-30"
@@ -13,24 +13,24 @@ links:
 
 # WebSocket Server
 
-> **Purpose:** Provides bidirectional WebSocket communication between frontend clients and the simulation, handling command routing and event broadcasting.
+> **Purpose:** Provides bidirectional WebSocket communication between frontend clients and the simulation, handling action routing and signal broadcasting.
 
 ## Context & Motivation
 
 The SPINE simulation requires real-time communication with frontend clients for:
-- **Command Reception**: Start/stop/pause simulation, agent management
-- **Event Broadcasting**: Tick markers, agent updates, world events
+- **Action Reception**: Start/stop/pause simulation, agent management
+- **Signal Broadcasting**: Tick markers, agent updates, world events
 - **Multiple Clients**: Support for concurrent WebSocket connections
 - **Error Handling**: Graceful handling of malformed messages and connection issues
 
-This module implements a FastAPI-based WebSocket server with connection management and event broadcasting.
+This module implements a FastAPI-based WebSocket server with connection management and signal broadcasting.
 
 ## Responsibilities & Boundaries
 
 **In-scope:**
 - WebSocket connection management and routing
-- Command validation and queuing to simulation
-- Event broadcasting to all connected clients
+- Action validation and queuing to simulation
+- Signal broadcasting to all connected clients
 - Error handling and client feedback
 - Health check endpoint
 
@@ -46,7 +46,7 @@ This module implements a FastAPI-based WebSocket server with connection manageme
 **WebSocketServer**: Main server class
 - FastAPI application with WebSocket endpoints
 - Connection management and message routing
-- Event broadcasting to all clients
+- Signal broadcasting to all clients
 
 **ConnectionManager**: WebSocket connection management
 - Active connection tracking
@@ -56,8 +56,8 @@ This module implements a FastAPI-based WebSocket server with connection manageme
 ### Message Flow
 
 ```
-Frontend → WebSocket → JSON Validation → CommandQueue → Simulation
-Simulation → EventQueue → Event Broadcasting → WebSocket → Frontend
+Frontend → WebSocket → JSON Validation → ActionQueue → Simulation
+Simulation → SignalQueue → Signal Broadcasting → WebSocket → Frontend
 ```
 
 ### Connection Management
@@ -65,7 +65,7 @@ Simulation → EventQueue → Event Broadcasting → WebSocket → Frontend
 ```
 Client Connect → ConnectionManager → Active Connections
 Client Disconnect → ConnectionManager → Remove from Active
-Message → Validation → CommandQueue
+Message → Validation → ActionQueue
 ```
 
 ## Algorithms & Complexity
@@ -77,22 +77,22 @@ Message → Validation → CommandQueue
 
 **Message Processing**: O(1) per message
 - JSON parsing and validation
-- Command queuing with timeout
+- Action queuing with timeout
 - Error response generation
 
-**Event Broadcasting**: O(n) where n = number of active connections
+**Signal Broadcasting**: O(n) where n = number of active connections
 - Non-blocking broadcast to all connections
 - Failed connection cleanup
-- Event queue polling
+- Signal queue polling
 
 ## Public API / Usage
 
 ### Server Lifecycle
 ```python
-server = WebSocketServer(command_queue, event_queue)
+server = WebSocketServer(action_queue, signal_queue)
 app = server.get_app()  # Get FastAPI app
-await server.start_event_broadcast()  # Start event broadcasting
-await server.stop_event_broadcast()  # Stop event broadcasting
+await server.start_signal_broadcast()  # Start signal broadcasting
+await server.stop_signal_broadcast()  # Stop signal broadcasting
 ```
 
 ### WebSocket Endpoints
@@ -101,16 +101,20 @@ await server.stop_event_broadcast()  # Stop event broadcasting
 
 ### Message Format
 ```json
-// Commands (Frontend → Server)
+// Actions (Frontend → Server)
 {
-  "type": "start",
-  "tick_rate": 30.0
+  "action": "simulation.start",
+  "params": {
+    "tick_rate": 30.0
+  }
 }
 
-// Events (Server → Frontend)
+// Signals (Server → Frontend)
 {
-  "type": "tick_start",
-  "tick": 123
+  "signal": "tick.start",
+  "data": {
+    "tick": 123
+  }
 }
 ```
 
@@ -134,7 +138,7 @@ await server.stop_event_broadcast()  # Stop event broadcasting
 
 **Serialization Safety**: Before broadcasting, the server normalizes all mapping keys to strings to satisfy strict JSON serialization requirements.
 
-**Event Broadcasting**: Continuous event streaming from simulation
+**Signal Broadcasting**: Continuous signal streaming from simulation
 - Background task for signal broadcasting
 - Robust task cancellation handling for different event loop scenarios
 
@@ -160,42 +164,42 @@ The WebSocket server automatically sends complete state snapshots to new clients
 
 This ensures new clients joining mid-simulation receive complete context before incremental updates.
 
-### Supported Commands
-- `start`: Begin simulation with optional tick rate
-- `stop`: Stop simulation
-- `pause`/`resume`: Pause/resume simulation
-- `set_tick_rate`: Change simulation speed
-- `add_agent`/`delete_agent`/`modify_agent`: Agent management
-- `export_map`/`import_map`: Map management
-- `request_state`: Request complete state snapshot
+### Supported Actions
+- `simulation.start`: Begin simulation with optional tick rate
+- `simulation.stop`: Stop simulation
+- `simulation.pause`/`simulation.resume`: Pause/resume simulation
+- `simulation.update`: Change simulation speed
+- `agent.add`/`agent.delete`/`agent.modify`: Agent management
+- `map.export`/`map.import`: Map management
+- `simulation.request_state`: Request complete state snapshot
 
-### Event Types
-- `tick_start`/`tick_end`: Tick boundary markers
-- `agent_update`: Agent state changes
-- `world_event`: General world events
+### Signal Types
+- `tick.start`/`tick.end`: Tick boundary markers
+- `agent.update`: Agent state changes
+- `world.event`: General world events
 - `error`: Error notifications
-- `simulation_*`: Simulation state changes
-- `map_exported`/`map_imported`: Map operation confirmations
-- `state_snapshot_start`/`state_snapshot_end`: State snapshot boundaries
-- `full_map_data`: Complete map structure
-- `full_agent_data`: Complete agent state
+- `simulation.*`: Simulation state changes
+- `map.exported`/`map.imported`: Map operation confirmations
+- `state.snapshot_start`/`state.snapshot_end`: State snapshot boundaries
+- `map.created`: Complete map structure
+- `agent.listed`: Complete agent state
 
 ## Tests
 
 Comprehensive test coverage includes:
 - Connection management (connect/disconnect)
-- Message handling (valid/invalid commands)
-- Event broadcasting
+- Message handling (valid/invalid actions)
+- Signal broadcasting
 - Error handling and client feedback
 - WebSocket endpoint functionality
-- Integration with command/event queues
+- Integration with action/signal queues
 
 ## Performance
 
 **Connection Overhead**: ~1KB per active connection
 **Message Throughput**: ~1000 messages/second per connection
 **Broadcast Performance**: O(n) where n = number of connections
-**Memory Usage**: Minimal per connection, event queue buffering
+**Memory Usage**: Minimal per connection, signal queue buffering
 
 ## Security & Reliability
 

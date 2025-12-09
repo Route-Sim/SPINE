@@ -9,8 +9,7 @@ This document summarizes the complete setup of the SPINE repository.
 **Package Management: Poetry**
 - ✅ All dependencies configured in `pyproject.toml`
 - ✅ FastAPI, Uvicorn, Pydantic v2, orjson
-- ✅ NetworkX for routing, Prometheus for metrics
-- ✅ Structlog for logging
+- ✅ NumPy & SciPy for map generation
 - ✅ Dev tools: pytest, mypy, ruff, pre-commit
 
 ### 2. Code Quality

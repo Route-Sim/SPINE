@@ -70,9 +70,8 @@ spine/
 
 - **FastAPI**: High-performance async web framework
 - **Pydantic v2**: Data validation and settings management
-- **NetworkX**: Graph-based routing (early implementation)
-- **Prometheus**: Metrics and monitoring
-- **Structlog**: Structured logging
+- **NumPy & SciPy**: Map generation (Delaunay triangulation, spatial queries)
+- **orjson**: Fast JSON serialization for WebSocket messages
 - **Poetry**: Dependency management
 
 ## Commit Conventions
