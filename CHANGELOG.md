@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.30.0](https://github.com/Route-Sim/SPINE/compare/v0.29.1...v0.30.0) (2025-12-09)
+
+
+### 🚀 Features
+
+* **buildings:** implement dirty flag mechanism for state tracking and update signals ([8a57100](https://github.com/Route-Sim/SPINE/commit/8a57100eb8d17183a96851f9b7d7f393c761c8f6))
+
 ## [0.29.1](https://github.com/Route-Sim/SPINE/compare/v0.29.0...v0.29.1) (2025-12-09)
 
 
