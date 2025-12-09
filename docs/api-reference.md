@@ -1672,40 +1672,6 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 22. SITE_STATS_UPDATE - Site Statistics Update
-
-**Purpose**: Provides periodic updates of site statistics for business intelligence.
-
-**Signal**: `site.stats_update`
-
-**JSON Example**:
-```json
-{
-  "signal": "site.stats_update",
-  "data": {
-    "site_id": "warehouse-a",
-    "stats": {
-      "packages_generated": 150,
-      "packages_picked_up": 140,
-      "packages_delivered": 135,
-      "packages_expired": 5,
-      "total_value_delivered": 150000.0,
-      "total_value_expired": 5000.0
-    },
-    "tick": 1000
-  }
-}
-```
-
-**Fields**:
-- `data.site_id`: ID of the site
-- `data.stats`: Complete statistics object
-- `data.tick`: Simulation tick when statistics were updated
-
-**When Received**: Periodically or when significant changes occur
-
----
-
 ### 22. BUILDING_CREATED - Building Provisioned
 
 **Purpose**: Confirms that a building (parking, site, or gas station) has been provisioned on a node in response to `building.create`.
@@ -1783,6 +1749,94 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 - `data.tick`: Simulation tick when the building was created.
 
 **When Received**: Immediately after the handler validates and installs the building (parking, site, or gas station).
+
+---
+
+### 23. BUILDING_UPDATED - Building State Updated
+
+**Purpose**: Notifies when a building's state changes (occupancy changes, package list updates, statistics updates). Unlike agents which emit updates every tick, buildings only emit signals when their state explicitly changes.
+
+**Signal**: `building.updated`
+
+**JSON Example (Parking)**:
+```json
+{
+  "signal": "building.updated",
+  "data": {
+    "building_id": "parking-node42",
+    "building": {
+      "id": "parking-node42",
+      "type": "parking",
+      "capacity": 40,
+      "current_agents": ["truck-1", "truck-2"]
+    },
+    "tick": 1500
+  }
+}
+```
+
+**JSON Example (Site)**:
+```json
+{
+  "signal": "building.updated",
+  "data": {
+    "building_id": "site-warehouse-1",
+    "building": {
+      "id": "site-warehouse-1",
+      "type": "site",
+      "name": "Main Warehouse",
+      "activity_rate": 5.5,
+      "destination_weights": {
+        "site-warehouse-2": 0.6,
+        "site-warehouse-3": 0.4
+      },
+      "active_packages": ["pkg-site-warehouse-1-500-0"],
+      "statistics": {
+        "packages_generated": 150,
+        "packages_picked_up": 140,
+        "packages_delivered": 135,
+        "packages_expired": 5,
+        "total_value_delivered": 150000.0,
+        "total_value_expired": 5000.0
+      }
+    },
+    "tick": 1500
+  }
+}
+```
+
+**JSON Example (Gas Station)**:
+```json
+{
+  "signal": "building.updated",
+  "data": {
+    "building_id": "gas-station-node15",
+    "building": {
+      "id": "gas-station-node15",
+      "type": "gas_station",
+      "capacity": 4,
+      "current_agents": ["truck-3"],
+      "cost_factor": 1.15
+    },
+    "tick": 1500
+  }
+}
+```
+
+**Fields**:
+- `data.building_id`: Unique identifier of the updated building
+- `data.building`: Full serialized building state (same format as `building.created`)
+- `data.tick`: Simulation tick when the update occurred
+
+**When Received**: Only when building state explicitly changes:
+- **Parking**: Agent enters or leaves
+- **Site**: Package added/removed, statistics updated (generated, picked up, delivered, expired)
+- **Gas Station**: Agent enters or leaves
+
+**Notes**:
+- Buildings use full state serialization (not incremental diffs) since changes are infrequent
+- This signal replaces the deprecated `site.stats_update` signal
+- All building types use the same signal format with type-specific data in the `building` object
 
 ---
 

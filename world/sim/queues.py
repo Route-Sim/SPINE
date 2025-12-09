@@ -57,8 +57,8 @@ class SignalType(str, Enum):
     PACKAGE_EXPIRED = "package.expired"
     PACKAGE_PICKED_UP = "package.picked_up"
     PACKAGE_DELIVERED = "package.delivered"
-    SITE_STATS_UPDATE = "site.stats_update"  # TODO: should be part of building.updated signal
     BUILDING_CREATED = "building.created"
+    BUILDING_UPDATED = "building.updated"
     AGENT_EVENT = "agent.event"
 
 
@@ -515,18 +515,6 @@ def create_package_delivered_signal(
     )
 
 
-def create_site_stats_signal(site_id: str, stats: dict[str, Any], tick: int) -> Signal:
-    """Create a site statistics update signal."""
-    return Signal(
-        signal=signal_type_to_string(SignalType.SITE_STATS_UPDATE),
-        data={
-            "site_id": site_id,
-            "stats": stats,
-            "tick": tick,
-        },
-    )
-
-
 def create_building_created_signal(
     building_data: dict[str, Any], node_id: int, tick: int | None = None
 ) -> Signal:
@@ -538,6 +526,30 @@ def create_building_created_signal(
     if tick is not None:
         data["tick"] = tick
     return Signal(signal=signal_type_to_string(SignalType.BUILDING_CREATED), data=data)
+
+
+def create_building_updated_signal(
+    building_id: str, building_data: dict[str, Any], tick: int
+) -> Signal:
+    """Create a building updated signal.
+
+    Emitted when a building's state changes (e.g., occupancy changes,
+    statistics updates for sites, etc.).
+
+    Args:
+        building_id: Unique identifier of the building
+        building_data: Full serialized building state
+        tick: Current simulation tick
+
+    Returns:
+        Signal with building.updated type
+    """
+    signal_data = {
+        "building_id": building_id,
+        "building": building_data,
+        "tick": tick,
+    }
+    return Signal(signal=signal_type_to_string(SignalType.BUILDING_UPDATED), data=signal_data)
 
 
 def create_agent_event_signal(

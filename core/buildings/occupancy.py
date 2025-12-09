@@ -44,6 +44,7 @@ class OccupiableBuilding(Building):
         if not self.has_space():
             raise ValueError(f"{self.__class__.__name__} is at full capacity")
         self.current_agents.add(agent_id)
+        self.mark_dirty()
 
     def leave(self, agent_id: AgentID) -> None:
         """Remove an agent from the occupancy set.
@@ -57,6 +58,7 @@ class OccupiableBuilding(Building):
         if agent_id not in self.current_agents:
             raise ValueError(f"Agent {agent_id} is not in {self.__class__.__name__}")
         self.current_agents.remove(agent_id)
+        self.mark_dirty()
 
     def assign_occupants(self, agents: Iterable[AgentID]) -> None:
         """Replace the occupancy set with a validated iterable of agents.
@@ -70,7 +72,9 @@ class OccupiableBuilding(Building):
         occupants = {AgentID(agent) for agent in agents}
         if len(occupants) > self.capacity:
             raise ValueError(f"Occupant assignment exceeds {self.__class__.__name__} capacity")
-        self.current_agents = occupants
+        if occupants != self.current_agents:
+            self.current_agents = occupants
+            self.mark_dirty()
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize occupancy data to dictionary with deterministic occupant order."""

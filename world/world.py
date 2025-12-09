@@ -5,11 +5,13 @@ if TYPE_CHECKING:
     from agents.base import AgentBase
     from world.generation.params import GenerationParams
 
+from core.buildings.base import Building
 from core.buildings.site import Site
 from core.packages.package import Package
 from core.types import AgentID, PackageID, SiteID
 from world.io import map_manager
 from world.routing.navigator import Navigator
+from world.sim.dto.step_result_dto import StepResultDTO
 
 # Constants for fuel price simulation
 SECONDS_PER_DAY = 86400  # 24 hours in seconds
@@ -53,7 +55,12 @@ class World:
     def emit_event(self, e: Any) -> None:
         self._events.append(e)
 
-    def step(self) -> dict[str, Any]:
+    def step(self) -> StepResultDTO:
+        """Execute one simulation tick and return the result.
+
+        Returns:
+            StepResultDTO containing all state changes from this tick.
+        """
         self.tick += 1
 
         # 0) update global fuel price once per simulation day
@@ -70,9 +77,15 @@ class World:
             a.decide(self)
         # 5) collect UI diffs
         diffs = [a.serialize_diff() for a in self.agents.values()]
+        # 6) collect building updates (only dirty buildings)
+        building_updates = self._collect_building_updates()
         evts = self._events
         self._events = []
-        return {"type": "tick", "t": self.tick * 1000, "events": evts, "agents": diffs}
+        return StepResultDTO(
+            events=evts,
+            agent_diffs=diffs,
+            building_updates=building_updates,
+        )
 
     def add_agent(self, agent_id: AgentID, agent: "AgentBase") -> None:
         """Add an agent to the world."""
@@ -342,3 +355,18 @@ class World:
                 for _, agent in self.agents.items():
                     if m.topic in agent.tags.get("topics", []):
                         agent.inbox.append(m)
+
+    def _collect_building_updates(self) -> list[dict[str, Any]]:
+        """Collect serialized state from all dirty buildings.
+
+        Returns:
+            List of serialized building states for buildings that have changed.
+        """
+        updates: list[dict[str, Any]] = []
+        for node in self.graph.nodes.values():
+            for building in node.buildings:
+                if isinstance(building, Building) and building.is_dirty():
+                    diff = building.serialize_diff()
+                    if diff is not None:
+                        updates.append(diff)
+        return updates

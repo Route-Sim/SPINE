@@ -2,7 +2,7 @@
 title: "Glossary"
 summary: "Definitions and abbreviations used throughout the SPINE project."
 source_paths: []
-last_updated: "2025-12-01"
+last_updated: "2025-12-09"
 owner: "Mateusz Polis"
 tags: ["glossary"]
 links:
@@ -54,7 +54,9 @@ links:
 
 **Backend**: A server-side system responsible for executing the Agentic Simulation and managing the overall logic of the Logistics Network. The Backend maintains the state of all Agents, processes Actions from the Frontend, and produces Signals that describe state changes to be reflected in the Frontend. It communicates with the Frontend through a WebSocket connection, continuously sending Signals and receiving Actions that represent user intents or parameter changes.
 
-**Building**: A physical facility located at a Node within the Map. Buildings represent logistic infrastructure such as warehouses, depots or retail outlets. A Building may function as an Agent, actively participating in the simulation (e.g. managing inventory, dispatching vehicles), but it does not have to. Some may serve as passive locations or resources.
+**Building**: A physical facility located at a Node within the Map. Buildings represent logistic infrastructure such as warehouses, depots or retail outlets. Buildings track state changes via a dirty flag mechanism, emitting `building.updated` signals only when their state explicitly changes (unlike agents which update every tick). Types include Parking, Site, and GasStation.
+
+**building.updated**: Canonical signal emitted when a building's state changes, such as occupancy changes, package list updates, or statistics updates. Contains the full serialized building state and the simulation tick. Unlike agent updates which occur every tick, building updates are event-driven.
 
 ## C
 
@@ -65,6 +67,8 @@ links:
 **D (Droga dojazdowa)**: Polish road classification for access roads. Lowest class roads with 1 lane, speeds of 20-40 km/h. May have weight limits. Used for local access.
 
 **Delaunay Triangulation**: Computational geometry algorithm used to create initial connectivity between nodes in cities. Produces triangles where no point is inside the circumcircle of any triangle.
+
+**Dirty Flag**: A boolean tracking mechanism used by buildings to indicate whether their state has changed since the last serialization. When a building's state changes (e.g., agent enters/leaves, statistics update), it is marked dirty. The `serialize_diff()` method returns the full state only if dirty, enabling efficient event-driven updates.
 
 **Delivery Deadline**: The latest tick by which a package must be delivered to its destination site. Packages that exceed this deadline are considered overdue but not expired.
 
@@ -203,6 +207,8 @@ links:
 **SiteID**: Unique identifier for sites, implemented as a string type (alias for BuildingID).
 
 **Site Statistics**: Comprehensive metrics tracked by sites including packages generated, picked up, delivered, expired, and associated monetary values for business intelligence and performance analysis.
+
+**StepResultDTO**: Pydantic DTO encapsulating the result of a simulation step. Contains world events, agent diffs, and building updates. Provides accessor methods (`has_*`, `get_*`) for convenient data retrieval and filtering.
 
 ## T
 

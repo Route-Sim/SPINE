@@ -4,7 +4,7 @@ summary: "Thread-safe queues exposing canonical <domain>.<action>/<signal> envel
 source_paths:
   - "world/sim/queues.py"
   - "tests/world/test_sim_queues.py"
-last_updated: "2025-01-27"
+last_updated: "2025-12-09"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -239,19 +239,25 @@ package_delivered = create_package_delivered_signal(
     value=1500.0,
     tick=5000
 )
+```
 
-# Site statistics update signal
-site_stats = create_site_stats_signal(
-    site_id="warehouse-a",
-    stats={
-        "packages_generated": 150,
-        "packages_picked_up": 140,
-        "packages_delivered": 135,
-        "packages_expired": 5,
-        "total_value_delivered": 150000.0,
-        "total_value_expired": 5000.0
+### Building Update Signals
+
+Buildings emit update signals only when their state explicitly changes (unlike agents which update every tick). This event-driven approach reduces signal traffic for relatively static building state.
+
+```python
+from world.sim.queues import create_building_updated_signal
+
+# Building updated signal (emitted when parking occupancy, site packages, or statistics change)
+building_updated = create_building_updated_signal(
+    building_id="parking-node42",
+    building_data={
+        "id": "parking-node42",
+        "type": "parking",
+        "capacity": 40,
+        "current_agents": ["truck-1", "truck-2"]
     },
-    tick=1000
+    tick=1500
 )
 ```
 
@@ -337,8 +343,8 @@ The signal includes complete graph data with all buildings, providing full map f
 - `state.full_map_data`: Complete map structure
 - `state.full_agent_data`: Complete agent state
 - `package.created`/`package.expired`/`package.picked_up`/`package.delivered`: Package lifecycle events
-- `site.stats_update`: Site statistics updates
 - `building.created`: Building (parking or site) instantiated on the specified node (payload includes `building` dict and `node_id`)
+- `building.updated`: Building state changed (payload includes `building_id`, `building` dict, and `tick`) - emitted only when state explicitly changes
 
 ## Implementation Notes
 

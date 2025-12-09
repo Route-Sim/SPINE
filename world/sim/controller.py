@@ -13,12 +13,14 @@ from world.world import World
 from .actions.action_processor import ActionProcessor
 from .actions.action_registry import create_default_registry
 from .dto.statistics_dto import StatisticsBatchDTO, TickStatisticsDTO
+from .dto.step_result_dto import StepResultDTO
 from .queues import (
     ActionQueue,
     Signal,
     SignalQueue,
     create_agent_event_signal,
     create_agent_update_signal,
+    create_building_updated_signal,
     create_error_signal,
     create_package_created_signal,
     create_package_delivered_signal,
@@ -190,72 +192,93 @@ class SimulationController:
             self.logger.error(f"Error in simulation step: {e}", exc_info=True)
             self._emit_error(f"Simulation step error: {e}")
 
-    def _process_step_result(self, step_result: dict[str, Any]) -> None:
-        """Process the result of a world step and emit appropriate signals."""
+    def _process_step_result(self, step_result: StepResultDTO) -> None:
+        """Process the result of a world step and emit appropriate signals.
+
+        Args:
+            step_result: DTO containing all state changes from the simulation step.
+        """
         # Emit world events if any
-        if step_result.get("events"):
-            for event in step_result["events"]:
-                # Handle package-specific events with dedicated signals
-                if event.get("type") == "package_created":
-                    self._emit_signal(
-                        create_package_created_signal(
-                            event.get("data", {}), self.state.current_tick
-                        )
-                    )
-                elif event.get("type") == "package_expired":
-                    self._emit_signal(
-                        create_package_expired_signal(
-                            event.get("package_id", ""),
-                            event.get("site_id", ""),
-                            event.get("value_lost", 0.0),
-                            self.state.current_tick,
-                        )
-                    )
-                elif event.get("type") == "package_picked_up":
-                    self._emit_signal(
-                        create_package_picked_up_signal(
-                            event.get("package_id", ""),
-                            event.get("agent_id", ""),
-                            self.state.current_tick,
-                        )
-                    )
-                elif event.get("type") == "package_delivered":
-                    self._emit_signal(
-                        create_package_delivered_signal(
-                            event.get("package_id", ""),
-                            event.get("site_id", ""),
-                            event.get("value", 0.0),
-                            self.state.current_tick,
-                        )
-                    )
-                elif event.get("type") == "agent_event":
-                    event_data = {
-                        k: v
-                        for k, v in event.items()
-                        if k not in ("type", "event_type", "agent_id", "agent_type")
-                    }
-                    self._emit_signal(
-                        create_agent_event_signal(
-                            event.get("event_type", ""),
-                            event.get("agent_id", ""),
-                            event.get("agent_type", ""),
-                            event_data,
-                            self.state.current_tick,
-                        )
-                    )
-                else:
-                    # Generic world event
-                    self._emit_signal(create_world_event_signal(event, self.state.current_tick))
+        if step_result.has_events():
+            for event in step_result.get_events():
+                self._emit_event_signal(event)
 
         # Emit agent updates
-        if step_result.get("agents"):
-            for agent_diff in step_result["agents"]:
-                if agent_diff:  # Only emit if there are changes
-                    self._emit_signal(
-                        create_agent_update_signal(
-                            agent_diff.get("id", "unknown"), agent_diff, self.state.current_tick
-                        )
+        if step_result.has_agent_updates():
+            for agent_diff in step_result.get_agent_diffs():
+                self._emit_signal(
+                    create_agent_update_signal(
+                        agent_diff.get("id", "unknown"), agent_diff, self.state.current_tick
                     )
+                )
+
+        # Emit building updates
+        if step_result.has_building_updates():
+            for building_data in step_result.get_building_updates():
+                self._emit_signal(
+                    create_building_updated_signal(
+                        building_data.get("id", "unknown"),
+                        building_data,
+                        self.state.current_tick,
+                    )
+                )
+
+    def _emit_event_signal(self, event: dict[str, Any]) -> None:
+        """Emit the appropriate signal for a world event.
+
+        Args:
+            event: Event dictionary with 'type' field and event-specific data.
+        """
+        event_type = event.get("type", "")
+
+        if event_type == "package_created":
+            self._emit_signal(
+                create_package_created_signal(event.get("data", {}), self.state.current_tick)
+            )
+        elif event_type == "package_expired":
+            self._emit_signal(
+                create_package_expired_signal(
+                    event.get("package_id", ""),
+                    event.get("site_id", ""),
+                    event.get("value_lost", 0.0),
+                    self.state.current_tick,
+                )
+            )
+        elif event_type == "package_picked_up":
+            self._emit_signal(
+                create_package_picked_up_signal(
+                    event.get("package_id", ""),
+                    event.get("agent_id", ""),
+                    self.state.current_tick,
+                )
+            )
+        elif event_type == "package_delivered":
+            self._emit_signal(
+                create_package_delivered_signal(
+                    event.get("package_id", ""),
+                    event.get("site_id", ""),
+                    event.get("value", 0.0),
+                    self.state.current_tick,
+                )
+            )
+        elif event_type == "agent_event":
+            event_data = {
+                k: v
+                for k, v in event.items()
+                if k not in ("type", "event_type", "agent_id", "agent_type")
+            }
+            self._emit_signal(
+                create_agent_event_signal(
+                    event.get("event_type", ""),
+                    event.get("agent_id", ""),
+                    event.get("agent_type", ""),
+                    event_data,
+                    self.state.current_tick,
+                )
+            )
+        else:
+            # Generic world event
+            self._emit_signal(create_world_event_signal(event, self.state.current_tick))
 
     def _emit_signal(self, signal: Signal) -> None:
         """Emit a signal to the signal queue."""

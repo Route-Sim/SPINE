@@ -77,14 +77,19 @@ class Site(Building):
         data["statistics"] = self.statistics.to_dict()
         # Add type field
         data["type"] = self.TYPE
+        # Remove internal tracking fields from serialization
+        data.pop("_dirty", None)
+        data.pop("_last_serialized_state", None)
         return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Site":
         """Deserialize site from dictionary."""
-        # Remove type field (not needed for construction)
+        # Remove fields not needed for construction
         data = dict(data)  # Create copy to avoid mutating original
         data.pop("type", None)
+        data.pop("_dirty", None)
+        data.pop("_last_serialized_state", None)
 
         # Convert statistics dict back to SiteStatistics
         if isinstance(data.get("statistics"), dict):
@@ -230,21 +235,27 @@ class Site(Building):
         """Add package to active packages list."""
         if package_id not in self.active_packages:
             self.active_packages.append(package_id)
+            self.mark_dirty()
 
     def remove_package(self, package_id: PackageID) -> None:
         """Remove package from active packages list."""
         if package_id in self.active_packages:
             self.active_packages.remove(package_id)
+            self.mark_dirty()
 
     def update_statistics(self, event_type: str, value: float = 0.0) -> None:
         """Update site statistics based on package events."""
         if event_type == "generated":
             self.statistics.packages_generated += 1
+            self.mark_dirty()
         elif event_type == "picked_up":
             self.statistics.packages_picked_up += 1
+            self.mark_dirty()
         elif event_type == "delivered":
             self.statistics.packages_delivered += 1
             self.statistics.total_value_delivered += value
+            self.mark_dirty()
         elif event_type == "expired":
             self.statistics.packages_expired += 1
             self.statistics.total_value_expired += value
+            self.mark_dirty()
