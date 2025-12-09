@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.0](https://github.com/Route-Sim/SPINE/compare/v0.30.0...v0.31.0) (2025-12-09)
+
+
+### 🚀 Features
+
+* **truck:** implement fuel management system with CO2 tracking and gas station interactions ([366ce92](https://github.com/Route-Sim/SPINE/commit/366ce925f56804b35b4f25ac113c8722977cab88))
+
 ## [0.30.0](https://github.com/Route-Sim/SPINE/compare/v0.29.1...v0.30.0) (2025-12-09)
 
 
