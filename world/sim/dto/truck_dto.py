@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from core.types import AgentID, EdgeID, NodeID, PackageID
+from core.types import AgentID, BuildingID, EdgeID, NodeID, PackageID
 
 if TYPE_CHECKING:
     from agents.transports.truck import Truck
@@ -32,10 +32,20 @@ class TruckCreateDTO(BaseModel):
         default=0.5,
         ge=0.0,
         le=1.0,
-        description="Risk tolerance for tachograph parking search (0=cautious, 1=risky)",
+        description="Risk tolerance for tachograph/fuel search (0=cautious, 1=risky)",
     )
     initial_balance_ducats: float = Field(
         default=0.0, description="Starting financial balance in ducats"
+    )
+    fuel_tank_capacity_l: float = Field(
+        default=500.0,
+        gt=0.0,
+        description="Maximum fuel tank capacity in liters",
+    )
+    initial_fuel_l: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Initial fuel level in liters (defaults to full tank if not specified)",
     )
 
     @field_validator("max_speed_kph")
@@ -60,6 +70,13 @@ class TruckCreateDTO(BaseModel):
         # Import here to avoid circular dependency
         from agents.transports.truck import Truck
 
+        # Default to full tank if initial_fuel_l not specified
+        initial_fuel = (
+            self.initial_fuel_l if self.initial_fuel_l is not None else self.fuel_tank_capacity_l
+        )
+        # Clamp to tank capacity
+        initial_fuel = min(initial_fuel, self.fuel_tank_capacity_l)
+
         return Truck(
             id=agent_id,
             kind=kind,
@@ -73,6 +90,8 @@ class TruckCreateDTO(BaseModel):
             destination=None,
             risk_factor=self.risk_factor,
             balance_ducats=self.initial_balance_ducats,
+            fuel_tank_capacity_l=self.fuel_tank_capacity_l,
+            current_fuel_l=initial_fuel,
         )
 
 
@@ -91,6 +110,10 @@ class TruckWatchFieldsDTO(BaseModel):
         route_start_node: Origin node for current route
         route_end_node: Destination node for current route
         loaded_packages: Currently loaded package IDs
+        current_building_id: Building ID (triggers update on building enter/leave)
+
+    Note: fuel_level is NOT a watch field - it changes continuously but updates
+    are only sent when other watch fields change.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -102,13 +125,14 @@ class TruckWatchFieldsDTO(BaseModel):
     route_start_node: NodeID | None
     route_end_node: NodeID | None
     loaded_packages: tuple[PackageID, ...]  # Immutable tuple for hashing
+    current_building_id: BuildingID | None  # Triggers update on building enter/leave
 
 
 class TruckStateDTO(BaseModel):
     """DTO for complete truck state returned in diff payloads.
 
     Contains all truck fields including watch fields (position/navigation)
-    and non-watch fields (tachograph counters, metadata). This is the
+    and non-watch fields (tachograph counters, fuel levels, metadata). This is the
     complete state snapshot sent to the frontend when watch fields change.
 
     Fields:
@@ -123,7 +147,7 @@ class TruckStateDTO(BaseModel):
         route: Remaining nodes to visit
         route_start_node: Route origin
         route_end_node: Route destination
-        current_building_id: Parking building association
+        current_building_id: Building association (parking or gas station)
         driving_time_s: Accumulated driving time
         resting_time_s: Accumulated rest time
         is_resting: Currently in mandatory rest
@@ -131,6 +155,11 @@ class TruckStateDTO(BaseModel):
         risk_factor: Risk tolerance (0.0-1.0)
         is_seeking_parking: Actively seeking parking
         original_destination: Preserved destination when diverting
+        fuel_tank_capacity_l: Maximum fuel tank capacity
+        current_fuel_l: Current fuel level
+        co2_emitted_kg: Total CO2 emitted
+        is_seeking_gas_station: Actively seeking gas station
+        is_fueling: Currently fueling at gas station
     """
 
     model_config = ConfigDict(frozen=True)
@@ -155,3 +184,9 @@ class TruckStateDTO(BaseModel):
     risk_factor: float
     is_seeking_parking: bool
     original_destination: NodeID | None
+    # Fuel system fields
+    fuel_tank_capacity_l: float
+    current_fuel_l: float
+    co2_emitted_kg: float
+    is_seeking_gas_station: bool
+    is_fueling: bool

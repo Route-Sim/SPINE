@@ -14,11 +14,13 @@ class GasStation(OccupiableBuilding):
     Inherits agent storage functionality from OccupiableBuilding.
     Tracks a cost factor that multiplies the global fuel price to determine
     the actual price at this station.
+    Maintains a balance of revenue from fuel sales.
     """
 
     TYPE: ClassVar[str] = "gas_station"
     # Use kw_only to allow non-default field after inherited defaults
     cost_factor: float = field(kw_only=True)  # Multiplier on global fuel price (e.g., 0.8-1.2)
+    balance_ducats: float = field(default=0.0, kw_only=True)  # Accumulated revenue from fuel sales
 
     def __post_init__(self) -> None:
         """Validate the gas station configuration."""
@@ -37,10 +39,25 @@ class GasStation(OccupiableBuilding):
         """
         return global_price * self.cost_factor
 
+    def add_revenue(self, amount: float) -> None:
+        """Add revenue to the gas station's balance.
+
+        Args:
+            amount: Amount to add in ducats
+
+        Raises:
+            ValueError: If amount is negative
+        """
+        if amount < 0:
+            raise ValueError("Revenue amount must be non-negative")
+        self.balance_ducats += amount
+        self.mark_dirty()
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize gas station to dictionary."""
         data = super().to_dict()
         data["cost_factor"] = self.cost_factor
+        data["balance_ducats"] = self.balance_ducats
         return data
 
     @classmethod
@@ -53,4 +70,5 @@ class GasStation(OccupiableBuilding):
             capacity=int(data["capacity"]),
             current_agents=agents,
             cost_factor=float(data["cost_factor"]),
+            balance_ducats=float(data.get("balance_ducats", 0.0)),
         )

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from agents.transports.truck import Truck
+from agents.transports.truck import (
+    BASE_FUEL_CONSUMPTION_L_PER_100KM,
+    BASE_TRUCK_WEIGHT_TONNES,
+    CO2_KG_PER_LITER_DIESEL,
+    Truck,
+)
+from core.buildings.gas_station import GasStation
 from core.buildings.parking import Parking
 from core.types import AgentID, BuildingID, EdgeID, NodeID
 from world.graph.edge import Edge, Mode, RoadClass
@@ -47,10 +53,10 @@ def test_truck_parking_registers_building_and_updates_state() -> None:
     assert truck.current_building_id == parking_id
     assert AgentID("truck-1") in parking.current_agents
 
-    # Parking alone doesn't trigger diff (only watch fields do)
-    # But current_building_id is included in full serialization
+    # Entering a building triggers diff (current_building_id is a watch field)
     diff = truck.serialize_diff()
-    assert diff is None  # No watch field changes
+    assert diff is not None
+    assert diff["current_building_id"] == str(parking_id)
 
     # Verify that full serialization includes building
     full = truck.serialize_full()
@@ -65,14 +71,16 @@ def test_truck_leave_parking_releases_building() -> None:
 
     truck.serialize_diff()  # Initial state
     truck.park_in_building(world, parking_id)
+    truck.serialize_diff()  # Clear the park diff
 
     truck.leave_parking(world)
     assert truck.current_building_id is None
     assert AgentID("truck-1") not in parking.current_agents
 
-    # Leaving parking alone doesn't trigger diff (only watch fields do)
+    # Leaving a building triggers diff (current_building_id is a watch field)
     diff = truck.serialize_diff()
-    assert diff is None  # No watch field changes
+    assert diff is not None
+    assert diff["current_building_id"] is None
 
     # Verify that full serialization reflects the change
     full = truck.serialize_full()
@@ -339,6 +347,13 @@ def test_tachograph_serialization() -> None:
     assert "balance_ducats" in diff
     assert "risk_factor" in diff
 
+    # Fuel fields should also be present
+    assert "fuel_tank_capacity_l" in diff
+    assert "current_fuel_l" in diff
+    assert "co2_emitted_kg" in diff
+    assert "is_seeking_gas_station" in diff
+    assert "is_fueling" in diff
+
 
 def test_serialize_diff_only_on_watch_field_changes() -> None:
     """Test that serialize_diff only triggers on watch field changes."""
@@ -383,6 +398,9 @@ def test_serialize_diff_includes_all_fields() -> None:
         risk_factor=0.6,
         is_seeking_parking=True,
         original_destination=NodeID(5),
+        fuel_tank_capacity_l=600.0,
+        current_fuel_l=300.0,
+        co2_emitted_kg=50.0,
     )
 
     # Trigger serialization by calling for first time
@@ -413,10 +431,20 @@ def test_serialize_diff_includes_all_fields() -> None:
     assert "is_seeking_parking" in diff
     assert "original_destination" in diff
 
+    # Fuel system fields
+    assert "fuel_tank_capacity_l" in diff
+    assert "current_fuel_l" in diff
+    assert "co2_emitted_kg" in diff
+    assert "is_seeking_gas_station" in diff
+    assert "is_fueling" in diff
+
     # Verify values
     assert diff["driving_time_s"] == 7200.0
     assert diff["balance_ducats"] == 500.0
     assert diff["risk_factor"] == 0.6
+    assert diff["fuel_tank_capacity_l"] == 600.0
+    assert diff["current_fuel_l"] == 300.0
+    assert diff["co2_emitted_kg"] == 50.0
 
 
 def test_serialize_diff_route_changes_trigger_serialization() -> None:
@@ -854,3 +882,389 @@ def test_truck_loading_triggers_serialization() -> None:
     diff = truck.serialize_diff()
     assert diff is not None
     assert diff["loaded_packages"] == [PackageID("pkg-2")]
+
+
+# Fuel System Tests
+
+
+def _build_world_with_gas_station(
+    node_id: NodeID, gas_station_id: BuildingID, capacity: int = 2, cost_factor: float = 1.0
+) -> tuple[World, GasStation]:
+    """Create a world with a gas station at the specified node."""
+    graph = Graph()
+    node = Node(id=node_id, x=0.0, y=0.0)
+    gas_station = GasStation(id=gas_station_id, capacity=capacity, cost_factor=cost_factor)
+    node.add_building(gas_station)
+    graph.add_node(node)
+    world = World(graph=graph, router=None, traffic=None, dt_s=1.0)
+    return world, gas_station
+
+
+def test_truck_default_fuel_values() -> None:
+    """Test that truck has default fuel tank capacity and starts full."""
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    assert truck.fuel_tank_capacity_l == 500.0
+    assert truck.current_fuel_l == 500.0
+    assert truck.co2_emitted_kg == 0.0
+    assert truck.is_seeking_gas_station is False
+    assert truck.is_fueling is False
+
+
+def test_truck_get_current_weight_empty() -> None:
+    """Test that empty truck weight equals base weight."""
+    graph = Graph()
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    graph.add_node(node)
+    world = World(graph=graph, router=None, traffic=None, dt_s=1.0)
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck", current_node=NodeID(1))
+    weight = truck.get_current_weight_tonnes(world)
+    assert weight == BASE_TRUCK_WEIGHT_TONNES
+
+
+def test_truck_fuel_consumption_rate_calculation() -> None:
+    """Test fuel consumption rate calculation based on weight."""
+    graph = Graph()
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    graph.add_node(node)
+    world = World(graph=graph, router=None, traffic=None, dt_s=1.0)
+
+    truck = Truck(id=AgentID("truck-1"), kind="truck", current_node=NodeID(1))
+
+    # Empty truck: base consumption
+    rate = truck._calculate_fuel_consumption_l_per_km(world)
+    expected_rate = BASE_FUEL_CONSUMPTION_L_PER_100KM / 100.0
+    assert abs(rate - expected_rate) < 0.001
+
+
+def test_truck_consumes_fuel_and_emits_co2() -> None:
+    """Test that truck consumes fuel and emits CO2 when moving."""
+    graph = Graph()
+    node = Node(id=NodeID(1), x=0.0, y=0.0)
+    graph.add_node(node)
+    world = World(graph=graph, router=None, traffic=None, dt_s=1.0)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+        fuel_tank_capacity_l=500.0,
+        current_fuel_l=500.0,
+    )
+
+    initial_fuel = truck.current_fuel_l
+    initial_co2 = truck.co2_emitted_kg
+
+    # Simulate traveling 10km
+    distance_m = 10000.0
+    truck._consume_fuel_and_emit_co2(world, distance_m)
+
+    # Calculate expected values
+    consumption_rate = BASE_FUEL_CONSUMPTION_L_PER_100KM / 100.0  # L/km
+    expected_fuel_consumed = (distance_m / 1000.0) * consumption_rate
+    expected_co2 = expected_fuel_consumed * CO2_KG_PER_LITER_DIESEL
+
+    actual_fuel_consumed = initial_fuel - truck.current_fuel_l
+    actual_co2 = truck.co2_emitted_kg - initial_co2
+
+    assert abs(actual_fuel_consumed - expected_fuel_consumed) < 0.01
+    assert abs(actual_co2 - expected_co2) < 0.01
+
+
+def test_truck_should_seek_gas_station_at_low_fuel() -> None:
+    """Test that truck seeks gas station when fuel is critically low."""
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        fuel_tank_capacity_l=500.0,
+        current_fuel_l=500.0,
+        risk_factor=0.5,
+    )
+
+    # At full tank - should not seek
+    assert not truck._should_seek_gas_station()
+
+    # At 35% (above threshold) - should not seek
+    truck.current_fuel_l = 500.0 * 0.35
+    assert not truck._should_seek_gas_station()
+
+    # At 10% (critical) - must seek
+    truck.current_fuel_l = 500.0 * 0.10
+    assert truck._should_seek_gas_station()
+
+    # At 5% (very low) - must seek
+    truck.current_fuel_l = 500.0 * 0.05
+    assert truck._should_seek_gas_station()
+
+
+def test_truck_enter_gas_station() -> None:
+    """Test truck can enter a gas station."""
+    node_id = NodeID(1)
+    gas_station_id = BuildingID("gas-1")
+    world, gas_station = _build_world_with_gas_station(node_id, gas_station_id)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=node_id,
+    )
+
+    # Get initial diff to establish baseline
+    truck.serialize_diff()
+
+    truck.enter_gas_station(world, gas_station_id)
+
+    assert truck.current_building_id == gas_station_id
+    assert AgentID("truck-1") in gas_station.current_agents
+
+    # Entering gas station should trigger diff (watch field)
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["current_building_id"] == str(gas_station_id)
+
+
+def test_truck_leave_gas_station() -> None:
+    """Test truck can leave a gas station."""
+    node_id = NodeID(1)
+    gas_station_id = BuildingID("gas-1")
+    world, gas_station = _build_world_with_gas_station(node_id, gas_station_id)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=node_id,
+    )
+
+    # Enter then leave
+    truck.enter_gas_station(world, gas_station_id)
+    truck.serialize_diff()  # Clear previous state
+
+    truck.leave_gas_station(world)
+
+    assert truck.current_building_id is None
+    assert AgentID("truck-1") not in gas_station.current_agents
+
+    # Leaving gas station should trigger diff (watch field)
+    diff = truck.serialize_diff()
+    assert diff is not None
+    assert diff["current_building_id"] is None
+
+
+def test_truck_gas_station_respects_capacity() -> None:
+    """Test that truck cannot enter full gas station."""
+    node_id = NodeID(1)
+    gas_station_id = BuildingID("gas-1")
+    world, gas_station = _build_world_with_gas_station(node_id, gas_station_id, capacity=1)
+    gas_station.enter(AgentID("other-truck"))
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=node_id,
+    )
+
+    with pytest.raises(ValueError):
+        truck.enter_gas_station(world, gas_station_id)
+
+
+def test_gas_station_add_revenue() -> None:
+    """Test that gas station tracks revenue."""
+    gas_station = GasStation(
+        id=BuildingID("gas-1"),
+        capacity=2,
+        cost_factor=1.0,
+        balance_ducats=0.0,
+    )
+
+    assert gas_station.balance_ducats == 0.0
+
+    gas_station.add_revenue(100.0)
+    assert gas_station.balance_ducats == 100.0
+
+    gas_station.add_revenue(50.0)
+    assert gas_station.balance_ducats == 150.0
+
+
+def test_gas_station_serialization_includes_balance() -> None:
+    """Test that gas station serialization includes balance."""
+    gas_station = GasStation(
+        id=BuildingID("gas-1"),
+        capacity=2,
+        cost_factor=1.1,
+        balance_ducats=500.0,
+    )
+
+    data = gas_station.to_dict()
+    assert "balance_ducats" in data
+    assert data["balance_ducats"] == 500.0
+
+    # Test deserialization
+    restored = GasStation.from_dict(data)
+    assert restored.balance_ducats == 500.0
+
+
+def test_truck_fueling_process() -> None:
+    """Test the complete fueling process including payment."""
+    node_id = NodeID(1)
+    gas_station_id = BuildingID("gas-1")
+    world, gas_station = _build_world_with_gas_station(node_id, gas_station_id, cost_factor=1.0)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=node_id,
+        fuel_tank_capacity_l=100.0,
+        current_fuel_l=50.0,  # Half tank
+        balance_ducats=1000.0,
+    )
+
+    # Enter gas station and start fueling
+    truck.enter_gas_station(world, gas_station_id)
+    truck.is_fueling = True
+    truck.fueling_liters_needed = truck.fuel_tank_capacity_l - truck.current_fuel_l  # 50L
+
+    initial_balance = truck.balance_ducats
+    initial_station_balance = gas_station.balance_ducats
+
+    # Simulate fueling ticks until complete (50L at ~0.833 L/s = ~60 ticks)
+    while truck.is_fueling:
+        truck._handle_fueling(world)
+
+    # Verify tank is full
+    assert truck.current_fuel_l == truck.fuel_tank_capacity_l
+
+    # Verify no longer fueling
+    assert not truck.is_fueling
+    assert truck.current_building_id is None
+
+    # Verify payment: truck paid and gas station received
+    fuel_price = gas_station.get_fuel_price(world.global_fuel_price)
+    expected_cost = 50.0 * fuel_price  # 50 liters * price
+    assert truck.balance_ducats == initial_balance - expected_cost
+    assert gas_station.balance_ducats == initial_station_balance + expected_cost
+
+
+def test_truck_find_closest_gas_station() -> None:
+    """Test truck finds closest gas station."""
+    graph = Graph()
+    n1 = Node(id=NodeID(1), x=0.0, y=0.0)
+    n2 = Node(id=NodeID(2), x=1000.0, y=0.0)
+    n3 = Node(id=NodeID(3), x=2000.0, y=0.0)
+
+    # Gas stations at n2 and n3
+    gs2 = GasStation(id=BuildingID("gas-2"), capacity=2, cost_factor=1.0)
+    gs3 = GasStation(id=BuildingID("gas-3"), capacity=2, cost_factor=0.9)
+    n2.add_building(gs2)
+    n3.add_building(gs3)
+
+    graph.add_node(n1)
+    graph.add_node(n2)
+    graph.add_node(n3)
+
+    # Connect nodes
+    e1 = Edge(
+        id=EdgeID(1),
+        from_node=NodeID(1),
+        to_node=NodeID(2),
+        length_m=1000.0,
+        mode=Mode.ROAD,
+        road_class=RoadClass.G,
+        lanes=2,
+        max_speed_kph=50.0,
+        weight_limit_kg=None,
+    )
+    e2 = Edge(
+        id=EdgeID(2),
+        from_node=NodeID(2),
+        to_node=NodeID(3),
+        length_m=1000.0,
+        mode=Mode.ROAD,
+        road_class=RoadClass.G,
+        lanes=2,
+        max_speed_kph=50.0,
+        weight_limit_kg=None,
+    )
+    graph.add_edge(e1)
+    graph.add_edge(e2)
+
+    world = World(graph=graph, router=Navigator(), traffic=None, dt_s=1.0)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_node=NodeID(1),
+    )
+
+    # Find closest gas station
+    gas_station_id, route = truck._find_closest_gas_station(world)
+
+    # Should find the closest one (gs2)
+    assert gas_station_id == BuildingID("gas-2")
+    assert route == [NodeID(1), NodeID(2)]
+
+
+def test_truck_fuel_serialization_full() -> None:
+    """Test that serialize_full includes all fuel fields."""
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        fuel_tank_capacity_l=600.0,
+        current_fuel_l=300.0,
+        co2_emitted_kg=50.0,
+        is_seeking_gas_station=True,
+        is_fueling=True,
+        current_building_id=BuildingID("gas-1"),
+    )
+
+    full = truck.serialize_full()
+
+    assert full["fuel_tank_capacity_l"] == 600.0
+    assert full["current_fuel_l"] == 300.0
+    assert full["co2_emitted_kg"] == 50.0
+    assert full["is_seeking_gas_station"] is True
+    assert full["is_fueling"] is True
+    assert full["current_building_id"] == "gas-1"
+
+
+def test_truck_stops_when_out_of_fuel() -> None:
+    """Test that truck stops moving when out of fuel."""
+    graph = Graph()
+    node1 = Node(id=NodeID(1), x=0.0, y=0.0)
+    node2 = Node(id=NodeID(2), x=1000.0, y=0.0)
+    graph.add_node(node1)
+    graph.add_node(node2)
+
+    edge = Edge(
+        id=EdgeID(1),
+        from_node=NodeID(1),
+        to_node=NodeID(2),
+        length_m=1000.0,
+        mode=Mode.ROAD,
+        road_class=RoadClass.G,
+        lanes=2,
+        max_speed_kph=50.0,
+        weight_limit_kg=None,
+    )
+    graph.add_edge(edge)
+
+    world = World(graph=graph, router=Navigator(), traffic=None, dt_s=1.0)
+
+    truck = Truck(
+        id=AgentID("truck-1"),
+        kind="truck",
+        current_edge=EdgeID(1),
+        edge_progress_m=0.0,
+        current_speed_kph=50.0,
+        current_fuel_l=0.0,  # Out of fuel
+    )
+
+    initial_progress = truck.edge_progress_m
+    truck._move_along_edge(world)
+
+    # Should not have moved
+    assert truck.edge_progress_m == initial_progress
+    assert truck.current_speed_kph == 0.0
+
+    # Event should have been emitted
+    assert len(world._events) == 1
+    assert world._events[0]["event_type"] == "out_of_fuel"

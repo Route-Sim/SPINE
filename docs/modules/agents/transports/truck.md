@@ -1,10 +1,10 @@
 ---
 title: "Truck - Transport Agent"
-summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state, speed constraints, and explicit route boundary metadata for logistics operations."
+summary: "Autonomous transport agent that navigates through the graph network following A* computed routes, managing position state, speed constraints, fuel consumption, CO2 emissions, and explicit route boundary metadata for logistics operations."
 source_paths:
   - "agents/transports/truck.py"
   - "tests/agents/test_truck.py"
-last_updated: "2025-11-12"
+last_updated: "2025-12-09"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
@@ -14,11 +14,11 @@ links:
 
 # Truck - Transport Agent
 
-> **Purpose:** Autonomous transport agent that moves through the graph network by following A* computed routes to randomly selected destinations, managing position transitions between nodes and edges while respecting speed constraints.
+> **Purpose:** Autonomous transport agent that moves through the graph network by following A* computed routes to randomly selected destinations, managing position transitions between nodes and edges while respecting speed constraints, tracking fuel consumption and CO2 emissions, and managing refueling at gas stations.
 
 ## Context & Motivation
 
-In a logistics simulation, trucks are the primary transport agents responsible for moving packages between sites. The Truck agent implements autonomous navigation behavior, continuously moving through the road network to simulate realistic transport operations.
+In a logistics simulation, trucks are the primary transport agents responsible for moving packages between sites. The Truck agent implements autonomous navigation behavior, continuously moving through the road network to simulate realistic transport operations including fuel management and environmental impact tracking.
 
 ### Problem Solved
 - Autonomous agent movement through graph network
@@ -26,6 +26,10 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Position state management (node vs edge transitions)
 - Speed constraint handling (agent and road limits)
 - Explicit integration with capacity-limited parking facilities
+- Fuel consumption tracking based on load weight
+- CO2 emission calculation per distance traveled
+- Automatic gas station seeking when fuel is low
+- Payment processing for fuel purchases
 - Efficient state change detection for UI updates
 
 ### Requirements and Constraints
@@ -34,12 +38,15 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Must update position each simulation tick
 - Must only emit state changes (not every tick)
 - Must respect both agent max speed and edge speed limits
+- Must track fuel consumption based on vehicle weight
+- Must stop when out of fuel
 - Must handle edge cases: single node graph, invalid routes
 
 ### Dependencies and Assumptions
 - Depends on `world.routing.navigator.Navigator` for pathfinding
 - Depends on `world.graph.graph.Graph` for network structure
 - Depends on `core.buildings.parking.Parking` for parking lifecycle enforcement
+- Depends on `core.buildings.gas_station.GasStation` for refueling
 - Assumes `world.router` is a Navigator instance
 - Assumes `world.dt_s` is simulation time step in seconds
 - Assumes edges have valid length and speed attributes
@@ -63,7 +70,7 @@ In a logistics simulation, trucks are the primary transport agents responsible f
 - Automated package pickup and delivery logic (manual via methods)
 - Collision detection or avoidance
 - Traffic simulation or congestion
-- Fuel consumption or maintenance
+- Vehicle maintenance and breakdowns
 - Path optimization beyond A* routing
 - Multi-agent coordination
 - Dynamic rerouting based on conditions
@@ -106,7 +113,17 @@ class Truck:
     risk_factor: float  # Risk tolerance (0.0-1.0)
     is_seeking_parking: bool  # Actively seeking parking
     original_destination: NodeID | None  # Preserved when diverting
+
+    # Fuel system fields
+    fuel_tank_capacity_l: float  # Tank capacity (default 500L)
+    current_fuel_l: float  # Current fuel level
+    co2_emitted_kg: float  # Total CO2 emitted
+    is_seeking_gas_station: bool  # Actively seeking fuel
+    is_fueling: bool  # Currently at gas station
+    fueling_liters_needed: float  # Liters to fill when fueling started
 ```
+
+Note: `current_building_id` is used for both parking and gas station occupancy. A truck can only be in one building at a time, and `is_fueling` indicates whether the truck is at a gas station (vs parking).
 
 ### State Representation
 
@@ -260,6 +277,87 @@ original_destination: NodeID | None  # Preserved when diverting
    - Resumes journey to original destination
    - Adjusts risk based on performance
 
+### Fuel System (Consumption & Refueling)
+
+The truck implements a fuel system that tracks consumption based on weight, emits CO2, and manages refueling at gas stations.
+
+**Key Constants:**
+- `CO2_KG_PER_LITER_DIESEL = 2.68`: kg CO2 emitted per liter of diesel
+- `BASE_FUEL_CONSUMPTION_L_PER_100KM = 25.0`: Base consumption for empty truck
+- `FUEL_CONSUMPTION_FACTOR_PER_TONNE = 1.5`: Additional L/100km per tonne of cargo
+- `FUELING_RATE_L_PER_S = 0.833`: ~50 liters per minute pump rate
+- `BASE_TRUCK_WEIGHT_TONNES = 5.0`: Empty truck weight
+
+**Key Components:**
+
+1. **Weight Calculation:**
+   - `get_current_weight_tonnes(world)`: Returns total weight
+   - Base weight: 5 tonnes (empty truck)
+   - Plus cargo weight (package size × 0.1 tonnes per unit)
+
+2. **Fuel Consumption:**
+   - Formula: `consumption_l_per_km = (BASE + cargo_tonnes × FACTOR) / 100`
+   - Example: Empty truck at 25 L/100km = 0.25 L/km
+   - Heavier loads increase consumption linearly
+
+3. **CO2 Emissions:**
+   - Calculated per tick based on fuel consumed
+   - Formula: `co2_kg = fuel_consumed_l × 2.68`
+   - Accumulated in `co2_emitted_kg` field
+
+4. **Gas Station Seeking:**
+   - Probabilistic decision based on fuel level and `risk_factor`
+   - Threshold: 30% to 15% based on risk (higher risk = lower threshold)
+   - Must seek at 10% fuel (critical level)
+   - Uses same waypoint-aware search as parking
+
+5. **Fueling Process:**
+   - Uses OccupiableBuilding interface (enter/leave)
+   - If gas station full: waits (unlike parking which seeks another)
+   - Realistic pump rate: ~50 L/min (500L tank fills in ~10 minutes)
+   - Payment: truck pays, gas station receives revenue
+   - Uses global fuel price × station's cost_factor
+
+6. **Out of Fuel:**
+   - Truck stops moving (`current_speed_kph = 0`)
+   - Emits "out_of_fuel" event
+   - Remains stranded on edge until intervention
+
+**Fuel State Fields:**
+
+```python
+fuel_tank_capacity_l: float = 500.0  # Tank capacity
+current_fuel_l: float = 500.0  # Current fuel level
+co2_emitted_kg: float = 0.0  # Total CO2 emitted
+is_seeking_gas_station: bool = False  # Actively seeking fuel
+is_fueling: bool = False  # Currently at gas station
+fueling_liters_needed: float = 0.0  # Liters to fill
+# Note: current_building_id is reused for gas station occupancy
+```
+
+**Fuel Workflow:**
+
+1. Truck moves, consuming fuel based on distance and weight
+2. CO2 emitted proportional to fuel consumed
+3. As fuel drops, probability of seeking gas station increases
+4. When deciding to seek gas station:
+   - Preserves `original_destination`
+   - Finds closest gas station via Navigator
+   - Routes to gas station
+5. On arrival at gas station:
+   - Enters using OccupiableBuilding interface
+   - If full: waits at current location
+   - If space: enters and starts fueling
+6. While fueling:
+   - Fuel pumped at realistic rate (~0.833 L/s)
+   - Continues until tank full
+7. When fueling complete:
+   - Calculates cost (liters × price)
+   - Deducts from truck balance
+   - Adds to gas station balance
+   - Leaves gas station
+   - Resumes journey to original destination
+
 ### State Transitions
 
 ```
@@ -299,11 +397,14 @@ class TruckWatchFieldsDTO:
     route_start_node: NodeID | None
     route_end_node: NodeID | None
     loaded_packages: tuple[PackageID, ...]  # Immutable tuple for hashing
+    current_building_id: BuildingID | None  # Triggers on building enter/leave
 ```
 
 **Design Rationale:**
-- Position, navigation, and cargo fields represent meaningful state changes requiring frontend updates
+- Position, navigation, cargo, and building fields represent meaningful state changes requiring frontend updates
 - Excludes tachograph counters that change every tick (driving_time_s, resting_time_s)
+- Excludes fuel level (changes continuously, included in payload but doesn't trigger updates)
+- `current_building_id` triggers updates on enter/leave (parking or gas station)
 - Frozen for immutability and efficient equality comparison
 - Route and loaded_packages converted to tuples for hashability
 
@@ -338,12 +439,20 @@ class TruckStateDTO:
     risk_factor: float
     is_seeking_parking: bool
     original_destination: NodeID | None
+
+    # Fuel system fields
+    fuel_tank_capacity_l: float
+    current_fuel_l: float
+    co2_emitted_kg: float
+    is_seeking_gas_station: bool
+    is_fueling: bool
 ```
 
 **Design Rationale:**
 - Contains all truck state for complete snapshot
 - Frontend receives full context on every update
-- Tachograph fields included but don't trigger updates
+- Tachograph and fuel fields included but only building changes trigger updates (not fuel level)
+- `current_building_id` is used for both parking and gas station (distinguished by `is_fueling` flag)
 - Route as list (not tuple) for JSON serialization
 
 ### Serialization Workflow
@@ -461,7 +570,9 @@ return TruckStateDTO(...).model_dump()
       "max_speed_kph": 120.0,
       "capacity": 30.0,
       "risk_factor": 0.8,
-      "initial_balance_ducats": 1000.0
+      "initial_balance_ducats": 1000.0,
+      "fuel_tank_capacity_l": 600.0,
+      "initial_fuel_l": 300.0
     }
   }
 }
@@ -470,8 +581,10 @@ return TruckStateDTO(...).model_dump()
 **Parameters:**
 - `max_speed_kph` (float, default: 100.0): Maximum speed capability
 - `capacity` (float, default: 24.0, range: 4.0-45.0): Cargo capacity (unitless)
-- `risk_factor` (float, default: 0.5, range: 0.0-1.0): Risk tolerance affecting parking search timing
+- `risk_factor` (float, default: 0.5, range: 0.0-1.0): Risk tolerance affecting parking/fuel search timing
 - `initial_balance_ducats` (float, default: 0.0): Starting financial balance
+- `fuel_tank_capacity_l` (float, default: 500.0): Maximum fuel tank capacity in liters
+- `initial_fuel_l` (float, default: full tank): Initial fuel level in liters
 
 ### State Updates
 
@@ -670,7 +783,9 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 - `world.world.World`: Simulation world container
 - `world.sim.handlers.agent.AgentActionHandler`: Agent creation handler
 - `core.buildings.parking.Parking`: Capacity-tracked parking facility data model
-- `tests/agents/test_truck.py`: Regression tests for explicit parking lifecycle
+- `core.buildings.gas_station.GasStation`: Fuel service building with pricing
+- `core.buildings.occupancy.OccupiableBuilding`: Base class for capacity-limited buildings
+- `tests/agents/test_truck.py`: Regression tests for truck functionality including fuel system
 
 ### ADRs
 
