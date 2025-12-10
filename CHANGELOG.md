@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0](https://github.com/Route-Sim/SPINE/compare/v0.31.0...v0.32.0) (2025-12-10)
+
+
+### 🚀 Features
+
+* **broker:** implement broker agent for package pickup negotiations and financial management ([c9c4f56](https://github.com/Route-Sim/SPINE/commit/c9c4f569b5da2496ad73fcd82a074b108a0581a8))
+
 ## [0.31.0](https://github.com/Route-Sim/SPINE/compare/v0.30.0...v0.31.0) (2025-12-09)
 
 
