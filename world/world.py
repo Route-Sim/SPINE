@@ -1,5 +1,5 @@
 import random
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from agents.base import AgentBase
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 from core.buildings.base import Building
 from core.buildings.site import Site
 from core.packages.package import Package
-from core.types import AgentID, PackageID, SiteID
+from core.types import AgentID, NodeID, PackageID, SiteID
 from world.io import map_manager
 from world.routing.navigator import Navigator
 from world.sim.dto.step_result_dto import StepResultDTO
@@ -149,6 +149,21 @@ class World:
         if package_id not in self.packages:
             raise ValueError(f"Package {package_id} does not exist")
         return self.packages[package_id]
+
+    def get_site_node(self, site_id: SiteID) -> NodeID | None:
+        """Get the node ID where a site is located.
+
+        Args:
+            site_id: Site building ID to look up
+
+        Returns:
+            NodeID where the site is located, or None if not found
+        """
+        for node_id_raw, node in self.graph.nodes.items():
+            for building in node.buildings:
+                if isinstance(building, Site) and building.id == site_id:
+                    return cast(NodeID, node_id_raw)
+        return None
 
     def update_package_status(
         self, package_id: PackageID, new_status: str, agent_id: AgentID | None = None

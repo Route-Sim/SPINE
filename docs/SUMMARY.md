@@ -26,6 +26,7 @@
 * [Site Building](modules/core/buildings/site.md)
 * [Gas Station Building](modules/core/buildings/gas-station.md)
 * [Package Data Model](modules/core/packages/package.md)
+* [Delivery Task](modules/core/delivery/task.md)
 
 ### World
 * [World](modules/world/world.md)
@@ -57,6 +58,7 @@
 
 ### Agents
 * [Base Agent](modules/agents/base.md)
+* [Broker Agent](modules/agents/broker.md)
 * [Building Agent](modules/agents/buildings/building-agent.md)
 * [Truck Transport Agent](modules/agents/transports/truck.md)
 

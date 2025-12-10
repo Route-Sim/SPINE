@@ -3,6 +3,7 @@ from typing import NewType
 
 # IDs
 AgentID = NewType("AgentID", str)
+BrokerID = NewType("BrokerID", str)
 BuildingID = NewType("BuildingID", str)
 EdgeID = NewType("EdgeID", int)
 LegID = NewType("LegID", str)
@@ -38,3 +39,27 @@ class PackageStatus(str, Enum):
     IN_TRANSIT = "IN_TRANSIT"
     DELIVERED = "DELIVERED"
     EXPIRED = "EXPIRED"
+
+
+class NegotiationStatus(str, Enum):
+    """Status of package negotiation between broker and truck."""
+
+    PROPOSED = "PROPOSED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
+
+
+class TaskType(str, Enum):
+    """Type of delivery task for truck queue."""
+
+    PICKUP = "PICKUP"
+    DELIVERY = "DELIVERY"
+
+
+class TaskStatus(str, Enum):
+    """Status of a delivery task in truck queue."""
+
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"

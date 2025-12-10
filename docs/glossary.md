@@ -54,6 +54,8 @@ links:
 
 **Backend**: A server-side system responsible for executing the Agentic Simulation and managing the overall logic of the Logistics Network. The Backend maintains the state of all Agents, processes Actions from the Frontend, and produces Signals that describe state changes to be reflected in the Frontend. It communicates with the Frontend through a WebSocket connection, continuously sending Signals and receiving Actions that represent user intents or parameter changes.
 
+**Broker**: Singleton agent responsible for coordinating package pickups between sites and trucks. The Broker receives notifications about new packages, proposes pickup jobs to suitable trucks, manages negotiations, and tracks the company's financial balance. Negotiates only one package at a time to prevent race conditions where trucks accept multiple packages based on stale state.
+
 **Building**: A physical facility located at a Node within the Map. Buildings represent logistic infrastructure such as warehouses, depots or retail outlets. Buildings track state changes via a dirty flag mechanism, emitting `building.updated` signals only when their state explicitly changes (unlike agents which update every tick). Types include Parking, Site, and GasStation.
 
 **building.updated**: Canonical signal emitted when a building's state changes, such as occupancy changes, package list updates, or statistics updates. Contains the full serialized building state and the simulation tick. Unlike agent updates which occur every tick, building updates are event-driven.
@@ -67,6 +69,10 @@ links:
 **D (Droga dojazdowa)**: Polish road classification for access roads. Lowest class roads with 1 lane, speeds of 20-40 km/h. May have weight limits. Used for local access.
 
 **Delaunay Triangulation**: Computational geometry algorithm used to create initial connectivity between nodes in cities. Produces triangles where no point is inside the circumcircle of any triangle.
+
+**Delivery Queue**: Ordered list of DeliveryTasks maintained by each truck, representing sites to visit for package pickup and delivery. Tasks are processed sequentially, with consolidation when multiple packages share the same origin or destination site.
+
+**Delivery Task**: Data structure representing a single stop in a truck's delivery queue. Contains the site to visit, task type (PICKUP or DELIVERY), associated package IDs, estimated arrival tick, and current status (PENDING, IN_PROGRESS, COMPLETED).
 
 **Dirty Flag**: A boolean tracking mechanism used by buildings to indicate whether their state has changed since the last serialization. When a building's state changes (e.g., agent enters/leaves, statistics update), it is marked dirty. The `serialize_diff()` method returns the full state only if dirty, enabling efficient event-driven updates.
 
@@ -128,6 +134,10 @@ links:
 
 **LegID**: Unique identifier for transportation legs, implemented as a string type.
 
+**Loading**: The process of transferring packages from a site onto a truck. Loading time is proportional to the total weight of packages being loaded, calculated using the site's loading rate (default 0.5 tonnes/minute). Trucks must enter the site building before loading can begin.
+
+**Loading Rate**: A per-site parameter (in tonnes per minute) that determines how quickly packages can be loaded or unloaded at that site. Default value is 0.5 tonnes/min, meaning 2 minutes per tonne of cargo.
+
 **Logistics Network**: The environment in which all simulation activity takes place, representing the interconnected system of transportation routes, facilities and operational entities responsible for the movement of goods. The Logistics Network is composed of Nodes, Edges, and Buildings, forming the structural backbone of the simulation's Map.
 
 ## M
@@ -143,6 +153,10 @@ links:
 **NodeID**: Unique identifier for nodes, implemented as an integer type.
 
 **Navigator**: Service providing A* pathfinding and generalized node search for agent navigation through the graph network. Computes optimal time-based routes respecting both edge speed limits and agent capabilities. Supports criteria-based node search using Dijkstra's algorithm with early termination and waypoint-aware search for detour minimization.
+
+**Negotiation**: The process by which a Broker proposes a package pickup to trucks and receives their accept/reject decisions. Negotiations occur one at a time to prevent race conditions where trucks evaluate proposals against stale state.
+
+**NegotiationStatus**: Enum tracking the state of a package negotiation: PROPOSED (awaiting truck response), ACCEPTED (truck agreed to pick up), REJECTED (truck declined), COMPLETED (package delivered).
 
 **Node Criteria**: Protocol-based system for defining node matching conditions in graph searches. Allows finding nodes based on arbitrary conditions (building types, edge counts, composite rules) without hardcoding search logic. Implementations include BuildingTypeCriteria, EdgeCountCriteria, and CompositeCriteria.
 

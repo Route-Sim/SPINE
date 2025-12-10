@@ -2,12 +2,24 @@
 
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from core.buildings.gas_station import GasStation
 from core.buildings.parking import Parking
+from core.buildings.site import Site
+from core.delivery.task import DeliveryTask
 from core.messages import Msg
-from core.types import AgentID, BuildingID, EdgeID, NodeID, PackageID
+from core.types import (
+    AgentID,
+    BuildingID,
+    EdgeID,
+    NodeID,
+    PackageID,
+    PackageStatus,
+    SiteID,
+    TaskStatus,
+    TaskType,
+)
 from world.sim.dto.truck_dto import TruckStateDTO, TruckWatchFieldsDTO
 from world.world import World
 
@@ -71,6 +83,17 @@ class Truck:
     is_fueling: bool = False  # Flag for when truck is at a gas station fueling
     fueling_liters_needed: float = 0.0  # Liters needed to fill tank when fueling started
     _tried_gas_stations: set[BuildingID] = field(default_factory=set, init=False, repr=False)
+
+    # Delivery system fields
+    delivery_queue: list[DeliveryTask] = field(default_factory=list)  # Ordered sites to visit
+    broker_id: AgentID | None = None  # ID of the broker agent for messaging
+    is_loading: bool = False  # Currently loading packages at a site
+    is_unloading: bool = False  # Currently unloading packages at a site
+    loading_progress_s: float = 0.0  # Time spent loading/unloading
+    loading_target_s: float = 0.0  # Total time needed for current operation
+    _pending_proposal: dict[str, Any] | None = field(
+        default=None, init=False, repr=False
+    )  # Current proposal being evaluated
 
     def perceive(self, world: World) -> None:
         """Optional: pull local info into cached fields.
@@ -169,16 +192,13 @@ class Truck:
     def decide(self, world: World) -> None:
         """Update truck state: route planning and movement with tachograph management.
 
-        Behavior:
-        - Handle fueling state (highest priority after resting)
-        - Track driving time and enforce rest periods
-        - Apply penalties for overtime driving
-        - Seek gas station when fuel is low
-        - Seek parking when approaching time limits
-        - Handle parking/gas station full scenarios
-        - If route is empty: pick random destination and compute route
-        - If at node with route: enter next edge in route
-        - If on edge: update position along edge, transition to node when complete
+        Priority order:
+        1. Handle fueling state (highest priority)
+        2. Handle resting state
+        3. Handle loading/unloading at sites
+        4. Handle broker messages (proposals)
+        5. Seek gas station/parking when needed
+        6. Execute movement based on delivery queue or random routes
         """
         # Handle fueling state (highest priority)
         if self.is_fueling:
@@ -189,6 +209,19 @@ class Truck:
         if self.is_resting:
             self._handle_resting(world)
             return
+
+        # Handle loading state (at site loading packages)
+        if self.is_loading:
+            self._handle_loading(world)
+            return
+
+        # Handle unloading state (at site unloading packages)
+        if self.is_unloading:
+            self._handle_unloading(world)
+            return
+
+        # Process broker messages (proposals, assignments)
+        self._handle_broker_messages(world)
 
         # Check for overtime penalties (apply once per violation)
         if self.driving_time_s > 8 * 3600:
@@ -292,10 +325,14 @@ class Truck:
                             self._tried_parkings.clear()
                 return
 
+            # Check if we've arrived at a delivery task site
+            if not self.route and self.delivery_queue and self._try_start_site_operation(world):
+                return
+
             # Normal behavior: enter next edge or plan route
             if not self.route:
                 if not self.is_seeking_parking and not self.is_seeking_gas_station:
-                    self._plan_new_route(world)
+                    self._plan_next_destination(world)
                 return
             else:
                 self._enter_next_edge(world)
@@ -970,6 +1007,558 @@ class Truck:
         # Clamp to [0.0, 1.0]
         self.risk_factor = max(0.0, min(1.0, self.risk_factor))
 
+    # --- Delivery system methods ---
+
+    def _handle_broker_messages(self, world: World) -> None:
+        """Process messages from broker (proposals, assignments)."""
+        for msg in self.inbox:
+            if msg.typ == "proposal":
+                self._handle_proposal(msg, world)
+            elif msg.typ == "assignment_confirmed":
+                self._handle_assignment_confirmation(msg, world)
+
+        # Clear inbox after processing
+        self.inbox = []
+
+    def _handle_proposal(self, msg: Msg, world: World) -> None:
+        """Handle a pickup proposal from the broker.
+
+        Evaluates whether the truck can feasibly pick up and deliver the package
+        within the deadlines, considering current load, route, and driving time.
+        """
+        body = msg.body
+        package_id = PackageID(body.get("package_id", ""))
+        origin_site_id = SiteID(body.get("origin_site_id", ""))
+        destination_site_id = SiteID(body.get("destination_site_id", ""))
+        package_size = float(body.get("package_size", 0))
+        pickup_deadline_tick = int(body.get("pickup_deadline_tick", 0))
+        delivery_deadline_tick = int(body.get("delivery_deadline_tick", 0))
+
+        # Store broker ID for future communication
+        self.broker_id = msg.src
+
+        # Check if we can accept this proposal
+        can_accept, rejection_reason = self._evaluate_proposal(
+            world,
+            package_id,
+            origin_site_id,
+            destination_site_id,
+            package_size,
+            pickup_deadline_tick,
+            delivery_deadline_tick,
+        )
+
+        if can_accept:
+            # Calculate estimated times
+            est_pickup_tick, est_delivery_tick = self._estimate_delivery_times(
+                world, origin_site_id, destination_site_id
+            )
+
+            # Send acceptance
+            response = Msg(
+                src=self.id,
+                dst=msg.src,
+                typ="accept",
+                body={
+                    "package_id": str(package_id),
+                    "estimated_pickup_tick": est_pickup_tick,
+                    "estimated_delivery_tick": est_delivery_tick,
+                },
+            )
+        else:
+            # Send rejection
+            response = Msg(
+                src=self.id,
+                dst=msg.src,
+                typ="reject",
+                body={
+                    "package_id": str(package_id),
+                    "rejection_reason": rejection_reason,
+                },
+            )
+
+        self.outbox.append(response)
+
+    def _evaluate_proposal(
+        self,
+        world: World,
+        _package_id: PackageID,  # Reserved for future logging/tracking
+        origin_site_id: SiteID,
+        destination_site_id: SiteID,
+        package_size: float,
+        pickup_deadline_tick: int,
+        delivery_deadline_tick: int,
+    ) -> tuple[bool, str | None]:
+        """Evaluate if the truck can accept a pickup proposal.
+
+        Returns:
+            Tuple of (can_accept, rejection_reason)
+        """
+        # Check capacity
+        current_load = self.get_total_loaded_size(world)
+        if current_load + package_size > self.capacity:
+            return False, "insufficient_capacity"
+
+        # Estimate pickup and delivery times
+        est_pickup_tick, est_delivery_tick = self._estimate_delivery_times(
+            world, origin_site_id, destination_site_id
+        )
+
+        # Check if we can make the pickup deadline
+        if est_pickup_tick > pickup_deadline_tick:
+            return False, "cannot_meet_pickup_deadline"
+
+        # Check if we can make the delivery deadline
+        if est_delivery_tick > delivery_deadline_tick:
+            return False, "cannot_meet_delivery_deadline"
+
+        # Check driving time constraints
+        # Estimate driving time needed (rough estimate)
+        driving_needed_s = (est_delivery_tick - world.tick) * world.dt_s
+        potential_driving = self.driving_time_s + driving_needed_s
+
+        # If this would cause significant overtime without rest opportunity
+        if potential_driving > 8 * 3600:
+            # Check if there's time for rest
+            time_margin = (delivery_deadline_tick - est_delivery_tick) * world.dt_s
+            rest_needed = self._calculate_required_rest()
+            if time_margin < rest_needed:
+                return False, "insufficient_rest_time"
+
+        return True, None
+
+    def _estimate_delivery_times(
+        self, world: World, origin_site_id: SiteID, destination_site_id: SiteID
+    ) -> tuple[int, int]:
+        """Estimate pickup and delivery tick times.
+
+        Returns:
+            Tuple of (estimated_pickup_tick, estimated_delivery_tick)
+        """
+        current_tick = world.tick
+
+        # Get current position
+        current_node = self.current_node
+        if current_node is None and self.current_edge is not None:
+            # On an edge - estimate remaining travel time on current edge
+            edge = world.graph.get_edge(self.current_edge)
+            if edge is not None:
+                current_node = edge.to_node
+
+        if current_node is None:
+            return current_tick + 99999, current_tick + 99999
+
+        # Get origin and destination nodes
+        origin_node = self._get_site_node(origin_site_id, world)
+        dest_node = self._get_site_node(destination_site_id, world)
+
+        if origin_node is None or dest_node is None:
+            return current_tick + 99999, current_tick + 99999
+
+        # Calculate time to complete current delivery queue
+        queue_time_s = self._estimate_queue_completion_time(world)
+
+        # Time to origin
+        time_to_origin_s = world.router.estimate_travel_time_s(
+            current_node, origin_node, world.graph, self.max_speed_kph
+        )
+
+        # Loading time at origin (estimate based on package size, assume ~0.1 tonnes per size unit)
+        package_weight = 0.1  # Rough estimate
+        loading_time_s = package_weight / 0.5 * 60  # loading_rate = 0.5 tonnes/min
+
+        # Time from origin to destination
+        time_to_dest_s = world.router.estimate_travel_time_s(
+            origin_node, dest_node, world.graph, self.max_speed_kph
+        )
+
+        # Unloading time at destination
+        unloading_time_s = loading_time_s
+
+        # Total estimates
+        total_to_pickup_s = queue_time_s + time_to_origin_s
+        total_to_delivery_s = total_to_pickup_s + loading_time_s + time_to_dest_s + unloading_time_s
+
+        # Convert to ticks
+        est_pickup_tick = current_tick + int(total_to_pickup_s / world.dt_s)
+        est_delivery_tick = current_tick + int(total_to_delivery_s / world.dt_s)
+
+        return est_pickup_tick, est_delivery_tick
+
+    def _estimate_queue_completion_time(self, world: World) -> float:
+        """Estimate time to complete all tasks in the current delivery queue.
+
+        Returns:
+            Estimated time in seconds
+        """
+        if not self.delivery_queue:
+            return 0.0
+
+        total_time = 0.0
+        current_node = self.current_node
+
+        if current_node is None and self.current_edge is not None:
+            edge = world.graph.get_edge(self.current_edge)
+            if edge is not None:
+                current_node = edge.to_node
+
+        if current_node is None:
+            return float("inf")
+
+        for task in self.delivery_queue:
+            if task.status == TaskStatus.COMPLETED:
+                continue
+
+            # Travel time to task site
+            task_node = self._get_site_node(task.site_id, world)
+            if task_node is None:
+                continue
+
+            travel_time = world.router.estimate_travel_time_s(
+                current_node, task_node, world.graph, self.max_speed_kph
+            )
+            total_time += travel_time
+
+            # Loading/unloading time
+            # Estimate weight from packages
+            task_weight = 0.0
+            for pkg_id in task.package_ids:
+                package = world.packages.get(pkg_id)
+                if package is not None:
+                    task_weight += package.size * 0.1  # Convert size to weight
+
+            operation_time = task_weight / 0.5 * 60  # 0.5 tonnes/min
+            total_time += operation_time
+
+            current_node = task_node
+
+        return total_time
+
+    def _handle_assignment_confirmation(self, msg: Msg, _world: World) -> None:
+        """Handle confirmation that a package has been assigned to this truck."""
+        body = msg.body
+        package_id = PackageID(body.get("package_id", ""))
+        origin_site_id = SiteID(body.get("origin_site_id", ""))
+        destination_site_id = SiteID(body.get("destination_site_id", ""))
+
+        # Add pickup task to queue
+        pickup_task = DeliveryTask(
+            site_id=origin_site_id,
+            task_type=TaskType.PICKUP,
+            package_ids=[package_id],
+            estimated_arrival_tick=0,  # Will be updated during route planning
+            status=TaskStatus.PENDING,
+        )
+
+        # Add delivery task to queue
+        delivery_task = DeliveryTask(
+            site_id=destination_site_id,
+            task_type=TaskType.DELIVERY,
+            package_ids=[package_id],
+            estimated_arrival_tick=0,
+            status=TaskStatus.PENDING,
+        )
+
+        # Add tasks to queue (pickup before delivery for this package)
+        self._add_delivery_tasks(pickup_task, delivery_task)
+
+    def _add_delivery_tasks(self, pickup_task: DeliveryTask, delivery_task: DeliveryTask) -> None:
+        """Add pickup and delivery tasks to the queue intelligently.
+
+        Tries to consolidate with existing tasks at the same sites.
+        """
+        # Check if we already have a pickup task for this site
+        pickup_added = False
+        for existing_task in self.delivery_queue:
+            if (
+                existing_task.site_id == pickup_task.site_id
+                and existing_task.task_type == TaskType.PICKUP
+                and existing_task.status == TaskStatus.PENDING
+            ):
+                # Consolidate: add packages to existing task
+                for pkg_id in pickup_task.package_ids:
+                    if pkg_id not in existing_task.package_ids:
+                        existing_task.package_ids.append(pkg_id)
+                pickup_added = True
+                break
+
+        if not pickup_added:
+            # Find optimal position for pickup task
+            # For now, append to end (can be optimized later)
+            self.delivery_queue.append(pickup_task)
+
+        # Check if we already have a delivery task for this site
+        delivery_added = False
+        for existing_task in self.delivery_queue:
+            if (
+                existing_task.site_id == delivery_task.site_id
+                and existing_task.task_type == TaskType.DELIVERY
+                and existing_task.status == TaskStatus.PENDING
+            ):
+                # Consolidate: add packages to existing task
+                for pkg_id in delivery_task.package_ids:
+                    if pkg_id not in existing_task.package_ids:
+                        existing_task.package_ids.append(pkg_id)
+                delivery_added = True
+                break
+
+        if not delivery_added:
+            # Delivery task must come after pickup
+            self.delivery_queue.append(delivery_task)
+
+    def _try_start_site_operation(self, world: World) -> bool:
+        """Try to start loading/unloading at the current node.
+
+        Returns:
+            True if an operation was started, False otherwise
+        """
+        if self.current_node is None or not self.delivery_queue:
+            return False
+
+        # Get the next pending task
+        current_task = None
+        for task in self.delivery_queue:
+            if task.status == TaskStatus.PENDING:
+                current_task = task
+                break
+
+        if current_task is None:
+            return False
+
+        # Check if we're at the task's site
+        task_node = self._get_site_node(current_task.site_id, world)
+        if task_node != self.current_node:
+            return False
+
+        # Get the site building
+        site = self._resolve_site(world, current_task.site_id, self.current_node)
+        if site is None:
+            return False
+
+        # Try to enter the site
+        if not site.has_space():
+            # Site is full, wait
+            return True  # Return True to indicate we're handling this (waiting)
+
+        try:
+            site.enter(self.id)
+            self.current_building_id = site.id
+            self._building_node_id = self.current_node
+        except ValueError:
+            return True  # Site became full, wait
+
+        # Mark task as in progress
+        current_task.status = TaskStatus.IN_PROGRESS
+
+        # Calculate loading/unloading time
+        total_weight = 0.0
+        for pkg_id in current_task.package_ids:
+            package = world.packages.get(pkg_id)
+            if package is not None:
+                total_weight += package.size * 0.1  # Size to weight conversion
+
+        self.loading_target_s = site.calculate_loading_time_s(total_weight)
+        self.loading_progress_s = 0.0
+
+        if current_task.task_type == TaskType.PICKUP:
+            self.is_loading = True
+        else:
+            self.is_unloading = True
+
+        return True
+
+    def _handle_loading(self, world: World) -> None:
+        """Handle package loading at a site."""
+        self.loading_progress_s += world.dt_s
+
+        if self.loading_progress_s >= self.loading_target_s:
+            # Loading complete
+            self._complete_loading(world)
+
+    def _complete_loading(self, world: World) -> None:
+        """Complete the loading operation at current site."""
+        # Find the current loading task
+        current_task = None
+        for task in self.delivery_queue:
+            if task.status == TaskStatus.IN_PROGRESS and task.task_type == TaskType.PICKUP:
+                current_task = task
+                break
+
+        if current_task is None:
+            self.is_loading = False
+            return
+
+        # Load all packages from this task
+        for pkg_id in current_task.package_ids:
+            package = world.packages.get(pkg_id)
+            if package is not None and self.can_load_package(world, pkg_id):
+                self.load_package(pkg_id)
+                world.update_package_status(pkg_id, PackageStatus.IN_TRANSIT.value, self.id)
+
+                # Remove from site's active packages
+                site = self._resolve_site(world, current_task.site_id, self.current_node)
+                if site is not None:
+                    site.remove_package(pkg_id)
+                    site.update_statistics("picked_up")
+
+        # Mark task as completed
+        current_task.status = TaskStatus.COMPLETED
+
+        # Leave the site
+        self._leave_site(world)
+
+        # Reset loading state
+        self.is_loading = False
+        self.loading_progress_s = 0.0
+        self.loading_target_s = 0.0
+
+        # Notify broker of pickup
+        if self.broker_id is not None:
+            for pkg_id in current_task.package_ids:
+                pickup_msg = Msg(
+                    src=self.id,
+                    dst=self.broker_id,
+                    typ="pickup_confirmed",
+                    body={"package_id": str(pkg_id)},
+                )
+                self.outbox.append(pickup_msg)
+
+    def _handle_unloading(self, world: World) -> None:
+        """Handle package unloading at a site."""
+        self.loading_progress_s += world.dt_s
+
+        if self.loading_progress_s >= self.loading_target_s:
+            # Unloading complete
+            self._complete_unloading(world)
+
+    def _complete_unloading(self, world: World) -> None:
+        """Complete the unloading operation at current site."""
+        # Find the current unloading task
+        current_task = None
+        for task in self.delivery_queue:
+            if task.status == TaskStatus.IN_PROGRESS and task.task_type == TaskType.DELIVERY:
+                current_task = task
+                break
+
+        if current_task is None:
+            self.is_unloading = False
+            return
+
+        # Unload all packages destined for this site
+        for pkg_id in list(current_task.package_ids):  # Copy list since we're modifying
+            if pkg_id in self.loaded_packages:
+                package = world.packages.get(pkg_id)
+                self.unload_package(pkg_id)
+
+                if package is not None:
+                    # Check if on time
+                    on_time = world.tick <= package.delivery_deadline_tick
+                    world.update_package_status(pkg_id, PackageStatus.DELIVERED.value, self.id)
+
+                    # Update site statistics
+                    site = self._resolve_site(world, current_task.site_id, self.current_node)
+                    if site is not None:
+                        site.update_statistics("delivered", package.value_currency)
+
+                    # Notify broker of delivery
+                    if self.broker_id is not None:
+                        delivery_msg = Msg(
+                            src=self.id,
+                            dst=self.broker_id,
+                            typ="delivery_confirmed",
+                            body={
+                                "package_id": str(pkg_id),
+                                "delivery_tick": world.tick,
+                                "on_time": on_time,
+                                "delivery_site_id": str(current_task.site_id),
+                            },
+                        )
+                        self.outbox.append(delivery_msg)
+
+        # Mark task as completed
+        current_task.status = TaskStatus.COMPLETED
+
+        # Leave the site
+        self._leave_site(world)
+
+        # Reset unloading state
+        self.is_unloading = False
+        self.loading_progress_s = 0.0
+        self.loading_target_s = 0.0
+
+    def _leave_site(self, world: World) -> None:
+        """Leave the current site building."""
+        if self.current_building_id is None:
+            return
+
+        site = self._resolve_site(
+            world, self.current_building_id, self.current_node or self._building_node_id
+        )
+        if site is not None and self.id in site.current_agents:
+            site.leave(self.id)
+
+        self.current_building_id = None
+        self._building_node_id = None
+
+    def _resolve_site(self, world: World, site_id: SiteID, node_id: NodeID | None) -> Site | None:
+        """Resolve a site building from its ID."""
+        target_node_id = node_id or self._building_node_id
+        if target_node_id is None:
+            return None
+
+        node = world.graph.get_node(target_node_id)
+        if node is None:
+            return None
+
+        for building in node.get_buildings():
+            if building.id == site_id and isinstance(building, Site):
+                return building
+
+        return None
+
+    def _get_site_node(self, site_id: SiteID, world: World) -> NodeID | None:
+        """Get the node ID where a site is located."""
+        for node_id_raw, node in world.graph.nodes.items():
+            for building in node.buildings:
+                if isinstance(building, Site) and building.id == site_id:
+                    return cast(NodeID, node_id_raw)
+        return None
+
+    def _plan_next_destination(self, world: World) -> None:
+        """Plan route to next destination based on delivery queue.
+
+        If no delivery tasks are pending, the truck idles at its current location
+        waiting for the broker to assign new packages.
+        """
+        # First, clean up completed tasks
+        self.delivery_queue = [
+            task for task in self.delivery_queue if task.status != TaskStatus.COMPLETED
+        ]
+
+        # Check if we have pending delivery tasks
+        if self.delivery_queue:
+            # Find next pending task
+            next_task = None
+            for task in self.delivery_queue:
+                if task.status == TaskStatus.PENDING:
+                    next_task = task
+                    break
+
+            if next_task is not None:
+                # Route to next task's site
+                dest_node = self._get_site_node(next_task.site_id, world)
+                if dest_node is not None:
+                    self.destination = dest_node
+                    self._set_route(world)
+                    return
+
+        # No delivery tasks - idle and wait for broker assignments
+        # Clear any existing route/destination
+        self.destination = None
+        self.route = []
+        self.route_start_node = None
+        self.route_end_node = None
+
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
 
@@ -1065,6 +1654,13 @@ class Truck:
             "is_seeking_gas_station": self.is_seeking_gas_station,
             "is_fueling": self.is_fueling,
             "fueling_liters_needed": self.fueling_liters_needed,
+            # Delivery system fields
+            "delivery_queue": [task.to_dict() for task in self.delivery_queue],
+            "is_loading": self.is_loading,
+            "is_unloading": self.is_unloading,
+            "loading_progress_s": self.loading_progress_s,
+            "loading_target_s": self.loading_target_s,
+            "broker_id": str(self.broker_id) if self.broker_id else None,
             # Metadata
             "inbox_count": len(self.inbox),
             "outbox_count": len(self.outbox),

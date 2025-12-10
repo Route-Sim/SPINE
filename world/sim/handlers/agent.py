@@ -115,6 +115,21 @@ class AgentActionHandler:
                     kind=agent_kind,
                     spawn_node=spawn_node,
                 )
+            elif agent_kind == "broker":
+                from agents.broker import Broker
+
+                # Check if a broker already exists (singleton constraint)
+                for existing_agent in context.world.agents.values():
+                    if isinstance(existing_agent, Broker):
+                        raise ValueError("A broker agent already exists (singleton)")
+
+                # Create broker instance
+                balance = agent_data.get("balance_ducats", 10000.0)
+                agent_instance = Broker(  # type: ignore[assignment]
+                    id=agent_id,
+                    kind=agent_kind,
+                    balance_ducats=float(balance),
+                )
             else:
                 # Fallback to base agent
                 # AgentBase doesn't accept arbitrary kwargs, so store agent_data in tags

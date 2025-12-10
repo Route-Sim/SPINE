@@ -4,7 +4,7 @@ summary: "Autonomous transport agent that navigates through the graph network fo
 source_paths:
   - "agents/transports/truck.py"
   - "tests/agents/test_truck.py"
-last_updated: "2025-12-09"
+last_updated: "2025-12-10"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
@@ -655,6 +655,11 @@ diffs = [d for d in diffs if d is not None]  # Filter None
    - **Choice:** Store both max_speed_kph and current_speed_kph
    - **Rationale:** Separates agent capability from situational speed
    - **Trade-off:** Slight redundancy, but clearer semantics
+
+5. **Typed site lookups:**
+   - **Choice:** Cast raw graph node keys to `NodeID` during site resolution
+   - **Rationale:** Keeps strict typing intact even though graph storage is generic
+   - **Trade-off:** Assumes graph keys remain integer-compatible node identifiers
 
 5. **Position representation (mutually exclusive):**
    - **Choice:** current_node OR current_edge (never both)

@@ -3,10 +3,10 @@
 import math
 import random
 from dataclasses import asdict, dataclass, field
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar
 
-from core.buildings.base import Building
-from core.types import BuildingID, DeliveryUrgency, PackageID, Priority, SiteID
+from core.buildings.occupancy import OccupiableBuilding
+from core.types import AgentID, DeliveryUrgency, PackageID, Priority, SiteID
 
 
 @dataclass
@@ -30,27 +30,37 @@ class SiteStatistics:
         return cls(**data)
 
 
-@dataclass
-class Site(Building):
-    """Site building for pickup and delivery operations."""
+@dataclass(kw_only=True)
+class Site(OccupiableBuilding):
+    """Site building for pickup and delivery operations.
+
+    Sites are occupiable buildings where trucks can dock for loading/unloading.
+    Trucks must enter the site to load or unload packages, and the loading time
+    is proportional to the total weight of packages being handled.
+
+    Note: Uses kw_only=True to allow non-default fields after inherited defaults.
+    All fields must be passed as keyword arguments when constructing Site.
+    """
 
     TYPE: ClassVar[str] = "site"
 
-    id: BuildingID
+    # Site-specific fields
     name: str
     activity_rate: float  # λ for Poisson process (packages/hour)
+    # Override capacity with a default (3 trucks can dock at once)
+    capacity: int = 3
+    # Fields with defaults
+    loading_rate_tonnes_per_min: float = 0.5  # 0.5 tonnes/min = 2 min per tonne
     destination_weights: dict[SiteID, float] = field(default_factory=dict)
     package_config: dict[str, Any] = field(default_factory=dict)
     active_packages: list[PackageID] = field(default_factory=list)
     statistics: SiteStatistics = field(default_factory=SiteStatistics)
 
     def __post_init__(self) -> None:
-        """Initialize site with default package configuration if not provided."""
-        # Cast id to BuildingID (SiteID and BuildingID are both str at runtime, so this is safe)
-        # This allows Site to accept SiteID in constructor while storing as BuildingID
-        # Note: NewTypes can't be checked with isinstance(), so we just cast
-        # The cast appears redundant to mypy but is needed for runtime conversion
-        object.__setattr__(self, "id", cast(BuildingID, self.id))  # type: ignore[redundant-cast]
+        """Initialize site with default package configuration and validate occupancy."""
+        # Validate occupancy configuration from parent
+        super().__post_init__()
+
         if not self.package_config:
             self.package_config = {
                 "size_range": (1.0, 30.0),  # Unitless size (1-30)
@@ -72,14 +82,19 @@ class Site(Building):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize site to dictionary."""
-        data = asdict(self)
+        # Start with parent's serialization (includes capacity, current_agents)
+        data = super().to_dict()
+        # Add site-specific fields
+        data["name"] = self.name
+        data["activity_rate"] = self.activity_rate
+        data["loading_rate_tonnes_per_min"] = self.loading_rate_tonnes_per_min
+        data["destination_weights"] = {str(k): v for k, v in self.destination_weights.items()}
+        data["package_config"] = self.package_config
+        data["active_packages"] = list(self.active_packages)
         # Convert SiteStatistics to dict
         data["statistics"] = self.statistics.to_dict()
         # Add type field
         data["type"] = self.TYPE
-        # Remove internal tracking fields from serialization
-        data.pop("_dirty", None)
-        data.pop("_last_serialized_state", None)
         return data
 
     @classmethod
@@ -90,6 +105,16 @@ class Site(Building):
         data.pop("type", None)
         data.pop("_dirty", None)
         data.pop("_last_serialized_state", None)
+
+        # Convert current_agents list back to set
+        if "current_agents" in data and isinstance(data["current_agents"], list):
+            data["current_agents"] = {AgentID(a) for a in data["current_agents"]}
+
+        # Convert destination_weights keys back to SiteID
+        if "destination_weights" in data and isinstance(data["destination_weights"], dict):
+            data["destination_weights"] = {
+                SiteID(k): v for k, v in data["destination_weights"].items()
+            }
 
         # Convert statistics dict back to SiteStatistics
         if isinstance(data.get("statistics"), dict):
@@ -259,3 +284,20 @@ class Site(Building):
             self.statistics.packages_expired += 1
             self.statistics.total_value_expired += value
             self.mark_dirty()
+
+    def calculate_loading_time_s(self, total_weight_tonnes: float) -> float:
+        """Calculate the time needed to load/unload a given weight.
+
+        Args:
+            total_weight_tonnes: Total weight of packages to load/unload in tonnes
+
+        Returns:
+            Time in seconds to complete the loading/unloading operation
+        """
+        # loading_rate_tonnes_per_min is tonnes per minute
+        # Time in minutes = weight / rate
+        # Time in seconds = time in minutes * 60
+        if self.loading_rate_tonnes_per_min <= 0:
+            return 0.0
+        time_minutes = total_weight_tonnes / self.loading_rate_tonnes_per_min
+        return time_minutes * 60.0

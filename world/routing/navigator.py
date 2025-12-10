@@ -186,6 +186,48 @@ class Navigator:
 
         return total_cost
 
+    def estimate_travel_time_s(
+        self, start: NodeID, goal: NodeID, graph: Graph, max_speed_kph: float
+    ) -> float:
+        """Estimate travel time from start to goal in seconds.
+
+        Computes the A* route and calculates the total travel time.
+
+        Args:
+            start: Starting node ID
+            goal: Destination node ID
+            graph: Graph to navigate
+            max_speed_kph: Maximum speed of the agent
+
+        Returns:
+            Estimated travel time in seconds. Returns float('inf') if no route exists.
+        """
+        route = self.find_route(start, goal, graph, max_speed_kph)
+        if not route:
+            return float("inf")
+
+        # _calculate_route_cost returns time in hours, convert to seconds
+        time_hours = self._calculate_route_cost(route, graph, max_speed_kph)
+        return time_hours * 3600.0
+
+    def estimate_route_travel_time_s(
+        self, route: list[NodeID], graph: Graph, max_speed_kph: float
+    ) -> float:
+        """Calculate travel time for an existing route in seconds.
+
+        Useful when the route is already computed and just needs time estimation.
+
+        Args:
+            route: List of node IDs forming the route
+            graph: Graph containing the nodes and edges
+            max_speed_kph: Maximum speed of the agent
+
+        Returns:
+            Total travel time in seconds
+        """
+        time_hours = self._calculate_route_cost(route, graph, max_speed_kph)
+        return time_hours * 3600.0
+
     def find_closest_node(
         self,
         start: NodeID,

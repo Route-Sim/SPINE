@@ -3,7 +3,7 @@ title: "World"
 summary: "Central simulation environment that orchestrates the logistics network, managing agents, packages, sites, events, and the simulation step loop with comprehensive package lifecycle management."
 source_paths:
   - "world/world.py"
-last_updated: "2024-12-19"
+last_updated: "2025-12-10"
 owner: "Mateusz Polis"
 tags: ["module", "simulation", "environment", "orchestration"]
 links:
@@ -188,6 +188,7 @@ agent_diffs = result["agents"]
 - **Unique IDs**: Agent IDs must be unique within the world
 - **Automatic cleanup**: Agents are removed when world is destroyed
 - **State consistency**: Agent state is validated on addition
+- **Typed lookups**: Site-to-node resolution casts graph keys to `NodeID` to keep typing strict despite the graph being stored as generic mappings
 
 ### Package Management
 - **Lifecycle tracking**: Packages progress through WAITING_PICKUP → IN_TRANSIT → DELIVERED

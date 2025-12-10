@@ -3,7 +3,7 @@ title: "WebSocket Server"
 summary: "FastAPI WebSocket server for bidirectional communication between frontend and simulation with connection management, signal broadcasting, and robust error handling."
 source_paths:
   - "world/io/websocket_server.py"
-last_updated: "2025-10-30"
+last_updated: "2025-12-10"
 owner: "Mateusz Polis"
 tags: ["module", "api", "infra"]
 links:
@@ -137,6 +137,8 @@ await server.stop_signal_broadcast()  # Stop signal broadcasting
 - Connection errors isolated from simulation
 
 **Serialization Safety**: Before broadcasting, the server normalizes all mapping keys to strings to satisfy strict JSON serialization requirements.
+
+**Map Signal Completeness**: The `map.created` snapshot always includes gas station density and capacity fields; imported maps fall back to zero/neutral placeholders to satisfy DTO validation while keeping clients informed.
 
 **Signal Broadcasting**: Continuous signal streaming from simulation
 - Background task for signal broadcasting
