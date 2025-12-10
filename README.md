@@ -32,6 +32,24 @@ chmod +x scripts/validate-commit.sh
 
 ### Development
 
+#### Run Locally (no Docker)
+
+```bash
+# 1) Install dependencies
+poetry install
+
+# 2) (Optional) Install pre-commit hooks for local checks
+poetry run pre-commit install
+poetry run pre-commit install --hook-type commit-msg
+
+# 3) Start the backend (empty world; load or generate a map via WebSocket actions)
+poetry run python -m world.sim.runner --host 0.0.0.0 --port 8000 --log-level INFO
+```
+
+Endpoints:
+- WebSocket: `ws://localhost:8000/ws`
+- Health: `http://localhost:8000/health`
+
 #### Running Tests
 
 ```bash
