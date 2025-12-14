@@ -8,6 +8,7 @@ import pytest
 
 from world.io.websocket_server import ConnectionManager, WebSocketServer
 from world.sim.actions.action_parser import ActionRequest
+from world.sim.dto.step_result_dto import TickDataDTO
 from world.sim.queues import ActionQueue, ActionType, SignalQueue, create_tick_start_signal
 
 
@@ -190,7 +191,8 @@ class TestWebSocketServer:
     async def test_broadcast_signals(self) -> None:
         """Test broadcasting signals from queue."""
         # Add signal to queue
-        signal = create_tick_start_signal(tick=100)
+        tick_data = TickDataDTO(tick=100, time=12.0, day=1)
+        signal = create_tick_start_signal(tick_data)
         self.signal_queue.put(signal)
 
         # Mock broadcast method

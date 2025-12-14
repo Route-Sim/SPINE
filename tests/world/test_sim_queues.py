@@ -6,6 +6,7 @@ import time
 import pytest
 
 from world.sim.actions.action_parser import ActionRequest
+from world.sim.dto.step_result_dto import TickDataDTO
 from world.sim.queues import (
     ActionQueue,
     ActionType,
@@ -84,13 +85,16 @@ class TestSignalQueue:
     def test_put_and_get(self) -> None:
         """Test basic put and get operations."""
         queue = SignalQueue()
-        signal = create_tick_start_signal(tick=123)
+        tick_data = TickDataDTO(tick=123, time=12.0, day=1)
+        signal = create_tick_start_signal(tick_data)
 
         queue.put(signal)
         retrieved = queue.get()
 
         assert retrieved.signal == signal_type_to_string(SignalType.TICK_START)
-        assert retrieved.data == {"tick": 123}
+        assert retrieved.data["tick"] == 123
+        assert retrieved.data["time"] == 12.0
+        assert retrieved.data["day"] == 1
 
     def test_empty_queue(self) -> None:
         """Test getting from empty queue."""
@@ -107,13 +111,16 @@ class TestSignalQueue:
         assert queue.get_nowait() is None
 
         # Add signal and retrieve
-        signal = create_tick_start_signal(tick=456)
+        tick_data = TickDataDTO(tick=456, time=13.5, day=1)
+        signal = create_tick_start_signal(tick_data)
         queue.put(signal)
         retrieved = queue.get_nowait()
 
         assert retrieved is not None
         assert retrieved.signal == signal_type_to_string(SignalType.TICK_START)
-        assert retrieved.data == {"tick": 456}
+        assert retrieved.data["tick"] == 456
+        assert retrieved.data["time"] == 13.5
+        assert retrieved.data["day"] == 1
 
 
 class TestSignal:
@@ -223,13 +230,18 @@ class TestConvenienceFunctions:
 
     def test_create_tick_signals(self) -> None:
         """Test create tick signal functions."""
-        start_signal = create_tick_start_signal(tick=200)
-        end_signal = create_tick_end_signal(tick=200)
+        tick_data = TickDataDTO(tick=200, time=14.25, day=1)
+        start_signal = create_tick_start_signal(tick_data)
+        end_signal = create_tick_end_signal(tick_data)
 
         assert start_signal.signal == signal_type_to_string(SignalType.TICK_START)
-        assert start_signal.data == {"tick": 200}
+        assert start_signal.data["tick"] == 200
+        assert start_signal.data["time"] == 14.25
+        assert start_signal.data["day"] == 1
         assert end_signal.signal == signal_type_to_string(SignalType.TICK_END)
-        assert end_signal.data == {"tick": 200}
+        assert end_signal.data["tick"] == 200
+        assert end_signal.data["time"] == 14.25
+        assert end_signal.data["day"] == 1
 
 
 class TestThreadSafety:

@@ -5,6 +5,23 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
+class TickDataDTO(BaseModel):
+    """DTO for tick time and day information.
+
+    Represents the simulation time state for a given tick, calculated from
+    elapsed simulation time starting at 12:00 on day 1.
+
+    Attributes:
+        tick: The current simulation tick number.
+        time: Current time in 24-hour format (0.0-23.999...).
+        day: Current simulation day (starts at 1).
+    """
+
+    tick: int = Field(description="Current simulation tick number")
+    time: float = Field(ge=0.0, lt=24.0, description="Current time in 24-hour format")
+    day: int = Field(ge=1, description="Current simulation day (starts at 1)")
+
+
 class StepResultDTO(BaseModel):
     """DTO for the result of a simulation step.
 
@@ -14,6 +31,7 @@ class StepResultDTO(BaseModel):
         events: List of world events that occurred during the step.
         agent_diffs: List of agent state changes (None entries filtered out).
         building_updates: List of building state changes (only dirty buildings).
+        tick_data: Time and day information for this tick.
     """
 
     events: list[dict[str, Any]] = Field(
@@ -25,6 +43,7 @@ class StepResultDTO(BaseModel):
     building_updates: list[dict[str, Any]] = Field(
         default_factory=list, description="Building state updates"
     )
+    tick_data: TickDataDTO = Field(description="Time and day information for this tick")
 
     def get_events(self) -> list[dict[str, Any]]:
         """Get list of world events."""
@@ -49,3 +68,7 @@ class StepResultDTO(BaseModel):
     def has_building_updates(self) -> bool:
         """Check if there are any building updates."""
         return len(self.building_updates) > 0
+
+    def get_tick_data(self) -> TickDataDTO:
+        """Get tick time and day information."""
+        return self.tick_data

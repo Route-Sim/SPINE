@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .actions.action_parser import ActionRequest
 from .dto.simulation_dto import SimulationParamsDTO
+from .dto.step_result_dto import TickDataDTO
 
 if TYPE_CHECKING:
     from .signal_dtos.map_created import MapCreatedSignalData
@@ -277,14 +278,28 @@ def create_import_map_action(map_name: str) -> ActionRequest:
 
 
 # Convenience functions for creating common signals
-def create_tick_start_signal(tick: int) -> Signal:
-    """Create a tick start signal."""
-    return Signal(signal=signal_type_to_string(SignalType.TICK_START), data={"tick": tick})
+def create_tick_start_signal(tick_data: TickDataDTO) -> Signal:
+    """Create a tick start signal with time and day information.
+
+    Args:
+        tick_data: TickDataDTO containing tick, time, and day information.
+
+    Returns:
+        Signal with tick.start type and tick data.
+    """
+    return Signal(signal=signal_type_to_string(SignalType.TICK_START), data=tick_data.model_dump())
 
 
-def create_tick_end_signal(tick: int) -> Signal:
-    """Create a tick end signal."""
-    return Signal(signal=signal_type_to_string(SignalType.TICK_END), data={"tick": tick})
+def create_tick_end_signal(tick_data: TickDataDTO) -> Signal:
+    """Create a tick end signal with time and day information.
+
+    Args:
+        tick_data: TickDataDTO containing tick, time, and day information.
+
+    Returns:
+        Signal with tick.end type and tick data.
+    """
+    return Signal(signal=signal_type_to_string(SignalType.TICK_END), data=tick_data.model_dump())
 
 
 def create_agent_update_signal(agent_id: str, data: dict[str, Any], tick: int) -> Signal:

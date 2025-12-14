@@ -11,12 +11,16 @@ from core.packages.package import Package
 from core.types import AgentID, NodeID, PackageID, SiteID
 from world.io import map_manager
 from world.routing.navigator import Navigator
-from world.sim.dto.step_result_dto import StepResultDTO
+from world.sim.dto.step_result_dto import StepResultDTO, TickDataDTO
 
 # Constants for fuel price simulation
 SECONDS_PER_DAY = 86400  # 24 hours in seconds
 DEFAULT_FUEL_PRICE = 5.0  # Default fuel price in ducats/liter
 DEFAULT_FUEL_VOLATILITY = 0.1  # ±10% daily change
+
+# Simulation time constants
+SIMULATION_START_HOUR = 12  # Simulation starts at 12:00 (noon)
+SIMULATION_START_SECONDS = SIMULATION_START_HOUR * 3600  # 43200 seconds (12:00)
 
 
 class World:
@@ -52,6 +56,30 @@ class World:
     def time_min(self) -> int:
         return int(self.now_s() / 60)
 
+    def calculate_tick_data(self, tick: int | None = None) -> TickDataDTO:
+        """Calculate tick time and day information.
+
+        Simulation starts at 12:00 on day 1. Time is calculated based on
+        elapsed simulation seconds from the start.
+
+        Args:
+            tick: Optional tick number to calculate for. If None, uses current self.tick.
+
+        Returns:
+            TickDataDTO with tick, time (24h format), and day.
+        """
+        # Use provided tick or current tick
+        tick_number = tick if tick is not None else self.tick
+        # Calculate elapsed seconds from start (tick 0 = 12:00 day 1)
+        elapsed_seconds = tick_number * self.dt_s
+        # Current time in seconds from midnight of day 1
+        current_time_seconds = SIMULATION_START_SECONDS + elapsed_seconds
+        # Calculate day (1-based)
+        day = int(1 + (current_time_seconds // SECONDS_PER_DAY))
+        # Calculate time in 24-hour format (0.0-23.999...)
+        time_hours = (current_time_seconds % SECONDS_PER_DAY) / 3600.0
+        return TickDataDTO(tick=tick_number, time=time_hours, day=day)
+
     def emit_event(self, e: Any) -> None:
         self._events.append(e)
 
@@ -81,10 +109,13 @@ class World:
         building_updates = self._collect_building_updates()
         evts = self._events
         self._events = []
+        # 7) calculate tick time and day information
+        tick_data = self.calculate_tick_data()
         return StepResultDTO(
             events=evts,
             agent_diffs=diffs,
             building_updates=building_updates,
+            tick_data=tick_data,
         )
 
     def add_agent(self, agent_id: AgentID, agent: "AgentBase") -> None:

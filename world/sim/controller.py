@@ -175,18 +175,20 @@ class SimulationController:
     def _run_simulation_step(self) -> None:
         """Run a single simulation step."""
         try:
-            # Emit tick start signal
+            # Increment tick counter
             self.state.increment_tick()
-            self._emit_signal(create_tick_start_signal(self.state.current_tick))
 
             # Run world step
             step_result = self.world.step()
 
+            # Emit tick start signal with time and day information from step result
+            self._emit_signal(create_tick_start_signal(step_result.tick_data))
+
             # Process step results and emit signals
             self._process_step_result(step_result)
 
-            # Emit tick end signal
-            self._emit_signal(create_tick_end_signal(self.state.current_tick))
+            # Emit tick end signal with time and day information from step result
+            self._emit_signal(create_tick_end_signal(step_result.tick_data))
 
         except Exception as e:
             self.logger.error(f"Error in simulation step: {e}", exc_info=True)

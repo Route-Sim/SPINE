@@ -373,9 +373,11 @@ class TestSimulationController:
 
     def test_emit_signal(self) -> None:
         """Test signal emission."""
+        from world.sim.dto.step_result_dto import TickDataDTO
         from world.sim.queues import create_tick_start_signal
 
-        signal = create_tick_start_signal(tick=100)
+        tick_data = TickDataDTO(tick=100, time=12.0, day=1)
+        signal = create_tick_start_signal(tick_data)
         self.controller._emit_signal(signal)
 
         # Verify signal was added to queue
@@ -383,7 +385,9 @@ class TestSimulationController:
         retrieved_signal = self.signal_queue.get_nowait()
         assert retrieved_signal is not None
         assert retrieved_signal.signal == signal_type_to_string(SignalType.TICK_START)
-        assert retrieved_signal.data == {"tick": 100}
+        assert retrieved_signal.data["tick"] == 100
+        assert retrieved_signal.data["time"] == 12.0
+        assert retrieved_signal.data["day"] == 1
 
     def test_error_handling(self) -> None:
         """Test error handling in action processing."""
