@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.34.0](https://github.com/Route-Sim/backend/compare/v0.33.0...v0.34.0) (2025-12-14)
+
+
+### 🚀 Features
+
+* **truck:** add idle parking functionality and state management ([56adc43](https://github.com/Route-Sim/backend/commit/56adc4376fd90d4a0bacc73caf114f9d1bca4afa))
+
 ## [0.33.0](https://github.com/Route-Sim/backend/compare/v0.32.1...v0.33.0) (2025-12-14)
 
 
