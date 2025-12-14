@@ -153,7 +153,8 @@ class TruckStateDTO(BaseModel):
         is_resting: Currently in mandatory rest
         balance_ducats: Financial balance
         risk_factor: Risk tolerance (0.0-1.0)
-        is_seeking_parking: Actively seeking parking
+        is_seeking_parking: Actively seeking parking (for rest)
+        is_seeking_idle_parking: Actively seeking parking (when idle, no tasks)
         original_destination: Preserved destination when diverting
         fuel_tank_capacity_l: Maximum fuel tank capacity
         current_fuel_l: Current fuel level
@@ -183,6 +184,7 @@ class TruckStateDTO(BaseModel):
     balance_ducats: float
     risk_factor: float
     is_seeking_parking: bool
+    is_seeking_idle_parking: bool
     original_destination: NodeID | None
     # Fuel system fields
     fuel_tank_capacity_l: float

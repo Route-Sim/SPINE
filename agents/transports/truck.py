@@ -71,7 +71,8 @@ class Truck:
     required_rest_s: float = 0.0  # Required rest duration when resting
     balance_ducats: float = 0.0  # Financial balance for penalties
     risk_factor: float = 0.5  # Risk tolerance (0.0-1.0, affects parking search timing)
-    is_seeking_parking: bool = False  # Flag for active parking search
+    is_seeking_parking: bool = False  # Flag for active parking search (for rest)
+    is_seeking_idle_parking: bool = False  # Flag for seeking parking when idle (no tasks)
     original_destination: NodeID | None = None  # Preserved destination when diverting to parking
     _tried_parkings: set[BuildingID] = field(default_factory=set, init=False, repr=False)
 
@@ -221,7 +222,22 @@ class Truck:
             return
 
         # Process broker messages (proposals, assignments)
+        # If broker messages result in new tasks, clear idle parking state
+        had_no_tasks = not self.delivery_queue
         self._handle_broker_messages(world)
+        # If we now have tasks and were in idle parking state, clear it
+        if had_no_tasks and self.delivery_queue:
+            # Clear idle parking seeking flag
+            if self.is_seeking_idle_parking:
+                self.is_seeking_idle_parking = False
+            # Leave parking if we're parked (but not resting)
+            if (
+                self.current_building_id is not None
+                and not self.is_resting
+                and not self.is_seeking_parking
+            ):
+                # We were at idle parking - leave to start working
+                self.leave_parking(world)
 
         # Check for overtime penalties (apply once per violation)
         if self.driving_time_s > 8 * 3600:
@@ -231,9 +247,16 @@ class Truck:
         if (
             not self.is_seeking_gas_station
             and not self.is_seeking_parking
+            and not self.is_seeking_idle_parking
             and self._should_seek_gas_station()
         ):
             self.is_seeking_gas_station = True
+            # Clear idle parking if we were seeking it
+            if self.is_seeking_idle_parking:
+                self.is_seeking_idle_parking = False
+                # Leave parking if we're at idle parking
+                if self.current_building_id is not None and not self.is_resting:
+                    self.leave_parking(world)
             if self.original_destination is None:
                 self.original_destination = self.destination
             gas_station_id, route = self._find_closest_gas_station(world)
@@ -254,9 +277,16 @@ class Truck:
         if (
             not self.is_seeking_parking
             and not self.is_seeking_gas_station
+            and not self.is_seeking_idle_parking
             and self._should_seek_parking()
         ):
             self.is_seeking_parking = True
+            # Clear idle parking if we were seeking it
+            if self.is_seeking_idle_parking:
+                self.is_seeking_idle_parking = False
+                # Leave parking if we're at idle parking
+                if self.current_building_id is not None and not self.is_resting:
+                    self.leave_parking(world)
             if self.original_destination is None:
                 self.original_destination = self.destination
             parking_id, route = self._find_closest_parking(world)
@@ -286,7 +316,7 @@ class Truck:
                 return
             # If couldn't enter, fall through to try next gas station or continue
 
-            # Handle parking arrival when seeking parking
+            # Handle parking arrival when seeking parking (for rest)
             if self.is_seeking_parking and not self.route:
                 # Try to find parking at current node
                 node = world.graph.get_node(self.current_node)
@@ -325,13 +355,52 @@ class Truck:
                             self._tried_parkings.clear()
                 return
 
+            # Handle idle parking arrival (park but don't rest)
+            if self.is_seeking_idle_parking and not self.route:
+                # Try to find parking at current node
+                node = world.graph.get_node(self.current_node)
+                if node:
+                    parked = False
+                    # O(1) lookup for parking buildings by type
+                    for building in node.get_buildings_by_type(Parking):
+                        if building.has_space():
+                            try:
+                                self.park_in_building(world, building.id)
+                                # Successfully parked - but don't start resting
+                                self.is_seeking_idle_parking = False
+                                parked = True
+                                break
+                            except ValueError:
+                                # Parking full, add to tried list
+                                self._tried_parkings.add(building.id)
+
+                    if not parked:
+                        # Parking full or not found - try next parking
+                        parking_id, route = self._find_closest_parking(world)
+                        if parking_id and route:
+                            self.destination = route[-1] if route else None
+                            self.route_end_node = self.destination
+                            if route and route[0] == self.current_node:
+                                self.route = route[1:]
+                            else:
+                                self.route = route
+                        else:
+                            # No more parkings available - give up seeking
+                            self.is_seeking_idle_parking = False
+                            self._tried_parkings.clear()
+                return
+
             # Check if we've arrived at a delivery task site
             if not self.route and self.delivery_queue and self._try_start_site_operation(world):
                 return
 
             # Normal behavior: enter next edge or plan route
             if not self.route:
-                if not self.is_seeking_parking and not self.is_seeking_gas_station:
+                if (
+                    not self.is_seeking_parking
+                    and not self.is_seeking_gas_station
+                    and not self.is_seeking_idle_parking
+                ):
                     self._plan_next_destination(world)
                 return
             else:
@@ -350,8 +419,12 @@ class Truck:
                 if self.is_seeking_gas_station and not self.route:
                     should_stop = True
 
-                # Stop if seeking parking and arrived at destination
+                # Stop if seeking parking (for rest) and arrived at destination
                 if self.is_seeking_parking and not self.route:
+                    should_stop = True
+
+                # Stop if seeking idle parking and arrived at destination
+                if self.is_seeking_idle_parking and not self.route:
                     should_stop = True
 
                 # Stop if we have delivery tasks and this is a task site
@@ -1552,8 +1625,8 @@ class Truck:
     def _plan_next_destination(self, world: World) -> None:
         """Plan route to next destination based on delivery queue.
 
-        If no delivery tasks are pending, the truck idles at its current location
-        waiting for the broker to assign new packages.
+        If no delivery tasks are pending, the truck seeks the closest parking
+        to wait for broker assignments (idle parking, not rest).
         """
         # First, clean up completed tasks
         self.delivery_queue = [
@@ -1562,6 +1635,12 @@ class Truck:
 
         # Check if we have pending delivery tasks
         if self.delivery_queue:
+            # Clear idle parking state if we have tasks
+            if self.is_seeking_idle_parking:
+                self.is_seeking_idle_parking = False
+                if self.current_building_id is not None and not self.is_resting:
+                    self.leave_parking(world)
+
             # Find next pending task
             next_task = None
             for task in self.delivery_queue:
@@ -1577,12 +1656,36 @@ class Truck:
                     self._set_route(world)
                     return
 
-        # No delivery tasks - idle and wait for broker assignments
-        # Clear any existing route/destination
-        self.destination = None
-        self.route = []
-        self.route_start_node = None
-        self.route_end_node = None
+        # No delivery tasks - seek closest parking for idle waiting
+        # Only if not already at a parking (unless we're resting)
+        if self.current_building_id is not None and not self.is_resting:
+            # Already at a parking, stay there
+            self.destination = None
+            self.route = []
+            self.route_start_node = None
+            self.route_end_node = None
+            return
+
+        # Seek closest parking
+        if not self.is_seeking_idle_parking:
+            self.is_seeking_idle_parking = True
+            self._tried_parkings.clear()
+
+        parking_id, route = self._find_closest_parking(world)
+        if parking_id and route:
+            self.destination = route[-1] if route else None
+            self.route_end_node = self.destination
+            if route and self.current_node and route[0] == self.current_node:
+                self.route = route[1:]
+            else:
+                self.route = route
+        else:
+            # No parking found - clear seeking flag and stay put
+            self.is_seeking_idle_parking = False
+            self.destination = None
+            self.route = []
+            self.route_start_node = None
+            self.route_end_node = None
 
     def serialize_diff(self) -> dict[str, Any] | None:
         """Return a small dict for UI delta, or None if no changes.
@@ -1633,6 +1736,7 @@ class Truck:
             balance_ducats=self.balance_ducats,
             risk_factor=self.risk_factor,
             is_seeking_parking=self.is_seeking_parking,
+            is_seeking_idle_parking=self.is_seeking_idle_parking,
             original_destination=self.original_destination,
             # Fuel system fields
             fuel_tank_capacity_l=self.fuel_tank_capacity_l,
@@ -1671,6 +1775,7 @@ class Truck:
             "balance_ducats": self.balance_ducats,
             "risk_factor": self.risk_factor,
             "is_seeking_parking": self.is_seeking_parking,
+            "is_seeking_idle_parking": self.is_seeking_idle_parking,
             "original_destination": self.original_destination,
             # Fuel system fields
             "fuel_tank_capacity_l": self.fuel_tank_capacity_l,
