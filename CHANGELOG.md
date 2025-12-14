@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.1](https://github.com/Route-Sim/backend/compare/v0.32.0...v0.32.1) (2025-12-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* update README with local development instructions and WebSocket endpoints
+
+### 📝 Documentation
+
+* update README with local development instructions and WebSocket endpoints ([c046263](https://github.com/Route-Sim/backend/commit/c046263b8058df56bf06acca32f1d82f0f9f1241))
+
+
+### ♻️ Code Refactoring
+
+* **truck:** implement zero-tick passthrough optimization for improved route efficiency ([1455e62](https://github.com/Route-Sim/backend/commit/1455e6271ce8996349452e8c353d637799c1db1e))
+
 ## [0.32.0](https://github.com/Route-Sim/SPINE/compare/v0.31.0...v0.32.0) (2025-12-10)
 
 
