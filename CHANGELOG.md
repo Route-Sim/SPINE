@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0](https://github.com/Route-Sim/backend/compare/v0.32.1...v0.33.0) (2025-12-14)
+
+
+### 🚀 Features
+
+* **simulation:** introduce TickDataDTO for enhanced tick signal handling and time management ([32cda70](https://github.com/Route-Sim/backend/commit/32cda708f221d2a95c082b1e9a3834a0fae3ec9e))
+
 ## [0.32.1](https://github.com/Route-Sim/backend/compare/v0.32.0...v0.32.1) (2025-12-14)
 
 
