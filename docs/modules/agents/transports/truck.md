@@ -4,7 +4,7 @@ summary: "Autonomous transport agent that navigates through the graph network fo
 source_paths:
   - "agents/transports/truck.py"
   - "tests/agents/test_truck.py"
-last_updated: "2025-12-10"
+last_updated: "2025-12-14"
 owner: "Mateusz Polis"
 tags: ["module", "sim"]
 links:
@@ -164,6 +164,7 @@ Note: `current_building_id` is used for both parking and gas station occupancy. 
        - Set `current_node = edge.to_node`
        - Clear `current_edge`, reset `edge_progress_m`
        - Pop completed node from route
+     - **Optimization (zero-tick passthrough):** If just arrived at node and route continues without requiring a stop (no gas station, parking, or delivery site), immediately enter the next edge within the same tick
 
 3. **Serialization phase:**
    - Compare current state with last serialized state
@@ -362,13 +363,18 @@ fueling_liters_needed: float = 0.0  # Liters to fill
 
 ```
 [At Node] --enter_next_edge--> [On Edge] --move_along_edge--> [At Node]
-    ^                                                              |
-    |                                                              |
-    +------------------route complete or empty--------------------+
+    ^                                |                              |
+    |                                |                              |
+    |                                +--zero-tick passthrough-------+ (if no stop required)
+    |                                      (optimization)
+    |                                                               |
+    +------------------route complete or empty---------------------+
                               |
                               v
                         [Plan New Route]
 ```
+
+**Note:** The zero-tick passthrough optimization allows trucks to immediately transition from one edge to another without waiting at intermediate nodes, unless the node requires a stop (gas station, parking, or delivery site).
 
 ### Edge Resolution from Route
 
@@ -676,6 +682,12 @@ diffs = [d for d in diffs if d is not None]  # Filter None
    - **Rationale:** Allows consumers to display full trip context even after intermediate nodes are popped
    - **Trade-off:** Requires careful resets when routes are discarded or completed
 
+7. **Zero-tick passthrough optimization:**
+   - **Choice:** After arriving at a node, immediately enter next edge if no stop is required
+   - **Rationale:** Eliminates unnecessary tick delays at intermediate nodes, improves route traversal efficiency
+   - **Trade-off:** Slightly more complex logic to determine if a stop is needed (checks for gas station, parking, delivery sites)
+   - **Implementation:** After `_move_along_edge` completes an edge, checks if the truck can continue immediately without stopping
+
 ### Third-party Libraries
 
 - **random:** Python standard library for destination selection
@@ -744,6 +756,15 @@ diffs = [d for d in diffs if d is not None]  # Filter None
 2. **Adjacency map:** Precompute node_pair → edge mapping
 3. **Destination pool:** Maintain list of available destinations
 4. **Batch pathfinding:** Compute routes for multiple trucks in parallel
+
+### Implemented Optimizations
+
+1. **Zero-tick passthrough (2025-12-14):**
+   - Trucks now immediately jump from one edge to another at intermediate nodes without stopping
+   - Only stops when necessary (gas station, parking, delivery site)
+   - Eliminates wasted ticks at pass-through nodes
+   - Significantly improves route traversal efficiency for multi-hop routes
+   - Example: 10-node route previously took 10 ticks at nodes + edge traversal time; now takes only edge traversal time
 
 ## Security & Reliability
 

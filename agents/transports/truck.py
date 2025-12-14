@@ -341,6 +341,31 @@ class Truck:
         # Case 2: On an edge, continue moving
         if self.current_edge is not None:
             self._move_along_edge(world)
+            # After moving, check if we just arrived at a node and can continue immediately
+            if self.current_node is not None and self.route:
+                # Check if this is a stop we need to respect (not just a pass-through node)
+                should_stop = False
+
+                # Stop if seeking gas station and arrived at destination
+                if self.is_seeking_gas_station and not self.route:
+                    should_stop = True
+
+                # Stop if seeking parking and arrived at destination
+                if self.is_seeking_parking and not self.route:
+                    should_stop = True
+
+                # Stop if we have delivery tasks and this is a task site
+                if self.delivery_queue:
+                    for task in self.delivery_queue:
+                        if task.status == TaskStatus.PENDING:
+                            task_node = self._get_site_node(task.site_id, world)
+                            if task_node == self.current_node:
+                                should_stop = True
+                                break
+
+                # If no reason to stop, immediately enter next edge
+                if not should_stop:
+                    self._enter_next_edge(world)
             return
 
     def _plan_new_route(self, world: World) -> None:
