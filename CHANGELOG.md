@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.0](https://github.com/Route-Sim/backend/compare/v0.34.0...v0.35.0) (2025-12-16)
+
+
+### 🚀 Features
+
+* **broker, truck, world:** enhance logging and error handling across ([ad2defc](https://github.com/Route-Sim/backend/commit/ad2defcc57a67fdaab4dfb2f0157bb63477d7124))
+
 ## [0.34.0](https://github.com/Route-Sim/backend/compare/v0.33.0...v0.34.0) (2025-12-14)
 
 
