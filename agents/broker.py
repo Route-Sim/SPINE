@@ -95,22 +95,46 @@ class Broker:
         3. Check for pickup deadline expiry on queued packages
         4. Process delivery confirmations
         """
-        # 1. Process inbox messages
-        self._process_inbox(world)
+        import logging
 
-        # 2. Handle active negotiation responses
-        if self.active_negotiation is not None:
-            self._handle_negotiation_response(world)
+        logger = logging.getLogger(__name__)
 
-        # 3. Start new negotiation if none active
-        if self.active_negotiation is None and self.package_queue:
-            self._start_new_negotiation(world)
+        try:
+            logger.debug(f"Broker.decide() starting at tick {world.tick}")
 
-        # 4. Check for pickup deadline expiry and apply fines
-        self._check_package_expiry(world)
+            # 1. Process inbox messages
+            logger.debug(f"Broker: Processing {len(self.inbox)} inbox messages")
+            self._process_inbox(world)
+            logger.debug("Broker: Inbox processed")
 
-        # Clear inbox after processing
-        self.inbox = []
+            # 2. Handle active negotiation responses
+            if self.active_negotiation is not None:
+                logger.debug(
+                    f"Broker: Handling active negotiation for package {self.active_negotiation.package_id}"
+                )
+                self._handle_negotiation_response(world)
+                logger.debug("Broker: Active negotiation handled")
+
+            # 3. Start new negotiation if none active
+            if self.active_negotiation is None and self.package_queue:
+                logger.debug(
+                    f"Broker: Starting new negotiation (queue size: {len(self.package_queue)})"
+                )
+                self._start_new_negotiation(world)
+                logger.debug("Broker: New negotiation started")
+
+            # 4. Check for pickup deadline expiry and apply fines
+            logger.debug("Broker: Checking package expiry")
+            self._check_package_expiry(world)
+            logger.debug("Broker: Package expiry checked")
+
+            # Clear inbox after processing
+            self.inbox = []
+            logger.debug(f"Broker.decide() completed at tick {world.tick}")
+
+        except Exception as e:
+            logger.error(f"Broker.decide() error at tick {world.tick}: {e}", exc_info=True)
+            raise
 
     def _process_inbox(self, world: World) -> None:
         """Process all messages in inbox."""
@@ -238,27 +262,56 @@ class Broker:
             self._send_proposal_to_current_truck(world)
 
     def _start_new_negotiation(self, world: World) -> None:
-        """Start negotiation for the next package in queue."""
-        while self.package_queue:
+        """Start negotiation for the next package in queue.
+
+        To prevent infinite loops when no trucks are available, we limit
+        how many packages we try per tick (max = current queue size).
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        logger.debug(f"_start_new_negotiation: Queue has {len(self.package_queue)} packages")
+
+        # Limit attempts to prevent infinite loop when no trucks available
+        max_attempts = len(self.package_queue)
+        attempts = 0
+
+        while self.package_queue and attempts < max_attempts:
+            attempts += 1
             package_id = self.package_queue.pop(0)
+            logger.debug(
+                f"_start_new_negotiation: Processing package {package_id} (attempt {attempts}/{max_attempts})"
+            )
 
             # Verify package still exists and is available
             package = world.packages.get(package_id)
             if package is None or package.status != PackageStatus.WAITING_PICKUP:
+                logger.debug(f"_start_new_negotiation: Package {package_id} no longer available")
                 continue
 
             # Skip if already assigned
             if package_id in self.assigned_packages:
+                logger.debug(f"_start_new_negotiation: Package {package_id} already assigned")
                 continue
 
             # Find candidate trucks
+            logger.debug(f"_start_new_negotiation: Finding candidates for package {package_id}")
             candidates = self._find_candidate_trucks(package, world)
+            logger.debug(
+                f"_start_new_negotiation: Found {len(candidates)} candidates for package {package_id}"
+            )
+
             if not candidates:
                 # No trucks available - put back at end of queue
+                logger.debug(
+                    f"_start_new_negotiation: No candidates, requeueing package {package_id}"
+                )
                 self.package_queue.append(package_id)
                 continue
 
             # Start negotiation
+            logger.debug(f"_start_new_negotiation: Starting negotiation for package {package_id}")
             self.active_negotiation = NegotiationState(
                 package_id=package_id,
                 status=NegotiationStatus.PROPOSED,
@@ -268,8 +321,18 @@ class Broker:
             )
 
             # Send proposal to first candidate
+            logger.debug(f"_start_new_negotiation: Sending proposal to truck {candidates[0]}")
             self._send_proposal_to_current_truck(world)
+            logger.debug("_start_new_negotiation: Completed successfully")
             return
+
+        if attempts >= max_attempts:
+            logger.warning(
+                f"_start_new_negotiation: Reached max attempts ({max_attempts}), "
+                f"no negotiation started. Queue size: {len(self.package_queue)}"
+            )
+        else:
+            logger.debug("_start_new_negotiation: Queue empty, no negotiation started")
 
     def _find_candidate_trucks(self, package: Package, world: World) -> list[AgentID]:
         """Find trucks that could potentially pick up this package.
@@ -283,16 +346,34 @@ class Broker:
         Returns:
             List of truck AgentIDs sorted by proximity to pickup site
         """
+        import logging
+
         from agents.transports.truck import Truck
+
+        logger = logging.getLogger(__name__)
+
+        logger.debug(
+            f"_find_candidate_trucks: Finding trucks for package at site {package.origin_site}"
+        )
 
         candidates: list[tuple[float, AgentID]] = []
 
         # Get pickup site node
+        logger.debug(f"_find_candidate_trucks: Getting site node for {package.origin_site}")
         origin_node = self._get_site_node(package.origin_site, world)
         if origin_node is None:
+            logger.debug(f"_find_candidate_trucks: Site {package.origin_site} node not found")
             return []
+        logger.debug(f"_find_candidate_trucks: Site node is {origin_node}")
 
-        for agent_id, agent in world.agents.items():
+        logger.debug(f"_find_candidate_trucks: Evaluating {len(world.agents)} agents")
+
+        for idx, (agent_id, agent) in enumerate(world.agents.items()):
+            if idx % 5 == 0:  # Log every 5 agents to avoid spam
+                logger.debug(
+                    f"_find_candidate_trucks: Processing agent {idx + 1}/{len(world.agents)}"
+                )
+
             if not isinstance(agent, Truck):
                 continue
 
@@ -314,9 +395,13 @@ class Broker:
                 continue
 
             # Estimate travel time to pickup site
+            logger.debug(
+                f"_find_candidate_trucks: Estimating travel time for truck {agent_id} from {truck_node} to {origin_node}"
+            )
             travel_time = world.router.estimate_travel_time_s(
                 truck_node, origin_node, world.graph, agent.max_speed_kph
             )
+            logger.debug(f"_find_candidate_trucks: Truck {agent_id} travel time: {travel_time}s")
 
             if travel_time < float("inf"):
                 candidates.append((travel_time, agent_id))
@@ -324,6 +409,7 @@ class Broker:
         # Sort by travel time (closest first)
         candidates.sort(key=lambda x: x[0])
 
+        logger.debug(f"_find_candidate_trucks: Found {len(candidates)} candidate trucks")
         return [agent_id for _, agent_id in candidates]
 
     def _send_proposal_to_current_truck(self, world: World) -> None:
@@ -444,12 +530,22 @@ class Broker:
         Returns:
             NodeID where the site is located, or None if not found
         """
+        import logging
+
         from core.buildings.site import Site
+
+        logger = logging.getLogger(__name__)
+        logger.debug(
+            f"_get_site_node: Searching for site {site_id} in {len(world.graph.nodes)} nodes"
+        )
 
         for node_id_raw, node in world.graph.nodes.items():
             for building in node.buildings:
                 if isinstance(building, Site) and building.id == site_id:
+                    logger.debug(f"_get_site_node: Found site {site_id} at node {node_id_raw}")
                     return cast(NodeID, node_id_raw)
+
+        logger.warning(f"_get_site_node: Site {site_id} not found in graph")
         return None
 
     def serialize_diff(self) -> dict[str, Any] | None:

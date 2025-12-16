@@ -1268,3 +1268,40 @@ def test_truck_stops_when_out_of_fuel() -> None:
     # Event should have been emitted
     assert len(world._events) == 1
     assert world._events[0]["event_type"] == "out_of_fuel"
+
+
+def test_truck_estimate_delivery_times_handles_no_route() -> None:
+    """Test that _estimate_delivery_times handles infinity gracefully when no route exists."""
+    # Create a disconnected graph with two separate nodes
+    graph = Graph()
+    node1 = Node(id=NodeID(1), x=0.0, y=0.0)
+    node2 = Node(id=NodeID(2), x=1000.0, y=1000.0)  # Disconnected node
+    graph.add_node(node1)
+    graph.add_node(node2)
+
+    # Add sites to the nodes
+    from core.buildings.site import Site
+    from core.types import SiteID
+
+    site1 = Site(id=SiteID("site-1"), name="Site 1", activity_rate=1.0)
+    site2 = Site(id=SiteID("site-2"), name="Site 2", activity_rate=1.0)
+    node1.add_building(site1)
+    node2.add_building(site2)
+
+    # Create world with navigator
+    router = Navigator()
+    world = World(graph=graph, router=router, traffic=None, dt_s=1.0)
+
+    # Create truck at node1
+    truck = Truck(id=AgentID("truck-1"), kind="truck")
+    truck.current_node = NodeID(1)
+
+    # Call _estimate_delivery_times with disconnected nodes
+    # This should not raise OverflowError
+    est_pickup, est_delivery = truck._estimate_delivery_times(
+        world, SiteID("site-1"), SiteID("site-2")
+    )
+
+    # Should return large finite values instead of crashing
+    assert est_pickup == world.tick + 99999
+    assert est_delivery == world.tick + 99999

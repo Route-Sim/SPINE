@@ -1273,6 +1273,15 @@ class Truck:
         # Unloading time at destination
         unloading_time_s = loading_time_s
 
+        # Check for infinity values (no route exists)
+        if (
+            queue_time_s == float("inf")
+            or time_to_origin_s == float("inf")
+            or time_to_dest_s == float("inf")
+        ):
+            # Return large but finite values to indicate unreachable
+            return current_tick + 99999, current_tick + 99999
+
         # Total estimates
         total_to_pickup_s = queue_time_s + time_to_origin_s
         total_to_delivery_s = total_to_pickup_s + loading_time_s + time_to_dest_s + unloading_time_s

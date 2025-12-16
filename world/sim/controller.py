@@ -71,6 +71,9 @@ class SimulationController:
         self._stats_batch_id = 0
         self._stats_writer_thread: threading.Thread | None = None
         self._stats_writer_stop_event = threading.Event()
+        # Watchdog for detecting hangs
+        self._last_tick_time = time.time()
+        self._watchdog_timeout_s = 30.0  # Warn if no tick in 30 seconds
 
     def start(self) -> None:
         """Start the simulation controller in a separate thread."""
@@ -80,12 +83,18 @@ class SimulationController:
 
         self._stop_event.clear()
         self._stats_writer_stop_event.clear()
+        self._last_tick_time = time.time()
         # Start statistics writer thread
         self._stats_writer_thread = threading.Thread(target=self._stats_writer_loop, daemon=True)
         self._stats_writer_thread.start()
         # Start main simulation thread
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = threading.Thread(target=self._run, daemon=True, name="SimulationController")
         self._thread.start()
+        # Start watchdog thread
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_loop, daemon=True, name="SimulationWatchdog"
+        )
+        self._watchdog_thread.start()
         self.logger.info("Simulation controller started")
 
     def stop(self) -> None:
@@ -108,19 +117,32 @@ class SimulationController:
 
         while not self._stop_event.is_set():
             try:
+                self.logger.debug(
+                    f"Loop iteration starting - running={self.state.running}, paused={self.state.paused}, tick={self.state.current_tick}"
+                )
                 loop_start = time.perf_counter()
 
                 # Process actions and measure time
                 action_start = time.perf_counter()
+                self.logger.debug("Processing actions...")
                 self._process_actions()
                 action_time_ms = (time.perf_counter() - action_start) * 1000.0
+                self.logger.debug(f"Actions processed in {action_time_ms:.2f}ms")
 
                 # Run simulation step if running and not paused
                 step_time_ms = 0.0
                 if self.state.running and not self.state.paused:
+                    self.logger.debug(
+                        f"Running simulation step for tick {self.state.current_tick + 1}"
+                    )
                     step_start = time.perf_counter()
                     self._run_simulation_step()
                     step_time_ms = (time.perf_counter() - step_start) * 1000.0
+                    self.logger.debug(f"Simulation step completed in {step_time_ms:.2f}ms")
+                else:
+                    self.logger.debug(
+                        f"Skipping simulation step - running={self.state.running}, paused={self.state.paused}"
+                    )
 
                 # Calculate total processing time
                 total_time_ms = (time.perf_counter() - loop_start) * 1000.0
@@ -146,14 +168,20 @@ class SimulationController:
                         )
 
                     if sleep_time > 0.0:
+                        self.logger.debug(f"Sleeping for {sleep_time:.4f}s to maintain tick rate")
                         time.sleep(sleep_time)
                 else:
                     # If not running, sleep longer to avoid busy waiting
+                    self.logger.debug("Not running, sleeping 0.1s")
                     time.sleep(0.1)
+
+                self.logger.debug(f"Loop iteration completed - total time: {total_time_ms:.2f}ms")
 
             except Exception as e:
                 self.logger.error(f"Error in simulation loop: {e}", exc_info=True)
                 self._emit_error(f"Simulation error: {e}")
+                # Pause simulation on error to prevent rapid error loops
+                self.state.pause()
                 time.sleep(1.0)  # Wait before retrying
 
         self.logger.info("Simulation loop ended")
@@ -177,18 +205,29 @@ class SimulationController:
         try:
             # Increment tick counter
             self.state.increment_tick()
+            self.logger.debug(f"Starting simulation step for tick {self.state.current_tick}")
 
             # Run world step
+            self.logger.debug(f"Calling world.step() for tick {self.state.current_tick}")
             step_result = self.world.step()
+            self.logger.debug(f"world.step() completed for tick {self.state.current_tick}")
 
             # Emit tick start signal with time and day information from step result
+            self.logger.debug(f"Emitting tick.start signal for tick {self.state.current_tick}")
             self._emit_signal(create_tick_start_signal(step_result.tick_data))
 
             # Process step results and emit signals
+            self.logger.debug(f"Processing step results for tick {self.state.current_tick}")
             self._process_step_result(step_result)
+            self.logger.debug(f"Step results processed for tick {self.state.current_tick}")
 
             # Emit tick end signal with time and day information from step result
+            self.logger.debug(f"Emitting tick.end signal for tick {self.state.current_tick}")
             self._emit_signal(create_tick_end_signal(step_result.tick_data))
+            self.logger.debug(f"Simulation step completed for tick {self.state.current_tick}")
+
+            # Update watchdog timestamp
+            self._last_tick_time = time.time()
 
         except Exception as e:
             self.logger.error(f"Error in simulation step: {e}", exc_info=True)
@@ -397,3 +436,39 @@ class SimulationController:
             self.logger.debug(f"Wrote statistics batch {batch.batch_id} to {filepath}")
         except Exception as e:
             self.logger.error(f"Failed to write statistics batch {batch.batch_id}: {e}")
+
+    def _watchdog_loop(self) -> None:
+        """Watchdog thread that monitors the simulation for hangs."""
+        self.logger.info("Watchdog thread started")
+
+        while not self._stop_event.is_set():
+            try:
+                time.sleep(5.0)  # Check every 5 seconds
+
+                # Only monitor if simulation is running and not paused
+                if self.state.running and not self.state.paused:
+                    time_since_last_tick = time.time() - self._last_tick_time
+
+                    if time_since_last_tick > self._watchdog_timeout_s:
+                        self.logger.error(
+                            f"WATCHDOG: Simulation appears to be hung! "
+                            f"No tick completed in {time_since_last_tick:.1f} seconds. "
+                            f"Current tick: {self.state.current_tick}, "
+                            f"Thread alive: {self._thread.is_alive() if self._thread else False}"
+                        )
+                        # Emit error signal
+                        self._emit_error(
+                            f"Simulation watchdog timeout: No tick in {time_since_last_tick:.1f}s"
+                        )
+                        # Pause simulation to prevent further issues
+                        self.state.pause()
+                        self.logger.error("WATCHDOG: Paused simulation due to timeout")
+                    elif time_since_last_tick > 10.0:
+                        self.logger.warning(
+                            f"WATCHDOG: Simulation running slow - "
+                            f"{time_since_last_tick:.1f}s since last tick"
+                        )
+            except Exception as e:
+                self.logger.error(f"Error in watchdog loop: {e}", exc_info=True)
+
+        self.logger.info("Watchdog thread stopped")

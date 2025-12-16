@@ -89,34 +89,93 @@ class World:
         Returns:
             StepResultDTO containing all state changes from this tick.
         """
-        self.tick += 1
+        import logging
 
-        # 0) update global fuel price once per simulation day
-        self._update_daily_fuel_price()
-        # 1) sense (optional)
-        for a in self.agents.values():
-            a.perceive(self)
-        # 2) dispatch messages (outboxes to inboxes)
-        self._deliver_all()
-        # 3) process sites (spawn packages, check expiry)
-        self._process_sites(self.tick)
-        # 4) decide/act
-        for a in self.agents.values():
-            a.decide(self)
-        # 5) collect UI diffs
-        diffs = [a.serialize_diff() for a in self.agents.values()]
-        # 6) collect building updates (only dirty buildings)
-        building_updates = self._collect_building_updates()
-        evts = self._events
-        self._events = []
-        # 7) calculate tick time and day information
-        tick_data = self.calculate_tick_data()
-        return StepResultDTO(
-            events=evts,
-            agent_diffs=diffs,
-            building_updates=building_updates,
-            tick_data=tick_data,
-        )
+        logger = logging.getLogger(__name__)
+
+        try:
+            logger.debug(f"World.step() starting for tick {self.tick + 1}")
+            self.tick += 1
+
+            # 0) update global fuel price once per simulation day
+            logger.debug(f"Tick {self.tick}: Updating daily fuel price")
+            self._update_daily_fuel_price()
+
+            # 1) sense (optional)
+            logger.debug(f"Tick {self.tick}: Starting perceive phase for {len(self.agents)} agents")
+            for idx, (agent_id, a) in enumerate(self.agents.items()):
+                try:
+                    logger.debug(
+                        f"Tick {self.tick}: Agent {idx + 1}/{len(self.agents)} ({agent_id}) perceiving"
+                    )
+                    a.perceive(self)
+                except Exception as e:
+                    logger.error(
+                        f"Tick {self.tick}: Error in agent {agent_id}.perceive(): {e}",
+                        exc_info=True,
+                    )
+                    raise
+            logger.debug(f"Tick {self.tick}: Perceive phase completed")
+
+            # 2) dispatch messages (outboxes to inboxes)
+            logger.debug(f"Tick {self.tick}: Delivering messages")
+            self._deliver_all()
+            logger.debug(f"Tick {self.tick}: Message delivery completed")
+
+            # 3) process sites (spawn packages, check expiry)
+            logger.debug(f"Tick {self.tick}: Processing sites")
+            self._process_sites(self.tick)
+            logger.debug(f"Tick {self.tick}: Site processing completed")
+
+            # 4) decide/act
+            logger.debug(f"Tick {self.tick}: Starting decide phase for {len(self.agents)} agents")
+            for idx, (agent_id, a) in enumerate(self.agents.items()):
+                try:
+                    logger.debug(
+                        f"Tick {self.tick}: Agent {idx + 1}/{len(self.agents)} ({agent_id}) deciding"
+                    )
+                    a.decide(self)
+                    logger.debug(f"Tick {self.tick}: Agent {agent_id} decide completed")
+                except Exception as e:
+                    logger.error(
+                        f"Tick {self.tick}: Error in agent {agent_id}.decide(): {e}", exc_info=True
+                    )
+                    raise
+            logger.debug(f"Tick {self.tick}: Decide phase completed")
+
+            # 5) collect UI diffs
+            logger.debug(f"Tick {self.tick}: Collecting agent diffs")
+            diffs = [a.serialize_diff() for a in self.agents.values()]
+            logger.debug(
+                f"Tick {self.tick}: Collected {len([d for d in diffs if d])} non-None diffs"
+            )
+
+            # 6) collect building updates (only dirty buildings)
+            logger.debug(f"Tick {self.tick}: Collecting building updates")
+            building_updates = self._collect_building_updates()
+            logger.debug(f"Tick {self.tick}: Collected {len(building_updates)} building updates")
+
+            evts = self._events
+            self._events = []
+            logger.debug(f"Tick {self.tick}: Collected {len(evts)} events")
+
+            # 7) calculate tick time and day information
+            logger.debug(f"Tick {self.tick}: Calculating tick data")
+            tick_data = self.calculate_tick_data()
+
+            logger.debug(f"Tick {self.tick}: Creating StepResultDTO")
+            result = StepResultDTO(
+                events=evts,
+                agent_diffs=diffs,
+                building_updates=building_updates,
+                tick_data=tick_data,
+            )
+            logger.debug(f"Tick {self.tick}: World.step() completed successfully")
+            return result
+
+        except Exception as e:
+            logger.error(f"Tick {self.tick}: Fatal error in World.step(): {e}", exc_info=True)
+            raise
 
     def add_agent(self, agent_id: AgentID, agent: "AgentBase") -> None:
         """Add an agent to the world."""
