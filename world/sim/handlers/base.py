@@ -3,12 +3,14 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from world.world import World
 
-from ..queues import SignalQueue
 from ..state import SimulationState
+
+if TYPE_CHECKING:
+    from ..queues import SignalQueue
 
 
 @dataclass
@@ -17,7 +19,7 @@ class HandlerContext:
 
     state: SimulationState
     world: World
-    signal_queue: SignalQueue
+    signal_queue: "SignalQueue"
     logger: logging.Logger
 
 

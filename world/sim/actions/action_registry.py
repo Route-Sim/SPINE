@@ -26,6 +26,8 @@ class ActionRegistry:
         self.register(ActionType.PAUSE, SimulationActionHandler.handle_pause)
         self.register(ActionType.RESUME, SimulationActionHandler.handle_resume)
         self.register(ActionType.UPDATE_SIMULATION, SimulationActionHandler.handle_update)
+        self.register(ActionType.EXPORT_STATE, SimulationActionHandler.handle_export_state)
+        self.register(ActionType.IMPORT_STATE, SimulationActionHandler.handle_import_state)
 
         # Agent actions
         self.register(ActionType.ADD_AGENT, AgentActionHandler.handle_create)

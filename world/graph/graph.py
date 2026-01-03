@@ -169,6 +169,80 @@ class Graph:
             ],
         }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Graph":
+        """Deserialize graph from JSON-friendly dictionary.
+
+        Args:
+            data: Dictionary containing 'nodes' and 'edges' lists
+
+        Returns:
+            Graph instance reconstructed from the data
+
+        Raises:
+            ValueError: If data is invalid or missing required fields
+        """
+        if "nodes" not in data:
+            raise ValueError("Missing 'nodes' field in graph data")
+        if "edges" not in data:
+            raise ValueError("Missing 'edges' field in graph data")
+
+        graph = cls()
+
+        # First, create all nodes
+        for node_data in data["nodes"]:
+            try:
+                node_id = NodeID(int(node_data["id"]))
+                x = float(node_data["x"])
+                y = float(node_data["y"])
+
+                node = Node(id=node_id, x=x, y=y)
+
+                # Add buildings if present
+                if "buildings" in node_data:
+                    for building_data in node_data["buildings"]:
+                        building = Building.from_dict(building_data)
+                        node.add_building(building)
+
+                graph.add_node(node)
+            except (KeyError, ValueError, TypeError) as e:
+                raise ValueError(f"Failed to parse node data: {e}") from e
+
+        # Then, create all edges
+        for edge_data in data["edges"]:
+            try:
+                edge_id = EdgeID(edge_data["id"])
+                from_node = NodeID(int(edge_data["from_node"]))
+                to_node = NodeID(int(edge_data["to_node"]))
+                length_m = float(edge_data["length_m"])
+                mode = Mode(int(edge_data["mode"]))
+                road_class = RoadClass(edge_data["road_class"])
+                lanes = int(edge_data["lanes"])
+                max_speed_kph = float(edge_data["max_speed_kph"])
+                weight_limit_kg = (
+                    float(edge_data["weight_limit_kg"])
+                    if edge_data.get("weight_limit_kg") is not None
+                    else None
+                )
+
+                edge = Edge(
+                    id=edge_id,
+                    from_node=from_node,
+                    to_node=to_node,
+                    length_m=length_m,
+                    mode=mode,
+                    road_class=road_class,
+                    lanes=lanes,
+                    max_speed_kph=max_speed_kph,
+                    weight_limit_kg=weight_limit_kg,
+                )
+
+                graph.add_edge(edge)
+            except (KeyError, ValueError, TypeError) as e:
+                raise ValueError(f"Failed to parse edge data: {e}") from e
+
+        return graph
+
     def to_graphml(self, filepath: str) -> None:
         """Export graph to GraphML format."""
         # Create root element

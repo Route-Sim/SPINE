@@ -1805,3 +1805,118 @@ class Truck:
             "outbox_count": len(self.outbox),
             "tags": self.tags.copy(),
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], _world: World) -> "Truck":
+        """Reconstruct a Truck instance from serialized state.
+
+        Args:
+            data: Dictionary containing serialized truck state
+            _world: World instance (unused but kept for API consistency)
+
+        Returns:
+            Reconstructed Truck instance
+
+        Raises:
+            ValueError: If data is invalid or missing required fields
+        """
+        try:
+            # Parse required fields with type conversion
+            truck_id = AgentID(data["id"])
+            kind = str(data.get("kind", "truck"))
+
+            # Parse NodeID fields (can be None or int)
+            current_node = (
+                NodeID(data["current_node"]) if data.get("current_node") is not None else None
+            )
+            destination = (
+                NodeID(data["destination"]) if data.get("destination") is not None else None
+            )
+            route_start_node = (
+                NodeID(data["route_start_node"])
+                if data.get("route_start_node") is not None
+                else None
+            )
+            route_end_node = (
+                NodeID(data["route_end_node"]) if data.get("route_end_node") is not None else None
+            )
+            original_destination = (
+                NodeID(data["original_destination"])
+                if data.get("original_destination") is not None
+                else None
+            )
+
+            # Parse EdgeID fields
+            current_edge = EdgeID(data["current_edge"]) if data.get("current_edge") else None
+
+            # Parse BuildingID fields
+            current_building_id = (
+                BuildingID(data["current_building_id"]) if data.get("current_building_id") else None
+            )
+
+            # Parse AgentID fields
+            broker_id = AgentID(data["broker_id"]) if data.get("broker_id") else None
+
+            # Parse route (list of NodeIDs)
+            route = [NodeID(node) for node in data.get("route", [])]
+
+            # Parse loaded packages (list of PackageIDs)
+            loaded_packages = [PackageID(pkg) for pkg in data.get("loaded_packages", [])]
+
+            # Parse delivery queue
+            delivery_queue = []
+            for task_data in data.get("delivery_queue", []):
+                delivery_queue.append(DeliveryTask.from_dict(task_data))
+
+            # Parse tags
+            tags = dict(data.get("tags", {}))
+
+            # Create truck instance with all fields
+            truck = cls(
+                id=truck_id,
+                kind=kind,
+                inbox=[],  # Inbox/outbox not preserved across saves
+                outbox=[],
+                tags=tags,
+                max_speed_kph=float(data.get("max_speed_kph", 100.0)),
+                capacity=float(data.get("capacity", 24.0)),
+                loaded_packages=loaded_packages,
+                current_speed_kph=float(data.get("current_speed_kph", 0.0)),
+                current_node=current_node,
+                current_edge=current_edge,
+                edge_progress_m=float(data.get("edge_progress_m", 0.0)),
+                route=route,
+                destination=destination,
+                route_start_node=route_start_node,
+                route_end_node=route_end_node,
+                current_building_id=current_building_id,
+                # Tachograph fields
+                driving_time_s=float(data.get("driving_time_s", 0.0)),
+                resting_time_s=float(data.get("resting_time_s", 0.0)),
+                is_resting=bool(data.get("is_resting", False)),
+                required_rest_s=float(data.get("required_rest_s", 0.0)),
+                balance_ducats=float(data.get("balance_ducats", 0.0)),
+                risk_factor=float(data.get("risk_factor", 0.5)),
+                is_seeking_parking=bool(data.get("is_seeking_parking", False)),
+                is_seeking_idle_parking=bool(data.get("is_seeking_idle_parking", False)),
+                original_destination=original_destination,
+                # Fuel system fields
+                fuel_tank_capacity_l=float(data.get("fuel_tank_capacity_l", 500.0)),
+                current_fuel_l=float(data.get("current_fuel_l", 500.0)),
+                co2_emitted_kg=float(data.get("co2_emitted_kg", 0.0)),
+                is_seeking_gas_station=bool(data.get("is_seeking_gas_station", False)),
+                is_fueling=bool(data.get("is_fueling", False)),
+                fueling_liters_needed=float(data.get("fueling_liters_needed", 0.0)),
+                # Delivery system fields
+                delivery_queue=delivery_queue,
+                broker_id=broker_id,
+                is_loading=bool(data.get("is_loading", False)),
+                is_unloading=bool(data.get("is_unloading", False)),
+                loading_progress_s=float(data.get("loading_progress_s", 0.0)),
+                loading_target_s=float(data.get("loading_target_s", 0.0)),
+            )
+
+            return truck
+
+        except (KeyError, ValueError, TypeError) as e:
+            raise ValueError(f"Failed to reconstruct Truck from data: {e}") from e

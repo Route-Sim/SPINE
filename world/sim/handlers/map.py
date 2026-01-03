@@ -1,5 +1,8 @@
 """Handler for map import/export actions."""
 
+import base64
+import binascii
+import json
 from typing import Any
 
 from pydantic import ValidationError
@@ -13,6 +16,9 @@ from ..queues import (
     create_map_imported_signal,
 )
 from .base import HandlerContext
+
+# File extension for SPINE map files
+MAP_FILE_EXTENSION = ".smap"
 
 
 def _emit_error(context: HandlerContext, error_message: str) -> None:
@@ -38,82 +44,86 @@ class MapActionHandler:
 
     @staticmethod
     def handle_export(params: dict[str, Any], context: HandlerContext) -> None:
-        """Handle export map action.
+        """Handle export map action (sends base64-encoded map file via WebSocket).
 
         Args:
-            params: Action parameters (required 'map_name')
+            params: Action parameters (optional 'filename' for custom name)
             context: Handler context
-
-        Raises:
-            ValueError: If map_name is missing or simulation is running
         """
-        if "map_name" not in params:
-            raise ValueError("map_name is required for map.export action")
-
-        map_name = params["map_name"]
-        if not isinstance(map_name, str):
-            raise ValueError("map_name must be a string")
-
-        # Reject if simulation is running
-        if context.state.running:
-            error_msg = "Cannot export map while simulation is running"
-            context.logger.warning(error_msg)
-            _emit_error(context, error_msg)
-            raise ValueError(error_msg)
-
         try:
-            context.world.export_graph(map_name)
-            _emit_signal(context, create_map_exported_signal(map_name))
-            context.logger.info(f"Map exported: {map_name}")
-        except ValueError as e:
-            context.logger.error(f"Failed to export map {map_name}: {e}")
-            _emit_error(context, f"Failed to export map: {e}")
-            raise
+            # Get optional filename from params
+            filename = params.get("filename", "map")
+            if not filename.endswith(MAP_FILE_EXTENSION):
+                filename += MAP_FILE_EXTENSION
+
+            # Export graph structure as dictionary
+            map_data = context.world.graph.to_dict()
+
+            # Convert to JSON and encode to base64
+            json_str = json.dumps(map_data, indent=2)
+            file_content_base64 = base64.b64encode(json_str.encode("utf-8")).decode("ascii")
+
+            _emit_signal(
+                context,
+                create_map_exported_signal(filename=filename, file_content=file_content_base64),
+            )
+            context.logger.info(f"Map exported via WebSocket: {filename}")
         except Exception as e:
-            context.logger.error(f"Unexpected error exporting map {map_name}: {e}", exc_info=True)
+            context.logger.error(f"Unexpected error exporting map: {e}", exc_info=True)
             _emit_error(context, f"Unexpected error exporting map: {e}")
             raise
 
     @staticmethod
     def handle_import(params: dict[str, Any], context: HandlerContext) -> None:
-        """Handle import map action.
+        """Handle import map action (receives base64-encoded map file via WebSocket).
 
         Args:
-            params: Action parameters (required 'map_name')
+            params: Action parameters (required 'file_content' base64 string, optional 'filename')
             context: Handler context
 
         Raises:
-            ValueError: If map_name is missing or simulation is running
-            FileNotFoundError: If map file not found
+            ValueError: If file_content is missing
         """
-        if "map_name" not in params:
-            raise ValueError("map_name is required for map.import action")
+        if "file_content" not in params:
+            raise ValueError("file_content is required for map.import action")
 
-        map_name = params["map_name"]
-        if not isinstance(map_name, str):
-            raise ValueError("map_name must be a string")
+        file_content_base64 = params["file_content"]
+        if not isinstance(file_content_base64, str):
+            raise ValueError("file_content must be a base64-encoded string")
 
-        # Reject if simulation is running
+        filename = params.get("filename", "unknown.smap")
+
+        # Stop simulation if it's running
         if context.state.running:
-            error_msg = "Cannot import map while simulation is running"
-            context.logger.warning(error_msg)
-            _emit_error(context, error_msg)
-            raise ValueError(error_msg)
+            context.logger.info("Stopping simulation to import map")
+            context.state.stop()
 
         try:
-            context.world.import_graph(map_name)
-            _emit_signal(context, create_map_imported_signal(map_name))
-            context.logger.info(f"Map imported: {map_name}")
-        except FileNotFoundError as e:
-            context.logger.error(f"Map file not found: {e}")
-            _emit_error(context, f"Map file not found: {map_name}")
-            raise
+            # Decode base64 and parse JSON
+            json_str = base64.b64decode(file_content_base64).decode("utf-8")
+            map_data = json.loads(json_str)
+
+            # Import graph from dictionary
+            from world.graph.graph import Graph
+
+            new_graph = Graph.from_dict(map_data)
+            context.world.graph = new_graph
+            _emit_signal(context, create_map_imported_signal(filename))
+            context.logger.info(f"Map imported via WebSocket: {filename}")
+        except (binascii.Error, UnicodeDecodeError) as e:
+            context.logger.error(f"Failed to decode base64 map data: {e}")
+            _emit_error(context, f"Invalid base64 encoding: {e}")
+            raise ValueError(f"Invalid base64 encoding: {e}") from e
+        except json.JSONDecodeError as e:
+            context.logger.error(f"Failed to parse map JSON: {e}")
+            _emit_error(context, f"Invalid JSON format: {e}")
+            raise ValueError(f"Invalid JSON format: {e}") from e
         except ValueError as e:
-            context.logger.error(f"Failed to import map {map_name}: {e}")
+            context.logger.error(f"Failed to import map: {e}")
             _emit_error(context, f"Failed to import map: {e}")
             raise
         except Exception as e:
-            context.logger.error(f"Unexpected error importing map {map_name}: {e}", exc_info=True)
+            context.logger.error(f"Unexpected error importing map: {e}", exc_info=True)
             _emit_error(context, f"Unexpected error importing map: {e}")
             raise
 

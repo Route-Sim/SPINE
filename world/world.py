@@ -329,6 +329,72 @@ class World:
             },
         }
 
+    def restore_from_state(self, state_data: dict[str, Any]) -> None:
+        """Restore world state from a state snapshot.
+
+        Args:
+            state_data: Dictionary containing complete simulation state
+
+        Raises:
+            ValueError: If state_data is invalid or missing required fields
+        """
+        if not isinstance(state_data, dict):
+            raise ValueError("state_data must be a dictionary")
+
+        # Validate required fields
+        required_fields = ["graph", "agents", "packages", "metadata"]
+        missing_fields = [field for field in required_fields if field not in state_data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+        try:
+            # Restore graph
+            from world.graph.graph import Graph
+
+            self.graph = Graph.from_dict(state_data["graph"])
+
+            # Restore metadata
+            metadata = state_data["metadata"]
+            self.tick = metadata.get("tick", 0)
+            self.dt_s = metadata.get("dt_s", 1.0)
+            self.global_fuel_price = metadata.get("global_fuel_price", DEFAULT_FUEL_PRICE)
+
+            # Clear existing agents and packages
+            self.agents.clear()
+            self.packages.clear()
+
+            # Restore packages
+            for package_data in state_data["packages"]:
+                package = Package.from_dict(package_data)
+                self.packages[package.id] = package
+
+            # Restore agents
+            # Import here to avoid circular import
+            from agents.transports.truck import Truck
+
+            for agent_data in state_data["agents"]:
+                agent_kind = agent_data.get("kind", "")
+
+                if agent_kind == "truck":
+                    # Reconstruct truck agent
+                    truck = Truck.from_dict(agent_data, self)
+                    # Cast to AgentBase for type compatibility (Truck has all required fields/methods)
+                    self.agents[truck.id] = cast("AgentBase", truck)
+                else:
+                    # Unknown agent type - log warning
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Unknown agent type '{agent_kind}' for agent {agent_data.get('id')}. "
+                        f"Skipping agent restoration."
+                    )
+
+            self.emit_event({"type": "state_restored", "tick": self.tick})
+
+        except Exception as e:
+            raise ValueError(f"Failed to restore state: {e}") from e
+
     def _process_sites(self, current_tick: int) -> None:
         """Process all sites for package spawning and expiry checking."""
         # Get all sites from graph nodes

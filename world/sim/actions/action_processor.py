@@ -1,14 +1,17 @@
 """Action processor for executing action requests."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from world.world import World
 
 from ..handlers.base import HandlerContext
-from ..queues import SignalQueue, create_error_signal
 from ..state import SimulationState
 from .action_parser import ActionRequest
 from .action_registry import ActionRegistry
+
+if TYPE_CHECKING:
+    from ..queues import SignalQueue
 
 
 class ActionProcessor:
@@ -19,7 +22,7 @@ class ActionProcessor:
         registry: ActionRegistry,
         state: SimulationState,
         world: World,
-        signal_queue: SignalQueue,
+        signal_queue: "SignalQueue",
         logger: logging.Logger | None = None,
     ) -> None:
         """Initialize the action processor.
@@ -88,6 +91,9 @@ class ActionProcessor:
         Args:
             error_message: Error message to emit
         """
+        # Import here to avoid circular import
+        from ..queues import create_error_signal
+
         try:
             self.signal_queue.put(
                 create_error_signal(error_message, self.state.current_tick), timeout=1.0

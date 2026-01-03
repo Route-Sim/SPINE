@@ -198,29 +198,132 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ---
 
-### 6. ADD_AGENT - Add New Agent
+### 6. simulation.export_state - Export Complete Simulation State
 
-**Purpose**: Add a new agent to the simulation.
+**Purpose**: Export the complete simulation state as a base64-encoded `.ssave` file via WebSocket.
 
-**Action Type**: `add_agent`
+**Action Type**: `simulation.export_state`
 
 **JSON Example**:
 ```json
 {
-  "type": "add_agent",
-  "agent_id": "truck1",
-  "agent_kind": "transport",
-  "agent_data": {
-    "capacity": 1000,
-    "speed": 50,
-    "location": "warehouse1"
+  "action": "simulation.export_state",
+  "params": {
+    "filename": "my_save"
+  }
+}
+```
+
+**Parameters**:
+- `filename` (optional): Custom filename (will automatically add `.ssave` extension if missing). Defaults to "save.ssave"
+
+**Notes**:
+- Can be called at any time (simulation can be running or stopped)
+- Sends complete world state as a base64-encoded JSON file
+- File extension: `.ssave` (SPINE Save)
+- Includes graph structure, all agents with their full state, all packages, and simulation metadata
+- Client receives the base64-encoded file and can save it locally for later restoration
+- Use this for complete simulation snapshots (save/load game functionality)
+
+**Response Signal**: `simulation.state_exported`
+```json
+{
+  "signal": "simulation.state_exported",
+  "data": {
+    "filename": "my_save.ssave",
+    "file_content": "eyJncmFwaCI6e...base64_encoded_json..."
+  }
+}
+```
+
+**Response Fields**:
+- `data.filename`: Name of the save file
+- `data.file_content`: Base64-encoded file content (JSON inside contains graph, agents, packages, metadata)
+
+**Postman Test**:
+1. Send the JSON above (can be done while simulation is running or stopped)
+2. Expect `simulation.state_exported` signal with `filename` and base64-encoded `file_content`
+3. Decode the base64 content to get the JSON state data
+4. Save to a file with `.ssave` extension
+
+---
+
+### 7. simulation.import_state - Import Complete Simulation State
+
+**Purpose**: Import a complete simulation state from a base64-encoded `.ssave` file via WebSocket.
+
+**Action Type**: `simulation.import_state`
+
+**JSON Example**:
+```json
+{
+  "action": "simulation.import_state",
+  "params": {
+    "file_content": "eyJncmFwaCI6e...base64_encoded_json...",
+    "filename": "my_save.ssave"
+  }
+}
+```
+
+**Parameters**:
+- `file_content` (required): Base64-encoded save file content (JSON format inside)
+- `filename` (optional): Filename for logging/tracking purposes. Defaults to "unknown.ssave"
+
+**Notes**:
+- Can be called at any time - if simulation is running, it will be automatically stopped
+- File must be base64-encoded JSON containing complete simulation state (graph, agents, packages, metadata)
+- Replaces the entire world state with the provided data
+- All existing agents, packages, and graph will be cleared and replaced
+- File extension: `.ssave` (SPINE Save)
+- Use this to restore complete simulation snapshots (load game functionality)
+- User must manually start the simulation after import if desired
+
+**Response Signal**: `simulation.state_imported`
+```json
+{
+  "signal": "simulation.state_imported",
+  "data": {
+    "filename": "my_save.ssave"
+  }
+}
+```
+
+**Response Fields**:
+- `data.filename`: Name of the imported save file
+
+**Postman Test**:
+1. Load a `.ssave` file and encode it to base64
+2. Send the JSON above with the base64-encoded content (simulation will stop automatically if running)
+3. Expect `simulation.state_imported` signal confirming successful import with filename
+4. Start simulation manually to verify restored state
+
+---
+
+### 8. ADD_AGENT - Add New Agent
+
+**Purpose**: Add a new agent to the simulation.
+
+**Action Type**: `agent.create`
+
+**JSON Example**:
+```json
+{
+  "action": "agent.create",
+  "params": {
+    "agent_id": "truck1",
+    "agent_kind": "truck",
+    "agent_data": {
+      "capacity_kg": 1000,
+      "speed_kph": 50,
+      "node_id": 1
+    }
   }
 }
 ```
 
 **Parameters**:
 - `agent_id` (required): Unique identifier for the agent
-- `agent_kind` (required): Type of agent ("transport", "building", etc.)
+- `agent_kind` (required): Type of agent ("truck", etc.)
 - `agent_data` (required): Agent-specific properties
 
 **Postman Test**:
@@ -472,67 +575,93 @@ Actions are commands sent from the Frontend to control the simulation.
 
 ### 9. EXPORT_MAP - Export Current Map
 
-**Purpose**: Export the current simulation map to a GraphML file.
+**Purpose**: Export the current simulation map structure as a base64-encoded `.smap` file via WebSocket.
 
-**Action Type**: `export_map`
+**Action Type**: `map.export`
 
 **JSON Example**:
 ```json
 {
-  "type": "export_map",
-  "metadata": {
-    "map_name": "my_custom_map"
+  "action": "map.export",
+  "params": {
+    "filename": "my_map"
   }
 }
 ```
 
 **Parameters**:
-- `metadata` (required): Object containing map information
-  - `map_name` (required): Name for the map file
+- `filename` (optional): Custom filename (will automatically add `.smap` extension if missing). Defaults to "map.smap"
 
 **Notes**:
-- Simulation must be stopped before exporting
-- Map name will be sanitized to prevent path traversal
-- Exports to `/maps/{sanitized_name}.graphml`
-- Fails if file already exists
+- Can be called at any time (simulation can be running or stopped)
+- Sends graph structure (nodes, edges, buildings) as a base64-encoded JSON file
+- File extension: `.smap` (SPINE Map)
+- Does not include agents, packages, or simulation state
+- Client receives the base64-encoded file and can save it locally
+
+**Response Signal**: `map.exported`
+```json
+{
+  "signal": "map.exported",
+  "data": {
+    "filename": "my_map.smap",
+    "file_content": "eyJub2RlcyI6W...base64_encoded_json..."
+  }
+}
+```
 
 **Postman Test**:
-1. Ensure simulation is stopped
-2. Send the JSON above
-3. Expect acknowledgment and map_exported signal
+1. Send the JSON above (can be done while simulation is running or stopped)
+2. Expect `map.exported` signal with `filename` and base64-encoded `file_content`
+3. Decode the base64 content to get the JSON map data
+4. Save to a file with `.smap` extension
 
 ---
 
-### 10. IMPORT_MAP - Import Saved Map
+### 10. IMPORT_MAP - Import Map Structure
 
-**Purpose**: Import a previously saved map from a GraphML file.
+**Purpose**: Import a map structure from a base64-encoded `.smap` file via WebSocket.
 
-**Action Type**: `import_map`
+**Action Type**: `map.import`
 
 **JSON Example**:
 ```json
 {
-  "type": "import_map",
-  "metadata": {
-    "map_name": "my_custom_map"
+  "action": "map.import",
+  "params": {
+    "file_content": "eyJub2RlcyI6W...base64_encoded_json...",
+    "filename": "my_map.smap"
   }
 }
 ```
 
 **Parameters**:
-- `metadata` (required): Object containing map information
-  - `map_name` (required): Name of the map file to import
+- `file_content` (required): Base64-encoded map file content (JSON format inside)
+- `filename` (optional): Filename for logging/tracking purposes. Defaults to "unknown.smap"
 
 **Notes**:
-- Simulation must be stopped before importing
-- Map name will be sanitized
-- Imports from `/maps/{sanitized_name}.graphml`
-- Fails if file doesn't exist
+- Can be called at any time - if simulation is running, it will be automatically stopped
+- File must be base64-encoded JSON containing graph structure (nodes, edges, buildings)
+- Replaces the current graph with the provided structure
+- Does not restore agents, packages, or simulation state
+- File extension: `.smap` (SPINE Map)
+- User must manually start the simulation after import if desired
+
+**Response Signal**: `map.imported`
+```json
+{
+  "signal": "map.imported",
+  "data": {
+    "filename": "my_map.smap"
+  }
+}
+```
 
 **Postman Test**:
-1. Ensure simulation is stopped
-2. Send the JSON above
-3. Expect acknowledgment and map_imported signal
+1. Load a `.smap` file and encode it to base64
+2. Send the JSON above with the base64-encoded content (simulation will stop automatically if running)
+3. Expect `map.imported` signal confirming successful import with filename
+4. Start simulation manually if desired
 
 ---
 
@@ -1195,7 +1324,72 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 11. SIMULATION_TICK_RATE_WARNING - Tick Rate Cannot Be Maintained
+### 11. SIMULATION_STATE_EXPORTED - Complete State Exported
+
+**Purpose**: Provides the complete simulation state as a base64-encoded `.ssave` file via WebSocket.
+
+**Signal**: `simulation.state_exported`
+
+**JSON Example**:
+```json
+{
+  "signal": "simulation.state_exported",
+  "data": {
+    "filename": "my_save.ssave",
+    "file_content": "eyJncmFwaCI6eyJub2RlcyI6W3siaWQiOjEsIngiOjEwMC4wLCJ5IjoyMDAu..."
+  }
+}
+```
+
+**Fields**:
+- `data.filename`: Name of the save file (e.g., "my_save.ssave")
+- `data.file_content`: Base64-encoded JSON file containing complete simulation state
+  - When decoded, contains: `graph`, `agents`, `packages`, `metadata`
+
+**When Received**: After successful simulation.export_state action
+
+**Notes**:
+- File extension: `.ssave` (SPINE Save)
+- Contains everything needed to restore the exact simulation state
+- Client should decode and save the base64 content to a file
+- Use for save/load game functionality
+- The JSON inside the base64 contains:
+  - `graph`: Full graph structure with nodes, edges, and buildings
+  - `agents`: Array of all agents with their complete state
+  - `packages`: Array of all packages in the simulation
+  - `metadata`: Simulation metadata (tick, dt_s, fuel price, etc.)
+
+---
+
+### 12. SIMULATION_STATE_IMPORTED - Complete State Imported
+
+**Purpose**: Confirms that the complete simulation state has been successfully imported.
+
+**Signal**: `simulation.state_imported`
+
+**JSON Example**:
+```json
+{
+  "signal": "simulation.state_imported",
+  "data": {
+    "filename": "my_save.ssave"
+  }
+}
+```
+
+**Fields**:
+- `data.filename`: Name of the imported save file
+
+**When Received**: After successful simulation.import_state action
+
+**Notes**:
+- Confirms that the world state has been completely restored from the `.ssave` file
+- All agents, packages, and graph have been replaced with imported data
+- Simulation can be started after receiving this signal
+
+---
+
+### 13. SIMULATION_TICK_RATE_WARNING - Tick Rate Cannot Be Maintained
 
 **Purpose**: Warns that the simulation cannot maintain the target tick rate due to processing time exceeding available time per tick.
 
@@ -1231,9 +1425,9 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 
 ---
 
-### 12. MAP_EXPORTED - Map Export Confirmation
+### 14. MAP_EXPORTED - Map Structure Exported
 
-**Purpose**: Confirms that a map was successfully exported.
+**Purpose**: Provides the map structure as a base64-encoded `.smap` file via WebSocket.
 
 **Signal**: `map.exported`
 
@@ -1242,21 +1436,34 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 {
   "signal": "map.exported",
   "data": {
-    "map_name": "my_custom_map"
+    "filename": "my_map.smap",
+    "file_content": "eyJub2RlcyI6W3siaWQiOjEsIngiOjEwMC4wLCJ5IjoyMDAuMCwiYnVpbGRpbmdz..."
   }
 }
 ```
 
 **Fields**:
-- `data.map_name`: Name of the exported map
+- `data.filename`: Name of the map file (e.g., "my_map.smap")
+- `data.file_content`: Base64-encoded JSON file containing graph structure
+  - When decoded, contains: `nodes`, `edges`
 
-**When Received**: After successful map export
+**When Received**: After successful map.export action
+
+**Notes**:
+- File extension: `.smap` (SPINE Map)
+- Contains only the graph structure (nodes, edges, buildings)
+- Does not include agents, packages, or simulation state
+- Client should decode and save the base64 content to a file
+- Use for map-only save/load (without simulation state)
+- The JSON inside the base64 contains:
+  - `nodes`: Array of node objects with positions and buildings
+  - `edges`: Array of edge objects connecting nodes
 
 ---
 
-### 13. MAP_IMPORTED - Map Import Confirmation
+### 15. MAP_IMPORTED - Map Structure Imported
 
-**Purpose**: Confirms that a map was successfully imported.
+**Purpose**: Confirms that the map structure has been successfully imported.
 
 **Signal**: `map.imported`
 
@@ -1265,19 +1472,24 @@ Signals are updates sent from the Backend to inform the Frontend about simulatio
 {
   "signal": "map.imported",
   "data": {
-    "map_name": "my_custom_map"
+    "filename": "my_map.smap"
   }
 }
 ```
 
 **Fields**:
-- `data.map_name`: Name of the imported map
+- `data.filename`: Name of the imported map file
 
-**When Received**: After successful map import
+**When Received**: After successful map.import action
+
+**Notes**:
+- Confirms that the graph structure has been replaced with imported data from the `.smap` file
+- Does not restore agents, packages, or simulation state
+- Simulation can be started after receiving this signal
 
 ---
 
-### 12. MAP_CREATED - Map Generation Confirmation
+### 16. MAP_CREATED - Map Generation Confirmation
 
 **Purpose**: Confirms that a procedural map was successfully generated with hierarchical structure.
 

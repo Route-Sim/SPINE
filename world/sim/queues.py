@@ -23,6 +23,8 @@ class ActionType(str, Enum):
     PAUSE = "simulation.pause"
     RESUME = "simulation.resume"
     UPDATE_SIMULATION = "simulation.update"
+    EXPORT_STATE = "simulation.export_state"
+    IMPORT_STATE = "simulation.import_state"
     ADD_AGENT = "agent.create"
     DELETE_AGENT = "agent.delete"
     MODIFY_AGENT = "agent.update"
@@ -51,6 +53,8 @@ class SignalType(str, Enum):
     SIMULATION_RESUMED = "simulation.resumed"
     SIMULATION_UPDATED = "simulation.updated"
     SIMULATION_TICK_RATE_WARNING = "simulation.tick_rate_warning"
+    SIMULATION_STATE_EXPORTED = "simulation.state_exported"
+    SIMULATION_STATE_IMPORTED = "simulation.state_imported"
     MAP_EXPORTED = "map.exported"
     MAP_IMPORTED = "map.imported"
     MAP_CREATED = "map.created"
@@ -267,14 +271,66 @@ def create_list_agents_action(agent_kind: str | None = None) -> ActionRequest:
     return _create_action(ActionType.LIST_AGENTS, params)
 
 
-def create_export_map_action(map_name: str) -> ActionRequest:
-    """Create an export map action."""
-    return _create_action(ActionType.EXPORT_MAP, {"map_name": map_name})
+def create_export_map_action(filename: str | None = None) -> ActionRequest:
+    """Create an export map action (exports base64-encoded map file via WebSocket).
+
+    Args:
+        filename: Optional custom filename (will add .smap extension if missing)
+
+    Returns:
+        ActionRequest for map.export action
+    """
+    params: dict[str, Any] = {}
+    if filename is not None:
+        params["filename"] = filename
+    return _create_action(ActionType.EXPORT_MAP, params)
 
 
-def create_import_map_action(map_name: str) -> ActionRequest:
-    """Create an import map action."""
-    return _create_action(ActionType.IMPORT_MAP, {"map_name": map_name})
+def create_import_map_action(file_content: str, filename: str | None = None) -> ActionRequest:
+    """Create an import map action with base64-encoded map file.
+
+    Args:
+        file_content: Base64-encoded map file content
+        filename: Optional filename for logging/tracking
+
+    Returns:
+        ActionRequest for map.import action
+    """
+    params: dict[str, Any] = {"file_content": file_content}
+    if filename is not None:
+        params["filename"] = filename
+    return _create_action(ActionType.IMPORT_MAP, params)
+
+
+def create_export_state_action(filename: str | None = None) -> ActionRequest:
+    """Create an export simulation state action (exports base64-encoded save file).
+
+    Args:
+        filename: Optional custom filename (will add .ssave extension if missing)
+
+    Returns:
+        ActionRequest for simulation.export_state action
+    """
+    params: dict[str, Any] = {}
+    if filename is not None:
+        params["filename"] = filename
+    return _create_action(ActionType.EXPORT_STATE, params)
+
+
+def create_import_state_action(file_content: str, filename: str | None = None) -> ActionRequest:
+    """Create an import simulation state action with base64-encoded save file.
+
+    Args:
+        file_content: Base64-encoded save file content
+        filename: Optional filename for logging/tracking
+
+    Returns:
+        ActionRequest for simulation.import_state action
+    """
+    params: dict[str, Any] = {"file_content": file_content}
+    if filename is not None:
+        params["filename"] = filename
+    return _create_action(ActionType.IMPORT_STATE, params)
 
 
 # Convenience functions for creating common signals
@@ -432,17 +488,64 @@ def create_simulation_tick_rate_warning_signal(
     )
 
 
-def create_map_exported_signal(map_name: str) -> Signal:
-    """Create a map exported signal."""
+def create_simulation_state_exported_signal(filename: str, file_content: str) -> Signal:
+    """Create a simulation state exported signal with base64-encoded save file.
+
+    Args:
+        filename: Name of the save file (e.g., "save.ssave")
+        file_content: Base64-encoded save file content
+
+    Returns:
+        Signal with simulation.state_exported type containing the file data
+    """
     return Signal(
-        signal=signal_type_to_string(SignalType.MAP_EXPORTED), data={"map_name": map_name}
+        signal=signal_type_to_string(SignalType.SIMULATION_STATE_EXPORTED),
+        data={"filename": filename, "file_content": file_content},
     )
 
 
-def create_map_imported_signal(map_name: str) -> Signal:
-    """Create a map imported signal."""
+def create_simulation_state_imported_signal(filename: str) -> Signal:
+    """Create a simulation state imported signal (confirms successful import).
+
+    Args:
+        filename: Name of the imported save file
+
+    Returns:
+        Signal with simulation.state_imported type
+    """
     return Signal(
-        signal=signal_type_to_string(SignalType.MAP_IMPORTED), data={"map_name": map_name}
+        signal=signal_type_to_string(SignalType.SIMULATION_STATE_IMPORTED),
+        data={"filename": filename},
+    )
+
+
+def create_map_exported_signal(filename: str, file_content: str) -> Signal:
+    """Create a map exported signal with base64-encoded map file.
+
+    Args:
+        filename: Name of the map file (e.g., "map.smap")
+        file_content: Base64-encoded map file content
+
+    Returns:
+        Signal with map.exported type containing the file data
+    """
+    return Signal(
+        signal=signal_type_to_string(SignalType.MAP_EXPORTED),
+        data={"filename": filename, "file_content": file_content},
+    )
+
+
+def create_map_imported_signal(filename: str) -> Signal:
+    """Create a map imported signal (confirms successful import).
+
+    Args:
+        filename: Name of the imported map file
+
+    Returns:
+        Signal with map.imported type
+    """
+    return Signal(
+        signal=signal_type_to_string(SignalType.MAP_IMPORTED), data={"filename": filename}
     )
 
 
