@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.0](https://github.com/Route-Sim/backend/compare/v0.35.0...v0.36.0) (2026-01-03)
+
+
+### 🚀 Features
+
+* **simulation, websocket:** implement WebSocket-based export/import for simulation and map states ([524f08e](https://github.com/Route-Sim/backend/commit/524f08e8b75eb4591f2164195de7a8f4aefe846d))
+
 ## [0.35.0](https://github.com/Route-Sim/backend/compare/v0.34.0...v0.35.0) (2025-12-16)
 
 
